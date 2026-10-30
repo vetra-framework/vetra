@@ -15,6 +15,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
 | [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
+| [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | proposto |
 | [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | proposto |
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
