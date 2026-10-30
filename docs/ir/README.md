@@ -1,7 +1,8 @@
 # Representação intermediária do Grafo da Aplicação
 
-Contrato **proposto** pelo [ADR-001](../adr/001-grafo-da-aplicacao-e-ir.md), anterior à fase 0. Estes
-arquivos especificam dados; o compilador, o runtime e os comandos `vetra graph:*` ainda não existem.
+Contrato **proposto** pelo [ADR-001](../adr/001-grafo-da-aplicacao-e-ir.md). Estes arquivos especificam
+dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL e implementa
+`graph:build`, `graph:check` e `graph:validate`; o runtime continua pendente.
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -37,6 +38,13 @@ schema exato distribuído localmente. Uma MENOR futura não é ignorada. As mesm
 
 ## Verificação documental
 
+O validador Ruby confere estas fixtures sem tentar ler seus fontes ilustrativos:
+
+```sh
+bundle exec bin/vetra graph:validate docs/ir/exemplos/blog.v0.1.json
+bundle exec bin/vetra graph:validate docs/ir/exemplos/mini-crm.v0.1.json
+```
+
 Com Python e os pacotes `jsonschema` e `rfc8785` disponíveis como ferramentas de documentação, executar
 na raiz do repositório:
 
@@ -65,6 +73,7 @@ PY
 Isso valida o schema e os digests documentais; não verifica arquivos de origem inexistentes nem executa
 a validação semântica do futuro compilador. Python não é uma dependência do framework Ruby.
 
-A suíte da fase 0 deverá acrescentar os casos de aceitação do ADR, incluindo recusa de versões futuras,
-propriedades desconhecidas, referências quebradas, defaults protegidos, fonte alterada e perda de cache.
-As garantias de RLS, transação e live continuam dependendo das implementações e dos testes de seus ADRs.
+A suíte Ruby cobre recusa de versões futuras, propriedades desconhecidas, referências quebradas, defaults
+protegidos e fonte alterada, entre outros casos. Isso ainda é cobertura parcial dos critérios do ADR;
+o [escopo da fase 0](../fase-0.md) registra as limitações. As garantias de RLS, transação e live continuam
+dependendo das implementações e dos testes de seus ADRs.

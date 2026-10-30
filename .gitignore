@@ -4,3 +4,8 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+.bundle/
+vendor/bundle/
+pkg/
+coverage/
+.vetra/cache/

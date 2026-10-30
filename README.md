@@ -9,8 +9,9 @@
   Framework web em Ruby 4, exclusivo para PostgreSQL, que trata a aplicação como um modelo verificável.
 </p>
 
-> **Status: em design.** Este repositório contém a proposta técnica e os exemplos de sintaxe.
-> Nada foi implementado nem medido ainda; a sintaxe mostrada nos documentos é proposta e não existe.
+> **Status: protótipo da fase 0.** Há um compilador experimental do DSL Ruby para a IR 0.1, validação e
+> testes. O runtime web, a persistência e os demais componentes continuam em design; os PDFs incluem
+> sintaxe futura que o protótipo ainda não suporta. Não há medições de produção.
 
 ## A ideia
 
@@ -43,6 +44,7 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 
 | Documento | Conteúdo |
 |---|---|
+| [Protótipo da fase 0](docs/fase-0.md) | Como executar, DSL implementado, testes e limites atuais |
 | [Proposta técnica](docs/proposta-tecnica.pdf) | Tese, os nove pilares, arquitetura, ADRs, roadmap, riscos e métricas |
 | [Exemplo 1: Mini CRM](docs/exemplos/01-mini-crm.pdf) | Multiempresa com RLS, comando e evento, comparado ao Rails 8.1 |
 | [Exemplo 2: Blog](docs/exemplos/02-blog.pdf) | O caso simples, sem multiempresa, com UI no servidor |
@@ -56,10 +58,29 @@ As decisões detalhadas estão no [índice de ADRs](docs/adr/README.md), ainda c
 [IR 0.1, com schema e exemplos](docs/ir/README.md), antes do protótipo da fase 0. Os PDFs preservam o
 histórico da proposta; os ADRs desenvolvem as decisões posteriores.
 
+## Executar o protótipo
+
+Com Ruby 4.0.9 e Bundler, na raiz do repositório:
+
+```sh
+bundle install
+bundle exec rake test
+bundle exec bin/vetra graph:build --root examples/blog
+bundle exec bin/vetra graph:check --root examples/blog
+bundle exec bin/vetra graph:validate --root examples/blog --sources
+```
+
+Há também um exemplo multiempresa em `examples/mini_crm`. Os comandos geram e verificam o grafo;
+as operações de negócio ainda não são executadas. Veja o [escopo atual](docs/fase-0.md).
+
 ## Estrutura do repositório
 
 ```
 .
+├── bin/vetra              # CLI do compilador
+├── lib/vetra/             # DSL, normalização e validação
+├── test/                  # testes do compilador e da CLI
+├── examples/              # blog e mini CRM compiláveis
 ├── docs/
 │   ├── proposta-tecnica.pdf
 │   ├── revisoes.pdf

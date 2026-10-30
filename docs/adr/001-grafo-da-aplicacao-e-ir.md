@@ -315,8 +315,9 @@ com antes/depois, sem classificar como adição segura. Mudanças só de origem/
 11. Com Ractors ativos, a cópia de dados é profundamente congelada/compartilhável; o núcleo também passa
     com a extensão desligada.
 
-São critérios para implementar, **não resultados já obtidos**. Validar schemas/fixtures documentais não
-comprova o compilador, o RLS ou o runtime ainda inexistentes.
+São critérios de aceitação, **não uma declaração de que a fase 0 foi concluída**. O
+[primeiro protótipo](../fase-0.md) cobre parte deles; a validação do schema e os testes atuais não
+comprovam uma implementação integral do compilador, do RLS ou do runtime.
 
 ## Questões em aberto que não bloqueiam a fase 0
 
