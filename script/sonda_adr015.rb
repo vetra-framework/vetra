@@ -40,6 +40,23 @@ def filenode(conn, table)
   conn.exec_params("SELECT pg_relation_filenode($1::regclass)::text", [table]).getvalue(0, 0)
 end
 
+# Varreduras sequenciais da tabela segundo as estatísticas do servidor. O que a sonda quer saber é se a operação
+# varre a tabela; o tempo só acompanha e oscila com checkpoint, autovacuum e a carga da máquina, então não decide
+# o veredito. pg_stat_force_next_flush() grava as estatísticas pendentes da sessão antes de a leitura seguinte.
+def seq_scans(conn, table)
+  conn.exec("SELECT pg_stat_force_next_flush()")
+  conn.exec_params("SELECT seq_scan FROM pg_stat_user_tables WHERE relname = $1", [table]).getvalue(0, 0).to_i
+end
+
+# Executa o bloco e devolve [varreduras da tabela, segundos].
+def scanned(conn, table)
+  before = seq_scans(conn, table)
+  t0 = clock
+  yield
+  elapsed = clock - t0
+  [seq_scans(conn, table) - before, elapsed]
+end
+
 # Executa o DDL numa transação, lê os locks de tabela da sessão e desfaz tudo.
 def strongest_locks(conn, sql)
   conn.exec("BEGIN")
@@ -153,29 +170,25 @@ check("ALTER COLUMN TYPE int -> bigint reescreve a tabela") do
   conn.exec("ALTER TABLE #{FILHO} ALTER COLUMN v TYPE bigint")
   [filenode(conn, FILHO) != before, "filenode mudou: #{filenode(conn, FILHO) != before}"]
 end
-check("SET NOT NULL com CHECK validado é muito mais rápido que sem ele") do
+check("SET NOT NULL varre a tabela sem CHECK validado e não varre com ele") do
   conn.exec("ALTER TABLE #{FILHO} ADD COLUMN a int, ADD COLUMN b int")
   conn.exec("UPDATE #{FILHO} SET a = 1, b = 1")
   conn.exec("ANALYZE #{FILHO}")
-  t0 = clock
-  conn.exec("ALTER TABLE #{FILHO} ALTER COLUMN a SET NOT NULL")
-  sem = clock - t0
+  varre_sem, sem = scanned(conn, FILHO) { conn.exec("ALTER TABLE #{FILHO} ALTER COLUMN a SET NOT NULL") }
   conn.exec("ALTER TABLE #{FILHO} ADD CONSTRAINT vetra_sonda_b CHECK (b IS NOT NULL) NOT VALID")
   conn.exec("ALTER TABLE #{FILHO} VALIDATE CONSTRAINT vetra_sonda_b")
-  t0 = clock
-  conn.exec("ALTER TABLE #{FILHO} ALTER COLUMN b SET NOT NULL")
-  com = clock - t0
-  [com < sem / 3, "sem CHECK: #{(sem * 1000).round} ms; com CHECK validado: #{(com * 1000).round} ms"]
+  varre_com, com = scanned(conn, FILHO) { conn.exec("ALTER TABLE #{FILHO} ALTER COLUMN b SET NOT NULL") }
+  [varre_sem.positive? && varre_com.zero?,
+   "sem CHECK: #{varre_sem} varredura(s), #{(sem * 1000).round} ms; com CHECK validado: #{varre_com} varredura(s), #{(com * 1000).round} ms"]
 end
 check("ADD FOREIGN KEY NOT VALID não varre a tabela; VALIDATE varre") do
   conn.exec("ALTER TABLE #{FILHO} DROP CONSTRAINT IF EXISTS vetra_sonda_fk")
-  t0 = clock
-  conn.exec("ALTER TABLE #{FILHO} ADD CONSTRAINT vetra_sonda_fk FOREIGN KEY (pai_id) REFERENCES #{PAI} (id) NOT VALID")
-  rapido = clock - t0
-  t0 = clock
-  conn.exec("ALTER TABLE #{FILHO} VALIDATE CONSTRAINT vetra_sonda_fk")
-  lento = clock - t0
-  [rapido < lento / 3, "NOT VALID: #{(rapido * 1000).round} ms; VALIDATE: #{(lento * 1000).round} ms"]
+  varre_rapido, rapido = scanned(conn, FILHO) do
+    conn.exec("ALTER TABLE #{FILHO} ADD CONSTRAINT vetra_sonda_fk FOREIGN KEY (pai_id) REFERENCES #{PAI} (id) NOT VALID")
+  end
+  varre_lento, lento = scanned(conn, FILHO) { conn.exec("ALTER TABLE #{FILHO} VALIDATE CONSTRAINT vetra_sonda_fk") }
+  [varre_rapido.zero? && varre_lento.positive?,
+   "NOT VALID: #{varre_rapido} varredura(s), #{(rapido * 1000).round} ms; VALIDATE: #{varre_lento} varredura(s), #{(lento * 1000).round} ms"]
 end
 
 # Fila de locks: um DDL à espera bloqueia as leituras que chegam depois dele.
