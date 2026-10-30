@@ -221,4 +221,5 @@ Isolamento entre empresas: **transacional** (RLS) e **verificável por testes**.
 - Modelo de escopos com vínculos múltiplos (usuário em várias unidades e empresas) e seu custo em política.
 - Relatórios consolidados entre tenants: ADR separado.
 - Permissões vindas de fora do banco (SSO) e como geram revisão de autorização: ADR-020.
-- Versão mínima do PostgreSQL: este ADR já exige 15 ou superior (`security_invoker`); `xid8` pede 13 ou superior.
+- Versão mínima do PostgreSQL: fixada em 17 pelo ADR-002. Os recursos deste ADR começam antes (`security_invoker`
+  pede 15 ou superior; `xid8`, 13 ou superior).
