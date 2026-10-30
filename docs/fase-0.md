@@ -18,15 +18,21 @@ bundle exec bin/vetra graph:validate --root examples/blog --sources
 bundle exec bin/vetra graph:build --root examples/mini_crm
 bundle exec bin/vetra graph:check --root examples/mini_crm
 bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
+bundle exec bin/vetra graph:build --root examples/mini_crm_revendas
+bundle exec bin/vetra graph:check --root examples/mini_crm_revendas
+bundle exec bin/vetra graph:validate --root examples/mini_crm_revendas --sources
 bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog
 bundle exec bin/vetra graph:link --root examples/blog
 bundle exec bin/vetra graph:link --root examples/mini_crm
+bundle exec bin/vetra graph:link --root examples/mini_crm_revendas
 ```
 
-Os dois diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
+Os diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
 e versionado. São recortes sem autenticação, UI ou persistência: o blog demonstra escopo do autor e
-publicação; o CRM demonstra tenant, dinheiro, transição e um handler declarado. Revendas e usuários
-persistidos do PDF ficam para incrementos posteriores.
+publicação; o CRM demonstra tenant, dinheiro, transição e um handler declarado; o `mini_crm_revendas`
+reproduz o exemplo da proposta com revendas, vendedores e papéis por vínculo
+(veja [escopo por vínculo](#escopo-por-vínculo)). Cadastro, login e persistência de usuários e
+vínculos continuam fora: as entidades são declaradas à mão, e não geradas por `auth`.
 
 | Comando | Comportamento |
 |---|---|
@@ -49,12 +55,12 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
 - `Vetra.app`, com `tenant`, `currency` e `locale`.
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
 - `entity`, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
-  `belongs_to`, incluindo chaves compostas para `same_tenant`.
+  `belongs_to`, incluindo chaves compostas para `same_tenant`, e `has_many` como inverso de um `belongs_to`.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
   repositórios e rotas HTTP. Ainda não existe execução dessas primitivas.
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
-  `author`, `owner` e `seller` comparados com `actor.id`; o escopo por vínculos de revenda não está implementado.
+  `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
 - `command` e `query`, com `input`, `returns :entidade`, `authorize`, `uses`, `call`, `unsafe_effect` e
   `expose http:`. `returns` é explícito porque não se infere retorno de Ruby arbitrário.
 - `event`, com projeção de campos, visibilidade e exigência de consumidor; `emits` pode inferir o evento
@@ -69,7 +75,7 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 `graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI,
-MCP, workflows, consultas live, relações muitos-para-muitos no DSL, metadados de dependências por gem,
+MCP, workflows, consultas live, relações muitos-para-muitos no DSL, `auth` e geração de usuários/vínculos, metadados de dependências por gem,
 SQL explícito e políticas baseadas em atributos materializados do ator além de `id`. O schema 0.1 possui
 algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
 
@@ -79,6 +85,57 @@ determinísticas; chamadas explícitas a constantes Ruby podem escapar da API. A
 capacidades nomeadas. Não resolve fluxo de dados, aliases, helpers arbitrários, gems ou todos os efeitos
 transitivos. `analysis.status: complete` só significa que esse analisador limitado não encontrou uma
 construção dinâmica conhecida. Não constitui prova de pureza ou segurança.
+
+## Escopo por vínculo
+
+`roles scope: :dealer` (ou `crud scope: :dealer`) restringe um papel às revendas em que o ator tem vínculo
+com aquele papel. O vínculo é uma entidade comum, declarada pela aplicação, que aponta ao escopo e ao ator
+e guarda o papel num `enum`:
+
+```ruby
+entity :membership do
+  tenant :company
+  belongs_to :user, same_tenant: true
+  belongs_to :dealer, same_tenant: true
+  enum :role, %w[vendedor gerente]
+  memberships of: :dealer, actor: :user, role: :role
+end
+
+entity :dealer do
+  tenant :company
+  string :name, required: true
+  has_many :memberships, entity: :membership, by: :dealer
+end
+```
+
+O compilador não acrescenta nenhum conceito à IR 0.1. O escopo vira um predicado `exists` já existente,
+percorrendo as relações do registro até o vínculo, e `reads` passa a incluir a revenda e o vínculo:
+
+```json
+{"op":"exists","relation":["dealer","memberships"],
+ "where":{"op":"and","terms":[
+   {"op":"eq","left":{"kind":"field","path":["user_id"]},"right":{"kind":"actor","path":["id"]}},
+   {"op":"eq","left":{"kind":"field","path":["role"]},"right":{"kind":"literal","value":"vendedor"}}]}}
+```
+
+- O nome do papel (`:vendedor`) é o valor comparado: ele precisa constar no `enum` do vínculo, e um papel
+  anônimo não pode ter escopo por vínculo.
+- `has_many` não declara chave própria: usa a de um `belongs_to` da entidade de destino, indicado por
+  `by:`, e é recusado quando ele não existe (`relation_inverse`). O validador da IR confere o mesmo.
+- O registro precisa alcançar a revenda por um `belongs_to` com o nome do escopo; a própria entidade do
+  escopo também pode receber permissões (`can :read, on: :dealer`). Para um papel sem escopo numa
+  declaração `roles scope:`, use `scope: nil` (acesso dentro do tenant).
+- `memberships` declarado em duas entidades para o mesmo escopo, relação ausente, enum ausente ou
+  anulável e escopo sem declaração são erros de compilação, nunca um predicado mais permissivo.
+- Cada papel gera as próprias políticas, com o próprio valor de `role` no predicado. O compilador não
+  define hierarquia entre papéis (gerente não implica vendedor) nem como as políticas de um ator com mais
+  de um papel se combinam: isso é do motor de autorização, que ainda não existe. O exemplo impede
+  vínculos repetidos com um índice único em usuário, revenda e papel.
+- Os escopos `author`, `owner` e `seller` continuam comparando o campo com `actor.id` quando não há
+  `memberships` para o nome.
+
+A tradução em RLS não existe ainda: o ADR-005 prevê políticas SQL geradas para esse escopo, que dependem do
+Vetra Data. O predicado é o contrato que essa geração vai consumir.
 
 ## Integridade e limites
 

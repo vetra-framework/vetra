@@ -144,19 +144,18 @@ module Vetra
 
       def entity_artifacts(entry)
         node = @entities.fetch(entry['id'])
-        tenant = node['tenant']
         entry['relations'].each do |relation|
           target_id = entity_id(relation['target'], entry['domain'], entry)
           target = @entities.fetch(target_id)
-          local = ["#{relation['name']}_id"]
-          remote = ['id']
-          if relation['same_tenant']
-            fail!('same_tenant', 'same_tenant exige duas entidades com o mesmo tenant.', entry) unless tenant && target['tenant'] == tenant
-            local.unshift(tenant['field'])
-            remote.unshift(tenant['field'])
+          if relation['kind'] == 'has_many'
+            local, remote, same_tenant = inverse_keys(entry, relation, target_id, target)
+          else
+            local, remote = foreign_keys(node, relation, target, entry)
+            same_tenant = relation['same_tenant']
           end
-          node['relations'] << relation.slice('name', 'kind', 'same_tenant').merge('target' => Data.reference('entity', target_id), 'local_fields' => local, 'target_fields' => remote)
+          node['relations'] << relation.slice('name', 'kind').merge('same_tenant' => same_tenant, 'target' => Data.reference('entity', target_id), 'local_fields' => local, 'target_fields' => remote)
         end
+        check_memberships(entry, node) if entry['memberships']
         repository = entry['options'].fetch(:repository, plural(entry['id'].split('.').last)).to_s
         %w[read read_write].each do |access|
           suffix = access == 'read' ? '_read' : ''
@@ -168,6 +167,47 @@ module Vetra
         contract = add(base(entry, 'contract', "#{entry['id']}.record", generated: true).merge('fields' => output_fields(node['fields'])))
         @entities[entry['id']]['_contract'] = contract['id']
         crud(entry) if entry['crud']
+      end
+
+      def foreign_keys(owner, relation, target, entry)
+        local = ["#{relation['name']}_id"]
+        remote = ['id']
+        if relation['same_tenant']
+          tenant = owner['tenant']
+          fail!('same_tenant', 'same_tenant exige duas entidades com o mesmo tenant.', entry) unless tenant && target['tenant'] == tenant
+          local.unshift(tenant['field'])
+          remote.unshift(tenant['field'])
+        end
+        [local, remote]
+      end
+
+      # A has_many only mirrors a belongs_to of the target: both sides must share
+      # one key, so the inverse is derived from it instead of declared twice.
+      def inverse_keys(entry, relation, target_id, target)
+        target_entry = raw('entity').find { |item| item['id'] == target_id }
+        inverse = target_entry['relations'].find do |item|
+          item['kind'] == 'belongs_to' && item['name'] == relation['by'] && entity_id(item['target'], target_entry['domain'], target_entry) == entry['id']
+        end
+        unless inverse
+          fail!('relation_inverse', "has_many #{relation['name']} exige belongs_to :#{relation['by']} em #{target_id} apontando para #{entry['id']}.", entry)
+        end
+        local, remote = foreign_keys(target, inverse, @entities.fetch(entry['id']), target_entry)
+        [remote, local, inverse['same_tenant']]
+      end
+
+      def check_memberships(entry, node)
+        config = entry['memberships']
+        if raw('entity').any? { |item| !item.equal?(entry) && item.dig('memberships', 'of') == config['of'] }
+          fail!('memberships_ambiguous', "Mais de uma entidade declara memberships of: :#{config['of']}.", entry)
+        end
+        links = node['relations'].select { |relation| relation['kind'] == 'belongs_to' && [config['of'], config['actor']].include?(relation['name']) }
+        unless links.map { |relation| relation['name'] }.uniq.size == 2
+          fail!('memberships_relation', "memberships exige belongs_to :#{config['of']} e belongs_to :#{config['actor']}, distintos, na própria entidade.", entry)
+        end
+        role = node['fields'].find { |value| value['name'] == config['role'] }
+        unless role && role.dig('type', 'name') == 'enum' && !role['nullable']
+          fail!('memberships_role', "memberships exige o enum não nulo #{config['role']} com os papéis do escopo.", entry)
+        end
       end
 
       def output_fields(fields)
@@ -232,10 +272,15 @@ module Vetra
           predicate = where(permission['where'], target, reads, entry)
           scope = permission['scope'] || @raw.find { |raw| raw['kind'] == 'entity' && raw['id'] == target_id }&.dig('crud', 'scope')
           if scope
-            unless %w[author owner seller].include?(scope) && target['fields'].any? { |value| value['name'] == "#{scope}_id" }
-              fail!('scope_unsupported', 'O protótipo suporta scope de author/owner/seller por actor.id; escopos de vínculos exigem um próximo incremento.', entry)
+            holder = raw('entity').select { |item| item.dig('memberships', 'of') == scope }
+            fail!('memberships_ambiguous', "Mais de uma entidade declara memberships of: :#{scope}.", entry) if holder.size > 1
+            scoped = if holder.first
+              membership_scope(entry, target, holder.first, reads)
+            elsif %w[author owner seller].include?(scope) && target['fields'].any? { |value| value['name'] == "#{scope}_id" }
+              { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ["#{scope}_id"] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
+            else
+              fail!('scope_unsupported', "Escopo #{scope} desconhecido: use author/owner/seller por actor.id ou declare memberships of: :#{scope} em uma entidade de vínculo.", entry)
             end
-            scoped = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ["#{scope}_id"] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
             predicate = predicate['op'] == 'true' ? scoped : { 'op' => 'and', 'terms' => [predicate, scoped] }
           end
           add(base(entry, 'policy', "#{entry['id']}.permission_#{i + 1}", generated: true).merge(
@@ -243,6 +288,41 @@ module Vetra
             'actions' => actions.uniq, 'fields' => permission['fields'], 'predicate' => predicate, 'reads' => reads.uniq
           ))
         end
+      end
+
+      # The actor reaches the scope through its memberships: the record (or the
+      # scope entity itself) must have a membership of the actor with this role.
+      def membership_scope(entry, target, declaration, reads)
+        fail!('scope_anonymous', 'Papel anônimo não tem vínculo; declare o escopo em um papel autenticado.', entry) if entry['anonymous']
+        config = declaration['memberships']
+        holder = @entities.fetch(declaration['id'])
+        role_name = entry['id'].split('.').last
+        role_values = holder['fields'].find { |value| value['name'] == config['role'] }.dig('type', 'values')
+        unless role_values.include?(role_name)
+          fail!('memberships_role', "O papel #{role_name} não consta em #{holder['id']}.#{config['role']} (#{role_values.join(', ')}).", entry)
+        end
+        link = holder['relations'].find { |relation| relation['kind'] == 'belongs_to' && relation['name'] == config['of'] }
+        scope_id = link.dig('target', 'id')
+        inverses = @entities.fetch(scope_id)['relations'].select do |relation|
+          relation['kind'] == 'has_many' && relation.dig('target', 'id') == holder['id'] && relation['target_fields'] == link['local_fields']
+        end
+        unless inverses.size == 1
+          fail!('scope_inverse', "Declare exatamente um has_many para #{holder['id']} (by: :#{config['of']}) em #{scope_id}.", entry)
+        end
+        path = [inverses.first['name']]
+        unless target['id'] == scope_id
+          hop = target['relations'].find { |relation| relation['kind'] == 'belongs_to' && relation['name'] == config['of'] && relation.dig('target', 'id') == scope_id }
+          fail!('scope_unsupported', "#{target['id']} não declara belongs_to :#{config['of']} para #{scope_id}.", entry) unless hop
+          path.unshift(hop['name'])
+        end
+        reads.push(Data.reference('entity', scope_id), Data.reference('entity', holder['id']))
+        {
+          'op' => 'exists', 'relation' => path,
+          'where' => { 'op' => 'and', 'terms' => [
+            { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ["#{config['actor']}_id"] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } },
+            { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => [config['role']] }, 'right' => { 'kind' => 'literal', 'value' => role_name } }
+          ] }
+        }
       end
 
       def where(values, target, reads, entry)
