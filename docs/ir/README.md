@@ -12,7 +12,8 @@ dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL 
 
 Os exemplos têm envelope completo e referências resolvíveis, mas são **recortes didáticos**, não a
 compilação dos PDFs: omitem CRUD completo, revendas, autenticação, UI e demais entidades. O CRM usa um
-papel com acesso dentro do tenant; o escopo por revenda do exemplo da proposta não está reproduzido.
+papel com acesso dentro do tenant; o escopo por revenda do exemplo da proposta não está reproduzido aqui, mas
+`examples/mini_crm_revendas/.vetra/graph.json` o compila com a IR 0.1 (veja o [escopo por vínculo](../fase-0.md#escopo-por-vínculo)).
 O blog demonstra publicação com um evento explícito adicional. Não há fontes Ruby executáveis anexas.
 
 Os digests de arquivos em `inputs` e `implementation` são placeholders de 64 zeros; `source.line: 1` e

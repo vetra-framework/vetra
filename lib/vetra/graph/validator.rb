@@ -236,6 +236,12 @@ module Vetra
           if relation['kind'] == 'many_to_many' && !relation['through']
             issue("relation_join", "Relação muitos-para-muitos exige entidade de junção.", node, suffix: "/relations/#{index}")
           end
+          if relation['kind'] == 'has_many'
+            inverse = target['relations'].any? do |other|
+              other['kind'] == 'belongs_to' && other.dig('target', 'id') == node['id'] && other['local_fields'] == relation['target_fields'] && other['target_fields'] == relation['local_fields']
+            end
+            issue("relation_inverse", "has_many exige o belongs_to inverso, com a mesma chave, na entidade de destino.", node, suffix: "/relations/#{index}") unless inverse
+          end
         end
         names = node['indexes'].map { |index| index['name'] }
         issue("duplicate_index", "Índices devem ter nomes únicos.", node) unless names.uniq == names

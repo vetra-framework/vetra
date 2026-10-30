@@ -180,6 +180,15 @@ module Vetra
           @attributes["relations"] << { "name" => name.to_s, "target" => entity.to_s, "kind" => "belongs_to", "same_tenant" => same_tenant }
         end
 
+        def has_many(name, entity:, by:)
+          @attributes["relations"] << { "name" => name.to_s, "target" => entity.to_s, "kind" => "has_many", "by" => by.to_s, "same_tenant" => false }
+        end
+
+        def memberships(of:, actor:, role:)
+          error("duplicate_memberships", "Declare memberships uma única vez por entidade.") if @attributes.key?("memberships")
+          @attributes["memberships"] = { "of" => of.to_s, "actor" => actor.to_s, "role" => role.to_s }
+        end
+
         def index(*names, unique: false)
           @attributes["indexes"] << { "fields" => names.map(&:to_s), "unique" => unique }
         end

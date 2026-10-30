@@ -10,6 +10,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 |---|---|---|
 | [001](001-grafo-da-aplicacao-e-ir.md) | Grafo da Aplicação compilado em IR versionada | proposto |
 | [002](002-somente-postgresql.md) | Somente PostgreSQL | proposto |
+| [003](003-sequel-e-camada-fina-de-repositorios.md) | Sequel com camada fina de repositórios | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
@@ -27,8 +28,9 @@ Ainda não cobre todos os critérios do ADR-001. Execução das operações, pri
 transacionais continuam pendentes.
 
 **Próximo passo:** fechar as lacunas declarativas e os critérios restantes da fase 0 com os exemplos da
-proposta. Antes da persistência, escrever o ADR-003 (Sequel sobre PostgreSQL). Os demais ADRs restantes
-(006, 007, 009 a 015, 017 a 019) seguem as dependências do roadmap, antes dos respectivos componentes.
+proposta. Os ADRs restantes (006, 007, 009 a 015, 017 a 019) seguem as dependências do roadmap, antes dos
+respectivos componentes. O ADR-003 fixa a camada de dados; a persistência ainda exige o ADR de migrações
+e o teste de compatibilidade do Sequel e do `pg` com Ruby 4.0.x, que ele deixa em aberto.
 
 ## Convenção
 
