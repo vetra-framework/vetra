@@ -76,8 +76,11 @@ formas foram **iguais nas três versões**:
 | `ENABLE`/`FORCE ROW LEVEL SECURITY`, `CREATE`/`ALTER`/`DROP POLICY` | `AccessExclusive` (breve) | Só catálogo |
 
 Os tempos são de uma máquina e de um volume (por exemplo, `SET NOT NULL` sem `CHECK` levou de 116 a 186 ms nas
-medições, e com o `CHECK` validado, 1 ms); o que importa é a **ordem de grandeza e a diferença entre as
-formas**, que a sonda confere em cada versão do PostgreSQL da matriz do ADR-002.
+medições, e com o `CHECK` validado, 1 ms); o que importa é a **diferença entre as formas**. A sonda a confere
+pelo que o servidor registra, se a operação **varre** a tabela (contador de varreduras sequenciais), e não pelo
+relógio: o tempo oscila com checkpoint, autovacuum e a carga da máquina, e a sonda o mostra só como indício.
+O contador deu 1 varredura sem o `CHECK` validado e 0 com ele, e 0 em `ADD FOREIGN KEY ... NOT VALID` contra 1
+em `VALIDATE CONSTRAINT`, nas três versões da matriz do ADR-002.
 
 Observação importante: `ADD FOREIGN KEY ... NOT VALID` **não reduz o nível de lock**; reduz a **duração**,
 porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.

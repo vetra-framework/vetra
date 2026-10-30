@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Simula o gate de compatibilidade da CI sem precisar do GitHub. Extrai os passos "graph:check", "graph:validate",
 # "Diff arquitetural" e "graph:link" do próprio .github/workflows/ci.yml, clona o estado commitado do repositório
-# numa pasta temporária e roda os passos em seis cenários, conferindo o resultado esperado de cada um.
+# numa pasta temporária e roda os passos em dez cenários, conferindo o resultado esperado de cada um.
 # Não faz parte da suíte do compilador e não altera a sua árvore de trabalho.
 #
 #   script/simular_gate_ci.sh
@@ -30,13 +30,19 @@ bundle install --quiet || exit 2
 
 failures=0
 reset() { git reset -q --hard origin/main && git clean -fdq; }
-step() { BASE_REF=main bash -e "$work/$1.sh" > "$work/saida.txt" 2>&1; }
-expect() { # expect "descrição" esperado(zero|falha) passo
-  step "$3"; code=$?
-  if { [ "$2" = zero ] && [ $code -eq 0 ]; } || { [ "$2" = falha ] && [ $code -ne 0 ]; }; then
+step() { BASE_REF="${2-main}" bash -e "$work/$1.sh" > "$work/saida.txt" 2>&1; }
+expect() { # expect "descrição" esperado(zero|falha) passo [base [trecho que a saída deve conter]]
+  step "$3" "${4-main}"; code=$?; problem=
+  case $2 in
+    zero) [ $code -eq 0 ] || problem="esperava saída 0, saiu $code" ;;
+    falha) [ $code -ne 0 ] || problem="esperava falha, saiu 0" ;;
+  esac
+  # Uma falha só vale se for pelo motivo esperado: a mensagem de erro precisa aparecer na saída.
+  [ -z "$problem" ] && [ -n "${5-}" ] && ! grep -qF -- "$5" "$work/saida.txt" && problem="a saída não contém \"$5\""
+  if [ -z "$problem" ]; then
     printf '  PASS  %s (saída %s)\n' "$1" "$code"
   else
-    printf '  FAIL  %s: esperava %s, saiu %s\n' "$1" "$2" "$code"; sed 's/^/        /' "$work/saida.txt" | tail -8
+    printf '  FAIL  %s: %s\n' "$1" "$problem"; sed 's/^/        /' "$work/saida.txt" | tail -8
     failures=$((failures + 1))
   fi
 }
@@ -75,6 +81,21 @@ echo "# comentário" >> examples/blog/app/domains/blog/domain.rb
 bundle exec bin/vetra graph:build --root examples/blog > /dev/null 2>&1
 git commit -qam "mudança inofensiva"
 expect "mudança só de metadados não derruba o gate" zero diff
+
+# Falha ao ler a base não pode virar "nenhum grafo para comparar".
+reset
+expect "base inexistente faz o gate falhar" falha diff nao-existe "Base do PR não encontrada"
+expect "referência da base vazia faz o gate falhar" falha diff "" "Base do PR não encontrada"
+
+mkdir "$work/fakebin" # um git que resolve a referência, mas falha ao listar a árvore
+printf '#!/bin/sh\n[ "$1" = ls-tree ] && { echo "fatal: falha simulada" >&2; exit 128; }\nexec %s "$@"\n' "$(command -v git)" > "$work/fakebin/git"
+chmod +x "$work/fakebin/git"
+path_original=$PATH PATH="$work/fakebin:$PATH"
+expect "falha do git ao listar a base faz o gate falhar" falha diff main "Falha ao listar os arquivos"
+PATH=$path_original
+
+git update-ref refs/remotes/origin/sem-grafos "$(git commit-tree "$(git mktree < /dev/null)" -m "sem grafos")"
+expect "base legítima, sem nenhum grafo, não derruba o gate" zero diff sem-grafos "nada a comparar"
 
 echo
 if [ $failures -eq 0 ]; then echo "Resultado: o gate se comporta como esperado."; else echo "Resultado: $failures cenário(s) com falha."; fi
