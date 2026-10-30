@@ -7,11 +7,13 @@ por completo. Cada ADR deve ser escrito antes da implementação do componente c
 
 | ADR | Título | Status |
 |---|---|---|
+| [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
+| [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
 
-**Próximo passo:** com o ADR-016 escrito, os ADRs 004 (capacidades e Effect Boundary), 005 (RLS e contexto
-assinado) e 020 (entrega live incremental) podem ser detalhados. O 005 resolve as questões que o 016 deixou
-para ele: formato do contexto assinado, emissão, validade e rotação da chave.
+**Próximo passo:** o ADR-020 (entrega live incremental), que depende do 005 e do 016, e o ADR-021 (campos de
+transição), que o 016 já pressupõe. O ADR-005 resolveu as questões que o 016 deixou para ele: formato do
+contexto assinado, emissão, validade e rotação da chave.
 
 ## Convenção
 
