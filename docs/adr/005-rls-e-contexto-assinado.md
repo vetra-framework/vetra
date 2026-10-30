@@ -109,7 +109,11 @@ consegue produzir sem a chave.
 - Consulta multiempresa **fora de transação** é recusada pelo Vetra Data com erro explícito, nunca com
   resultado vazio. Leituras (consultas) também abrem uma transação, marcada como `READ ONLY`.
 - O contexto não sobrevive ao fim da transação (efeito do `SET LOCAL`), o que é compatível com PgBouncer em
-  modo de transação. A conexão volta ao pool sem contexto; isso é teste obrigatório.
+  modo de transação. A conexão volta ao pool sem contexto; isso é teste obrigatório. Medido atrás do PgBouncer
+  1.26.1 em modo de transação, com um pool de uma conexão (`script/sonda_pooler.rb`): o contexto por
+  `set_config(..., true)` não vazou para o cliente seguinte, e um `SET` de sessão **vazou**. O contexto precisa
+  ser local à transação, e a emissão com `set_config` (e não `SET LOCAL`, que não aceita parâmetro) é o que o
+  ADR-003 usa.
 - A conexão `LISTEN` dedicada das consultas reativas não carrega contexto de tenant e não lê dados de tenant;
   só recebe identificadores (ADR-008).
 

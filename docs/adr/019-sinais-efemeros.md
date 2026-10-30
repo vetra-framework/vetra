@@ -59,13 +59,13 @@ métrica de latência de commit.**
   desconecta, a presença continua correta.
 - O estado de presença **não** entra no histórico nem na auditoria (ADR-013).
 
-**Por que `UNLOGGED`.** Medido no PostgreSQL 16.15:
+**Por que `UNLOGGED`.** Medido no PostgreSQL 16.15, 17.11 e 18.6:
 
 | Propriedade | Resultado |
 |---|---|
-| Volume de WAL ao inserir 50 mil linhas | 0 bytes numa tabela `UNLOGGED`; 3 610 656 bytes numa tabela comum |
+| Volume de WAL ao inserir 50 mil linhas | Praticamente nenhum numa tabela `UNLOGGED` (0 bytes no 16 e no 17; 96 bytes no 18); cerca de 3,6 MB numa tabela comum |
 | Depois de um desligamento limpo | Os 1 000 registros continuam lá |
-| Depois de um **crash** (`pg_ctl stop -m immediate`) | A tabela `UNLOGGED` volta **vazia (0)**; a comum retém tudo |
+| Depois de um **crash** (desligamento imediato, ou `SIGKILL` no processo) | A tabela `UNLOGGED` volta **vazia (0)**; a comum retém tudo. Igual nas três versões |
 
 A perda no crash é aceitável: as leases se recompõem em até um intervalo de heartbeat, quando os clientes
 reconectam e renovam. A proposta registra o mesmo custo: "a presença se perde num crash do banco". Pela
@@ -74,7 +74,7 @@ efeito num failover (não medido aqui).
 
 ### 4. Transporte e o limite do `NOTIFY`
 
-Medido no PostgreSQL 16.15 (`script/sonda_adr019.rb`, 5 de 5 verificações):
+Medido no PostgreSQL 16.15, 17.11 e 18.6 (`script/sonda_adr019.rb`, 5 de 5 verificações em cada):
 
 - O payload do `NOTIFY` tem limite: 7 999 bytes passam e 8 000 falham (`payload string too long`). Sinais
   carregam só identificadores.
@@ -82,7 +82,8 @@ Medido no PostgreSQL 16.15 (`script/sonda_adr019.rb`, 5 de 5 verificações):
 - Notificações idênticas na **mesma transação** chegam uma só vez. Isso ajuda, mas **não substitui** a limitação
   de taxa da seção 2: sinais em transações separadas continuam sendo notificações separadas.
 - O `LISTEN` pertence à **sessão**: só a conexão que escuta recebe. Por isso a conexão dedicada do ADR-008, fora
-  do pool.
+  do pool. Atrás de um pooler em modo de transação, a notificação pode inclusive chegar a **outro cliente** que
+  segurava o backend (medido no ADR-003 e no ADR-008).
 - Cada `NOTIFY` custa no commit (o ADR-008 registra que ele serializa commits sob escrita muito intensa). É o
   motivo da limitação de taxa e do Redis opcional.
 

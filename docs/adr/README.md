@@ -44,15 +44,18 @@ transacionais continuam pendentes.
 
 Alguns ADRs se apoiam em comportamentos de bibliotecas e do PostgreSQL. Em vez de afirmá-los de memória,
 cada um tem uma sonda em `script/`, fora da suíte do compilador, que o confere e pode ser repetida em outra
-versão. Todas passaram em Ruby 4.0.9; as que usam banco rodaram contra o PostgreSQL 16.15.
+versão. Todas passaram em Ruby 4.0.9. As que usam banco passaram no PostgreSQL 16.15, 17.11 e 18.6, e a CI as roda no 17
+e no 18 (job `postgres`).
 
 | Sonda | ADR | O que confere |
 |---|---|---|
+| `script/sonda_adr002.rb` | [002](002-somente-postgresql.md) | Os requisitos de PostgreSQL: versão mínima, RLS com `FORCE`, `security_invoker`, `xmin`, timeouts, `pgcrypto` |
 | `script/sonda_adr003.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md) | Parametrização, contexto por `set_config`, savepoints, travas, fibras e agendador |
 | `script/sonda_adr006.rb` | [006](006-isolamento-de-dominios-em-tres-niveis.md) | O que o `Ruby::Box` isola e não isola, e gems nativas dentro dele |
 | `script/sonda_adr009.rb` | [009](009-workflows-por-historico-e-replay.md) | Replay em Fiber e os limites do bloqueio por `TracePoint` (só biblioteca padrão) |
 | `script/sonda_adr015.rb` | [015](015-migracoes-expand-contract.md) | Nível de lock e custo de cada DDL, e a fila de locks |
 | `script/sonda_adr019.rb` | [019](019-sinais-efemeros.md) | Limites do `NOTIFY` e o volume de WAL de tabelas `UNLOGGED` |
+| `script/sonda_pooler.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md), [005](005-rls-e-contexto-assinado.md), [008](008-ordem-e-continuidade-dos-eventos.md) | O que um pooler em modo de transação faz com contexto, statements nomeados e `LISTEN` (precisa de um PgBouncer à parte) |
 
 Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais recente (ADR-002), aponte
 `DATABASE_URL` para um banco **descartável**; cada script informa o que cria e remove.
@@ -61,8 +64,8 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 
 1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Um ADR
    aceito não é editado; uma mudança de decisão gera outro que o substitui.
-2. **Repetir as sondas** no PostgreSQL 17 e na versão estável mais recente, que é o que a matriz do ADR-002
-   exige e o que as medições acima ainda não cobrem.
+2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
+   na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
 4. Antes de implementar a persistência, resolver as questões em aberto dos ADRs 003, 005, 014 e 015.
 
