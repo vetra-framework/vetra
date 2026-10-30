@@ -18,6 +18,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | proposto |
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
+| [017](017-tipo-money.md) | Tipo money nativo | proposto |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | proposto |
 | [021](021-campos-de-transicao.md) | Campos de transição | proposto |
 
