@@ -40,3 +40,35 @@ jobs:
       - run: bundle exec bin/vetra graph:link --root examples/mini_crm
       - run: bundle exec bin/vetra graph:link --root examples/mini_crm_revendas
       - run: bundle exec bin/vetra graph:link --root examples/chat
+
+  postgres:
+    name: sondas (PostgreSQL ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["17", "18"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+      - run: ruby script/sonda_adr002.rb
+      - run: ruby script/sonda_adr003.rb
+      - run: ruby script/sonda_adr009.rb
+      - run: ruby script/sonda_adr015.rb
+      - run: ruby script/sonda_adr019.rb
