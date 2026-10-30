@@ -57,10 +57,22 @@ v1.<kid>.<payload>.<mac>
 **Validação no banco.** As políticas não leem a variável; chamam uma função:
 
 ```sql
-CREATE POLICY tenant_isolation ON leads
+CREATE POLICY tenant_isolation ON leads AS RESTRICTIVE
   USING      (company_id = (SELECT vetra.current_tenant()))
   WITH CHECK (company_id = (SELECT vetra.current_tenant()));
 ```
+
+**O isolamento de tenant é `RESTRICTIVE`, e isso não é um detalhe.** As políticas permissivas se combinam por
+OR entre si, e as restritivas se combinam por AND com o resultado. Uma política de tenant permissiva, somada
+a uma política de escopo permissiva, concede a **união**: medido no PostgreSQL 17, uma consulta com contexto do
+tenant 1 passou a ver uma linha do tenant 2. Com o isolamento restritivo, só as linhas do tenant 1 que o
+escopo permite. Como o PostgreSQL exige ao menos uma política permissiva para conceder qualquer acesso (só
+restritivas não dão acesso a ninguém), cada tabela multiempresa tem também permissivas, que dizem **quem**
+acessa:
+
+- as **políticas de escopo geradas** (§5), quando a entidade declara `scope:`;
+- ou, numa entidade sem escopo expressável em SQL, uma permissiva `USING (true)`, em que o tenant continua
+  sendo contido pela restritiva e o restante do RBAC fica com a aplicação.
 
 `vetra.current_tenant()` é `STABLE`, `SECURITY DEFINER` e dona do `vetra_owner`, com
 `SET search_path = pg_catalog, pg_temp` fixado para impedir sequestro por objetos de mesmo nome. A função:
@@ -121,7 +133,9 @@ consegue produzir sem a chave.
 
 - **RLS garante a fronteira de tenant** e, quando a entidade declara `scope:` expressível em SQL a partir de
   tabelas do próprio banco, também o escopo (por exemplo, a revenda do ator). As políticas de escopo são
-  geradas e ficam em `db/policies/` como SQL revisável.
+  geradas, **permissivas** (concedem acesso) e ficam em `db/policies/` como SQL revisável. O isolamento de
+  tenant continua sendo a restritiva da seção 2, que nenhuma política de escopo consegue ampliar. Trocar uma
+  política é uma operação atômica (ADR-015).
 - **A aplicação avalia o resto** do RBAC contextual: campos visíveis, regras por estado, limites de taxa. O RLS
   é a última barreira, não a única.
 - Toda tabela que define permissão (vínculos, papéis, escopos) tem um trigger que incrementa a revisão de
@@ -198,6 +212,8 @@ Isolamento entre empresas: **transacional** (RLS) e **verificável por testes**.
 10. Rotação normal não derruba operação em andamento; rotação de emergência falha fechada.
 11. O papel `vetra_app` não lê `vetra_private`, não é dono de tabela e não tem `BYPASSRLS`.
 12. A suíte roda com PostgreSQL real e os mesmos papéis de produção.
+13. Uma política permissiva de escopo, ou `USING (true)`, não deixa uma consulta ler linhas de outro tenant
+    (o isolamento é `RESTRICTIVE`); um teste adversarial confirma o vazamento quando o isolamento é permissivo.
 
 ## Questões que este ADR deixa para outros
 

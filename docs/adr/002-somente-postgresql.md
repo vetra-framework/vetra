@@ -119,15 +119,21 @@ exige um superusuário e um banco descartável. Resultado de 2026-10-30, com Rub
 
 | Versão | Resultado |
 |---|---|
-| **16.15** | **Não cumpre**, como esperado: reprova na versão mínima e no `transaction_timeout` (`unrecognized configuration parameter`), e passa nos demais 12 itens |
-| **17.11** | Cumpre os 14 itens |
-| **18.6** | Cumpre os 14 itens |
+| **16.15** | **Não cumpre**, como esperado: reprova na versão mínima e no `transaction_timeout` (`unrecognized configuration parameter`), e passa nos demais 21 itens |
+| **17.11** | Cumpre os 23 itens |
+| **18.6** | Cumpre os 23 itens |
 
 O que a sonda verifica, além da versão:
 
 - O dono de uma tabela **ignora** a política de RLS sem `FORCE ROW LEVEL SECURITY` e é filtrado com ele.
 - O papel de aplicação sem `BYPASSRLS` vê só o seu tenant; **sem contexto de tenant, não vê nenhuma linha**
   (negação por padrão); um papel com `BYPASSRLS` ignora a política, e por isso o `doctor` o proíbe.
+- **Combinação de políticas:** um isolamento de tenant permissivo, somado a um escopo permissivo, **vaza**
+  linhas de outro tenant; com o isolamento `RESTRICTIVE` não vaza; só políticas restritivas não concedem acesso
+  a ninguém (ADR-005).
+- **Troca de política** (ADR-015): criar a nova antes de remover a antiga expõe a união dos acessos; `DROP` +
+  `CREATE` na mesma transação, ou `ALTER POLICY`, nunca expõem a união nem o vazio; uma falha preserva a política
+  anterior; `ALTER POLICY` não altera `PERMISSIVE`/`RESTRICTIVE` nem o comando.
 - Uma view comum contorna o RLS (executa com os privilégios do dono); uma view `security_invoker` o respeita.
 - `xid8` e o `xmin` do snapshot: uma escrita aberta **prende** o `xmin`; uma leitura não atribui `xid`; um
   `FOR UPDATE` atribui (base do ADR-014).

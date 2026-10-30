@@ -132,8 +132,14 @@ percorrendo as relações do registro até o vínculo, e `reads` passa a incluir
 - O registro precisa alcançar a revenda por um `belongs_to` com o nome do escopo; a própria entidade do
   escopo também pode receber permissões (`can :read, on: :dealer`). Para um papel sem escopo numa
   declaração `roles scope:`, use `scope: nil` (acesso dentro do tenant).
-- `memberships` declarado em duas entidades para o mesmo escopo, relação ausente, enum ausente ou
-  anulável e escopo sem declaração são erros de compilação, nunca um predicado mais permissivo.
+- A identidade de um escopo é a **entidade que o `belongs_to` do vínculo referencia** (com o domínio), e não o
+  nome da relação. Dois domínios independentes podem declarar, cada um, `memberships of: :dealer` para a sua
+  própria revenda; cada papel usa o vínculo da revenda que a sua entidade referencia (ou da própria entidade,
+  quando ela é a revenda), inclusive entre domínios. Dois vínculos para a **mesma** entidade de escopo são
+  ambíguos.
+- `memberships` duplicado para a mesma entidade de escopo, relação ausente, enum ausente ou anulável, e escopo
+  sem declaração ou sem relação com a entidade autorizada são erros de compilação, nunca um predicado mais
+  permissivo.
 - Cada papel gera as próprias políticas, com o próprio valor de `role` no predicado. O compilador não
   define hierarquia entre papéis (gerente não implica vendedor) nem como as políticas de um ator com mais
   de um papel se combinam: isso é do motor de autorização, que ainda não existe. O exemplo impede
