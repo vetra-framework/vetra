@@ -13,6 +13,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [003](003-sequel-e-camada-fina-de-repositorios.md) | Sequel com camada fina de repositórios | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
+| [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | proposto |
