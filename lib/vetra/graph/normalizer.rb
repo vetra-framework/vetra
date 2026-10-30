@@ -230,15 +230,22 @@ module Vetra
         [local, remote, owner_link.first['same_tenant'], extra]
       end
 
+      # The identity of a scope is the entity its `of` relation points to, already
+      # qualified by domain; the relation name alone is not unique across domains.
+      def membership_scope_id(entry)
+        relation = entry['relations'].find { |item| item['kind'] == 'belongs_to' && item['name'] == entry.dig('memberships', 'of') }
+        relation && entity_id(relation['target'], entry['domain'], entry)
+      end
+
       def check_memberships(entry, node)
         config = entry['memberships']
-        if raw('entity').any? { |item| !item.equal?(entry) && item.dig('memberships', 'of') == config['of'] }
-          fail!('memberships_ambiguous', "Mais de uma entidade declara memberships of: :#{config['of']}.", entry)
-        end
         links = node['relations'].select { |relation| relation['kind'] == 'belongs_to' && [config['of'], config['actor']].include?(relation['name']) }
         unless links.map { |relation| relation['name'] }.uniq.size == 2
           fail!('memberships_relation', "memberships exige belongs_to :#{config['of']} e belongs_to :#{config['actor']}, distintos, na própria entidade.", entry)
         end
+        scope_id = membership_scope_id(entry)
+        duplicated = raw('entity').any? { |item| !item.equal?(entry) && item.dig('memberships', 'of') == config['of'] && membership_scope_id(item) == scope_id }
+        fail!('memberships_ambiguous', "Mais de uma entidade declara memberships of: :#{config['of']} para #{scope_id}.", entry) if duplicated
         role = node['fields'].find { |value| value['name'] == config['role'] }
         unless role && role.dig('type', 'name') == 'enum' && !role['nullable']
           fail!('memberships_role', "memberships exige o enum não nulo #{config['role']} com os papéis do escopo.", entry)
@@ -307,13 +314,16 @@ module Vetra
           predicate = where(permission['where'], target, reads, entry)
           scope = permission['scope'] || @raw.find { |raw| raw['kind'] == 'entity' && raw['id'] == target_id }&.dig('crud', 'scope')
           if scope
-            holder = raw('entity').select { |item| item.dig('memberships', 'of') == scope }
-            fail!('memberships_ambiguous', "Mais de uma entidade declara memberships of: :#{scope}.", entry) if holder.size > 1
-            scoped = if holder.first
-              membership_scope(entry, target, holder.first, reads)
+            holder = membership_for(scope, target, entry)
+            scoped = if holder
+              membership_scope(entry, target, holder, reads)
             elsif %w[author owner seller].include?(scope) && target['fields'].any? { |value| value['name'] == "#{scope}_id" }
               { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ["#{scope}_id"] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
             else
+              declared = raw('entity').select { |item| item.dig('memberships', 'of') == scope }.map { |item| membership_scope_id(item) }
+              unless declared.empty?
+                fail!('scope_unsupported', "#{target['id']} não declara belongs_to :#{scope} para #{declared.join(', ')}.", entry)
+              end
               fail!('scope_unsupported', "Escopo #{scope} desconhecido: use author/owner/seller por actor.id ou declare memberships of: :#{scope} em uma entidade de vínculo.", entry)
             end
             predicate = predicate['op'] == 'true' ? scoped : { 'op' => 'and', 'terms' => [predicate, scoped] }
@@ -323,6 +333,22 @@ module Vetra
             'actions' => actions.uniq, 'fields' => permission['fields'], 'predicate' => predicate, 'reads' => reads.uniq
           ))
         end
+      end
+
+      # A scope name may be declared by several memberships (one per scope entity,
+      # e.g. one in each domain). The one that applies is the one whose scope entity is
+      # the authorized entity itself or the entity its `belongs_to :<scope>` points to.
+      def membership_for(scope, target, entry)
+        applicable = raw('entity').select do |item|
+          next false unless item.dig('memberships', 'of') == scope
+
+          scope_id = membership_scope_id(item)
+          target['id'] == scope_id || target['relations'].any? { |relation| relation['kind'] == 'belongs_to' && relation['name'] == scope && relation.dig('target', 'id') == scope_id }
+        end
+        if applicable.size > 1
+          fail!('memberships_ambiguous', "Mais de um vínculo (#{applicable.map { |item| item['id'] }.join(', ')}) se aplica a #{target['id']} no escopo #{scope}.", entry)
+        end
+        applicable.first
       end
 
       # The actor reaches the scope through its memberships: the record (or the

@@ -23,6 +23,30 @@ class ScopeTest < GraphTest
     }
   end
 
+  def write_sales_domain(root, own_scope: true)
+    write(root, 'app/domains/vendas/domain.rb', "domain :vendas do\n  depends_on :crm\nend\n")
+    if own_scope
+      write(root, 'app/domains/vendas/dealer.rb', "entity :dealer do\n  tenant :company\n  string :name, required: true\n  has_many :memberships, entity: :membership, by: :dealer\nend\n")
+      write(root, 'app/domains/vendas/membership.rb', <<~RUBY)
+        entity :membership do
+          tenant :company
+          belongs_to :user, entity: "crm.user", same_tenant: true
+          belongs_to :dealer, same_tenant: true
+          enum :role, %w[vendedor]
+          memberships of: :dealer, actor: :user, role: :role
+          index :company_id, :user_id, :dealer_id, :role, unique: true
+        end
+      RUBY
+    end
+    dealer = own_scope ? 'belongs_to :dealer, same_tenant: true' : 'belongs_to :dealer, entity: "crm.dealer", same_tenant: true'
+    write(root, 'app/domains/vendas/pedido.rb', "entity :pedido do\n  tenant :company\n  #{dealer}\n  string :numero, required: true\n  crud scope: :dealer\nend\n")
+    write(root, 'app/domains/vendas/roles.rb', "roles scope: :dealer do\n  role :vendedor do\n    can :read, on: :pedido\n  end\nend\n")
+  end
+
+  def read_ids(policy)
+    policy['reads'].map { |reference| reference['id'] }
+  end
+
   def test_example_compiles_without_warnings_and_derives_the_inverse_relation
     with_dealers do |_root, compiler|
       result = compiler.build
@@ -148,6 +172,57 @@ class ScopeTest < GraphTest
         end
       RUBY
       assert_graph_error('memberships_ambiguous') { compiler.build }
+    end
+  end
+
+  def test_independent_domains_each_resolve_their_own_membership
+    with_dealers do |root, compiler|
+      baseline = policy_for(compiler.build.document, 'vendedor', 'lead')
+      write_sales_domain(root)
+      document = compiler.build.document
+      sales = document.fetch('nodes').find { |entry| entry['kind'] == 'policy' && entry.dig('entity', 'id') == 'vendas.pedido' }
+      assert_equal membership_predicate('vendedor', %w[dealer memberships]), sales['predicate']
+      assert_equal %w[vendas.dealer vendas.membership vendas.pedido], read_ids(sales)
+      crm = policy_for(document, 'vendedor', 'lead')
+      assert_equal baseline['predicate'], crm['predicate']
+      assert_equal %w[crm.dealer crm.lead crm.membership], read_ids(crm)
+    end
+  end
+
+  def test_a_role_in_another_domain_uses_the_membership_of_the_scope_it_references
+    with_dealers do |root, compiler|
+      write_sales_domain(root, own_scope: false)
+      sales = compiler.build.document.fetch('nodes').find { |entry| entry['kind'] == 'policy' && entry.dig('entity', 'id') == 'vendas.pedido' }
+      assert_equal %w[dealer memberships], sales.dig('predicate', 'relation')
+      assert_equal %w[crm.dealer crm.membership vendas.pedido], read_ids(sales)
+    end
+  end
+
+  def test_a_cross_domain_role_must_exist_in_the_enum_of_the_membership_it_uses
+    with_dealers do |root, compiler|
+      write_sales_domain(root, own_scope: false)
+      edit(root, 'app/domains/vendas/roles.rb') { |text| text.sub('role :vendedor do', 'role :atendente do') }
+      error = assert_graph_error('memberships_role') { compiler.build }
+      assert_match(/atendente/, error.message)
+    end
+  end
+
+  def test_two_memberships_for_the_same_scope_entity_are_ambiguous_even_across_domains
+    with_dealers do |root, compiler|
+      write_sales_domain(root)
+      edit(root, 'app/domains/vendas/membership.rb') { |text| text.sub('belongs_to :dealer, same_tenant: true', 'belongs_to :dealer, entity: "crm.dealer", same_tenant: true') }
+      error = assert_graph_error('memberships_ambiguous') { compiler.build }
+      assert_match(/crm\.dealer/, error.message)
+    end
+  end
+
+  def test_scope_without_a_relation_to_any_declared_scope_entity_names_them
+    with_dealers do |root, compiler|
+      write_sales_domain(root)
+      write(root, 'app/domains/vendas/aviso.rb', "entity :aviso do\n  tenant :company\n  string :texto, required: true\nend\n")
+      edit(root, 'app/domains/vendas/roles.rb') { |text| text.sub('can :read, on: :pedido', "can :read, on: :pedido\n    can :read, on: :aviso") }
+      error = assert_graph_error('scope_unsupported') { compiler.build }
+      assert_match(/vendas\.aviso não declara belongs_to :dealer para crm\.dealer, vendas\.dealer/, error.message)
     end
   end
 
