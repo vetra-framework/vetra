@@ -13,6 +13,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [003](003-sequel-e-camada-fina-de-repositorios.md) | Sequel com camada fina de repositórios | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
+| [006](006-isolamento-de-dominios-em-tres-niveis.md) | Isolamento de domínios em três níveis, com Ruby::Box opcional | proposto |
 | [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
 | [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | proposto |
