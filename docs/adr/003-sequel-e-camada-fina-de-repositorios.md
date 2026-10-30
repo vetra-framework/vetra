@@ -78,7 +78,9 @@ Vetra constrói. Nenhum código gerado ou escrito pela aplicação fala com o Se
   commit.
 - Travas de linha usam `for_update`; o relay da outbox usa `for_update` com `skip_locked`.
 - O núcleo **não usa statements nomeados** (`Dataset#prepare`/`call`). Consultas com parâmetros usam o
-  protocolo estendido sem nome, o que mantém a compatibilidade com pooler em modo de transação (ADR-005).
+  protocolo estendido sem nome, que funciona atrás de um pooler em modo de transação (ADR-005). Os statements
+  nomeados dependem do pooler: no PgBouncer 1.26.1 medido, falham com `max_prepared_statements = 0` e funcionam
+  com `200`. A regra de não os usar fica como padrão portátil, porque a aplicação nem sempre controla o pooler.
 
 ### 4. Conexões e concorrência
 
@@ -152,7 +154,8 @@ migração do Sequel: o plano é SQL explícito e revisável.
    `after_rollback(savepoint: true)` executa.
 6. Consulta a tabela multiempresa fora de transação falha com erro explícito.
 7. Nenhum arquivo gerado, nem `app/`, referencia `Sequel` fora da camada de dados.
-8. A suíte passa atrás de um pooler em modo de transação, sem statements nomeados.
+8. A suíte passa atrás de um pooler em modo de transação, sem statements nomeados (para as bibliotecas, coberto
+   por `script/sonda_pooler.rb`; a suíte do Vetra Data ainda não existe).
 9. O `call` não obtém um dataset do repositório.
 10. Modo hospedado, como na proposta:
     a. o Active Record inicia a transação e o Sequel opera dentro dela;
@@ -161,15 +164,15 @@ migração do Sequel: o plano é SQL explícito e revisável.
     d. o rollback de um savepoint não dispara eventos ou callbacks indevidos;
     e. a conexão volta ao pool sem contexto de autorização da operação anterior.
 11. Sequel e `pg` funcionam em Ruby 4.0.9, no PostgreSQL 17 e na versão estável mais recente (ADR-002).
-    A sonda `script/sonda_adr003.rb` cobre o comportamento das bibliotecas; os testes dos repositórios
-    gerados entram com o Vetra Data.
+    A sonda `script/sonda_adr003.rb` cobre o comportamento das bibliotecas (cumprido em 16.15, 17.11 e 18.6);
+    os testes dos repositórios gerados entram com o Vetra Data.
 
 ## Verificação preliminar
 
 A sonda `script/sonda_adr003.rb` confere, contra um PostgreSQL real, os comportamentos do Sequel e do `pg` em
-que esta decisão se apoia. Resultado de 2026-10-30, com **Sequel 5.109.0, `pg` 1.7.0 (libpq 18), PostgreSQL
-16.15 e `async` 2.46.0**: 19 de 19 verificações passaram **em Ruby 3.3.6 e em Ruby 4.0.9** (imagem oficial
-`ruby:4.0.9`).
+que esta decisão se apoia. Resultado de 2026-10-30, com **Sequel 5.109.0, `pg` 1.7.0 (libpq 18) e `async`
+2.46.0**: 19 de 19 verificações passaram **no PostgreSQL 16.15, 17.11 e 18.6**, em Ruby 4.0.9 (imagem oficial
+`ruby:4.0.9`), e também no 16.15 em Ruby 3.3.6.
 
 | Verificado | Resultado |
 |---|---|
@@ -192,16 +195,33 @@ Um achado do Ruby 4.0: o `logger` deixou de ser gem padrão e passou a ser gem e
 (a sonda, ou a aplicação que passe um `Logger` ao Sequel) precisa declará-lo no Gemfile ou na gemspec. O
 Sequel em si não exigiu nada além disso.
 
+### Atrás de um pooler em modo de transação
+
+`script/sonda_pooler.rb` repete o essencial atrás do **PgBouncer 1.26.1** em `pool_mode = transaction`, com um
+pool de **uma** conexão (o que obriga dois clientes a reutilizá-la; a sonda confirma primeiro que o backend é o
+mesmo, para um "não vazou" não ser vazio). Passou 8 de 8, com `max_prepared_statements` em 0 e em 200:
+
+| Verificado | Resultado |
+|---|---|
+| `SET` de sessão | **Vaza** para outro cliente (o outro viu `"vazou"`). É o contraste que justifica o contexto local |
+| `set_config(..., true)` | Não vaza; durante a transação o contexto fica preso ao cliente e o outro espera o backend |
+| Sequel com `pg_auto_parameterize` e transação com `set_config` | Funcionam através do pooler: 30 consultas corretas e nenhum vazamento |
+| Statements nomeados com o mesmo nome em dois clientes | Com `max_prepared_statements = 0`: erro `prepared statement already exists`. Com `200`: cada cliente executa o seu |
+| `LISTEN` | O ouvinte **não recebeu**, e o notificado foi o **remetente**, que segurava o backend naquele momento |
+
+O último resultado é pior que "não funciona": uma notificação pode chegar a um cliente que não a pediu. É mais um
+motivo para a conexão `LISTEN` dedicada e direta do ADR-008.
+
 **O que isto não cobre.** Foi medido o comportamento das bibliotecas, não os repositórios do Vetra, que ainda
-não existem (testes 1, 2, 6, 7 e 9). Não foi exercitado: PostgreSQL 17 (o teste 11 pede 17 e a versão estável
-mais recente; a sonda rodou no 16.15), o Falcon em si (só o agendador `async`), pooler em modo de transação
-(teste 8; só se verificou que não há statements nomeados) e o modo hospedado com o Active Record (teste 10). A
-sonda roda em qualquer Ruby com um banco descartável.
+não existem (testes 1, 2, 6, 7 e 9). Não foi exercitado: o Falcon em si (só o agendador `async`), o modo
+hospedado com o Active Record (teste 10), outros poolers e outras versões do PgBouncer, e pools com mais de uma
+conexão. No PostgreSQL 19 a imagem não foi encontrada no espelho usado, então a "versão estável mais recente"
+medida aqui é a 18. As sondas rodam em qualquer Ruby com um banco descartável.
 
 ## Questões em aberto
 
-- Se o Sequel e o `pg` se comportam igual no PostgreSQL 17 e na versão estável mais recente. No Ruby 4.0.9
-  a sonda passou contra o 16.15; falta repetir nas duas versões da matriz do ADR-002 (teste 11).
+- Se o comportamento se mantém em outros poolers (por exemplo, os de provedores gerenciados) e em outras
+  versões do PgBouncer, já que os statements nomeados dependem de configuração do pooler.
 - Se o `pg` continua cedendo a fibra com o Falcon em si, e não só com o agendador `async` (medido em Ruby
   4.0.9).
 - A forma dos registros devolvidos (valores imutáveis) e o custo de alocação em consultas grandes.

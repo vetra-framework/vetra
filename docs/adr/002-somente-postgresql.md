@@ -112,6 +112,32 @@ configurados, sincronização de relógio entre aplicação e banco.
 5. A suíte de conformidade passa em PostgreSQL gerenciado de referência e reporta qual recurso falha num
    derivado que não o implemente.
 
+## Verificação preliminar
+
+`script/sonda_adr002.rb` confere num servidor real os requisitos desta decisão. É o embrião do `vetra doctor` e
+exige um superusuário e um banco descartável. Resultado de 2026-10-30, com Ruby 4.0.9:
+
+| Versão | Resultado |
+|---|---|
+| **16.15** | **Não cumpre**, como esperado: reprova na versão mínima e no `transaction_timeout` (`unrecognized configuration parameter`), e passa nos demais 12 itens |
+| **17.11** | Cumpre os 14 itens |
+| **18.6** | Cumpre os 14 itens |
+
+O que a sonda verifica, além da versão:
+
+- O dono de uma tabela **ignora** a política de RLS sem `FORCE ROW LEVEL SECURITY` e é filtrado com ele.
+- O papel de aplicação sem `BYPASSRLS` vê só o seu tenant; **sem contexto de tenant, não vê nenhuma linha**
+  (negação por padrão); um papel com `BYPASSRLS` ignora a política, e por isso o `doctor` o proíbe.
+- Uma view comum contorna o RLS (executa com os privilégios do dono); uma view `security_invoker` o respeita.
+- `xid8` e o `xmin` do snapshot: uma escrita aberta **prende** o `xmin`; uma leitura não atribui `xid`; um
+  `FOR UPDATE` atribui (base do ADR-014).
+- `transaction_timeout` e `idle_in_transaction_session_timeout` encerram a sessão.
+- `SKIP LOCKED`, `pgcrypto` (HMAC-SHA256 contra um vetor de teste conhecido) e tabelas `UNLOGGED`.
+
+A **versão estável mais recente** medida é a 18. A imagem do PostgreSQL 19 não foi encontrada no espelho usado,
+então não afirmo nada sobre ela. A CI passa a rodar as sondas de banco no 17 e no 18 (job `postgres`); a suíte
+do Vetra Data, que o teste de aceitação 3 também pede, ainda não existe.
+
 ## Questões em aberto
 
 - Quais serviços gerenciados formam a lista de referência da CI e da conformidade.

@@ -54,8 +54,9 @@ pelo lock que pede e pelo custo que tem, e só roda com limite de espera para o 
 ### 3. Análise de locks
 
 Cada passo do plano recebe uma classificação, que é a mesma que o `vetra db:plan` mostra ao revisor. Os valores
-abaixo foram medidos no PostgreSQL 16.15 pela sonda `script/sonda_adr015.rb` (22 de 22 verificações, em Ruby
-3.3.6 e em 4.0.9), com uma tabela de 1 milhão de linhas:
+abaixo foram medidos pela sonda `script/sonda_adr015.rb` (22 de 22 verificações) nos PostgreSQL **16.15, 17.11
+e 18.6**, com Ruby 4.0.9, usando uma tabela de 1 milhão de linhas. Os níveis de lock e a diferença entre as
+formas foram **iguais nas três versões**:
 
 | Operação | Lock na tabela | Custo medido |
 |---|---|---|
@@ -74,7 +75,8 @@ abaixo foram medidos no PostgreSQL 16.15 pela sonda `script/sonda_adr015.rb` (22
 | `SET NOT NULL` com `CHECK (col IS NOT NULL)` validado | `AccessExclusive` (breve) | ~1 ms |
 | `ENABLE`/`FORCE ROW LEVEL SECURITY`, `CREATE`/`ALTER`/`DROP POLICY` | `AccessExclusive` (breve) | Só catálogo |
 
-Os tempos são de uma máquina e de um volume; o que importa é a **ordem de grandeza e a diferença entre as
+Os tempos são de uma máquina e de um volume (por exemplo, `SET NOT NULL` sem `CHECK` levou de 116 a 186 ms nas
+medições, e com o `CHECK` validado, 1 ms); o que importa é a **ordem de grandeza e a diferença entre as
 formas**, que a sonda confere em cada versão do PostgreSQL da matriz do ADR-002.
 
 Observação importante: `ADD FOREIGN KEY ... NOT VALID` **não reduz o nível de lock**; reduz a **duração**,

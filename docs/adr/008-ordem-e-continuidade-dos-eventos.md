@@ -28,6 +28,10 @@ outbox**. A fonte de verdade é sempre a tabela. Perder uma notificação atrasa
 - O `pg_notify` é chamado dentro da transação de escrita, e o PostgreSQL só o entrega no commit.
 - O payload contém só o identificador do tenant (e, no máximo, um contador). Nunca o conteúdo do evento.
 - Cada processo mantém **uma conexão `LISTEN` dedicada**, direta ao PostgreSQL, fora do pool e do PgBouncer.
+  Medido atrás do PgBouncer 1.26.1 em modo de transação (`script/sonda_pooler.rb`), o `LISTEN` não só deixa de
+  funcionar: o ouvinte não recebeu a notificação e ela chegou ao **cliente que segurava o backend naquele
+  momento** (o remetente). A conexão direta é, portanto, também uma barreira contra entregar uma notificação a
+  quem não a pediu.
 - Como as notificações não são duráveis, o distribuidor também faz **leitura periódica** da outbox (padrão:
   a cada 1 segundo), mesmo sem notificação.
 
