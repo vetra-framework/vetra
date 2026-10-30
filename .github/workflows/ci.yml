@@ -1,6 +1,9 @@
 name: Compilador da IR
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
@@ -12,6 +15,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
@@ -20,6 +24,13 @@ jobs:
       - run: bundle exec bin/vetra graph:check --root examples/mini_crm
       - run: bundle exec bin/vetra graph:validate --root examples/blog --sources
       - run: bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
-      - run: bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog --format json --fail-on-breaking
+      - name: Diff arquitetural contra a base do PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          for app in blog mini_crm; do
+            bundle exec bin/vetra graph:diff "git:origin/$BASE_REF" "examples/$app/.vetra/graph.json" --root "examples/$app" --format json --fail-on-breaking
+          done
       - run: bundle exec bin/vetra graph:link --root examples/blog
       - run: bundle exec bin/vetra graph:link --root examples/mini_crm

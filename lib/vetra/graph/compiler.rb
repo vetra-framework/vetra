@@ -36,6 +36,7 @@ module Vetra
           file.write(result.bytes)
           file.flush
           file.fsync
+          file.chmod(0o666 & ~File.umask)
           file.close
           File.rename(file.path, artifact.to_s)
         end
