@@ -38,4 +38,54 @@ class CLITest < GraphTest
       assert_includes out, 'graph:build'
     end
   end
+
+  def test_diff_json_output_is_parseable_and_breaking_exit_code_is_opt_in
+    with_app do |root, compiler|
+      result = compiler.write
+      before_path = File.join(root, 'before.json')
+      after_path = File.join(root, 'after.json')
+      File.write(before_path, result.bytes)
+      after = Vetra::Graph::Data.copy(result.document)
+      after['nodes'].reject! { |entry| (entry['kind'] == 'query' && entry['id'] == 'blog.find_post') || entry['generated_from'] == { 'kind' => 'query', 'id' => 'blog.find_post' } }
+      after['digest'] = Vetra::Graph::Canonical.digest(after)
+      File.write(after_path, Vetra::Graph::Canonical.dump(after))
+      out, err = StringIO.new, StringIO.new
+      arguments = ['graph:diff', before_path, after_path, '--format', 'json']
+      assert_equal 0, Vetra::CLI.run(arguments, out: out, err: err), err.string
+      report = JSON.parse(out.string)
+      assert_equal '1', report['format_version']
+      assert_equal 2, report.dig('summary', 'breaking')
+      assert_empty err.string
+      assert_equal 3, Vetra::CLI.run([*arguments, '--fail-on-breaking'], out: StringIO.new, err: StringIO.new)
+      assert_equal 0, Vetra::CLI.run(['graph:diff', before_path, before_path, '--fail-on-breaking'], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run(['graph:diff', before_path], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run([*arguments, '--sources'], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run(['graph:validate', '--format', 'json'], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run(['graph:diff', before_path, before_path, '--format', 'xml'], out: StringIO.new, err: StringIO.new)
+    end
+  end
+
+  def test_diff_rejects_bad_json_without_partial_stdout
+    with_app do |root, compiler|
+      compiler.write
+      path = File.join(root, 'bad.json')
+      File.write(path, '{invalid')
+      out, err = StringIO.new, StringIO.new
+      assert_equal 1, Vetra::CLI.run(['graph:diff', compiler.artifact.to_s, path, '--format', 'json'], out: out, err: err)
+      assert_empty out.string
+      assert_includes err.string, '[invalid_json]'
+    end
+  end
+
+  def test_diff_warnings_keep_source_and_stay_out_of_json_stdout
+    fixture = File.join(PROJECT, 'docs/ir/exemplos/mini-crm.v0.1.json')
+    out, err = StringIO.new, StringIO.new
+    assert_equal 0, Vetra::CLI.run(['graph:diff', fixture, fixture, '--format', 'json'], out: out, err: err)
+    report = JSON.parse(out.string)
+    assert_equal 0, report.dig('summary', 'total')
+    assert_equal %w[before after], report['warnings'].map { |warning| warning['side'] }
+    assert_includes err.string, '[anterior]'
+    assert_includes err.string, 'app/domains/crm/company.rb:1'
+    assert_includes err.string, '/nodes/'
+  end
 end

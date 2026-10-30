@@ -21,11 +21,12 @@ O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política d
 à pendência documental anterior à fase 0. A aceitação das decisões e os testes do compilador/runtime
 continuam pendentes; o esquema e os exemplos não constituem uma implementação.
 
-O [primeiro protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL; ainda não cobre
-todos os critérios do ADR-001. O runtime e suas garantias continuam pendentes.
+O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL e
+[compara versões da IR](../graph-diff.md); ainda não cobre todos os critérios do ADR-001. O runtime e suas
+garantias continuam pendentes.
 
-**Próximo passo:** ampliar a fase 0 com diff arquitetural e vinculação validada de implementações, mantendo
-os testes dos contratos existentes. Os ADRs restantes (003, 006, 007, 009 a 015, 017 a 019) devem ser
+**Próximo passo:** ampliar a fase 0 com vinculação validada de implementações, mantendo os testes dos
+contratos existentes. Os ADRs restantes (003, 006, 007, 009 a 015, 017 a 019) devem ser
 escritos antes dos respectivos componentes, seguindo as dependências do roadmap.
 
 ## Convenção

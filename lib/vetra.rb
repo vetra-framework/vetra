@@ -10,6 +10,8 @@ require_relative "vetra/graph/dsl"
 require_relative "vetra/graph/analysis"
 require_relative "vetra/graph/normalizer"
 require_relative "vetra/graph/compiler"
+require_relative "vetra/graph/diff_source"
+require_relative "vetra/graph/diff"
 
 module Vetra
   def self.app(name, &block)

@@ -1,7 +1,7 @@
 # Fase 0: protótipo do compilador
 
-O primeiro incremento implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação** do
-[ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental. Os ADRs continuam propostos e a fase 0
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação** e o diff arquitetural
+do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental. Os ADRs continuam propostos e a fase 0
 ainda não cumpriu todos os critérios de aceitação.
 
 ## Executar
@@ -17,6 +17,7 @@ bundle exec bin/vetra graph:validate --root examples/blog --sources
 bundle exec bin/vetra graph:build --root examples/mini_crm
 bundle exec bin/vetra graph:check --root examples/mini_crm
 bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
+bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog
 ```
 
 Os dois diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
@@ -30,10 +31,13 @@ persistidos do PDF ficam para incrementos posteriores.
 | `graph:check --root APP` | Reconstrói e compara bytes, sem editar o artefato; divergência ou ausência falha |
 | `graph:validate ARQUIVO` | Valida versão, recursos, schema, invariantes implementados e digest, sem avaliar o DSL |
 | `graph:validate --root APP --sources` | Também confere arquivos e hashes; usa o grafo padrão quando não recebe arquivo |
+| `graph:diff ANTERIOR POSTERIOR` | Compara arquivos/revisões Git validados; aceita texto ou JSON e sinaliza quebras potenciais |
 
 Saída 0 significa sucesso, 1 indica erro de compilação/validação/arquivo e 2 indica uso incorreto da CLI.
 Avisos vão para stderr e não mudam o código de sucesso. `graph:validate` sem `--sources` também aceita as
 [fixtures documentais](ir/README.md), cujos hashes de arquivos são placeholders.
+No diff, `--fail-on-breaking` adiciona a saída 3 quando houver quebra potencial; o
+[guia de comparação](graph-diff.md) explica categorias, renomeações, limites e formato JSON.
 
 ## DSL implementado
 
@@ -99,9 +103,11 @@ integridade, mas não substitui um boot com vinculação de implementações ou 
 Os testes exercitam os exemplos com/sem tenant, reprodução entre checkouts, Unicode/JCS, JSON com chaves
 repetidas, imutabilidade/compartilhamento da IR, alterações e remoções de fontes, contratos CRUD,
 defaults/valores protegidos, efeitos diretos, limites de capacidades, permissões, eventos e erros da CLI.
+O diff cobre direção de contratos, renomeações, ordem posicional, metadados, impacto indeterminado de
+permissões e leitura de revisões/tags em repositórios temporários, sem executar o DSL ou alterar o checkout.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 
-Os próximos incrementos da fase 0 são o diff arquitetural, a ampliação do subconjunto declarativo e a
-vinculação completa de implementações no carregamento validado. A suíte deverá acompanhar cada expansão.
+Os próximos incrementos da fase 0 são a vinculação completa de implementações no carregamento validado e
+a ampliação do subconjunto declarativo. A suíte deverá acompanhar cada expansão.
 Depois, o motor de comandos e o Vetra Data precisam de seus ADRs, PostgreSQL real e testes transacionais;
 as garantias de RLS, entrega de eventos e live continuam pendentes dessas implementações.
