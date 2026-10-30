@@ -2,7 +2,8 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. Todos os ADRs escritos ainda têm status **proposto**.
+componente correspondente. **Os 21 ADRs estão escritos**, e todos ainda têm status **proposto**: nenhum foi
+aceito, e nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -39,10 +40,31 @@ O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DS
 Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
 transacionais continuam pendentes.
 
-**Próximo passo:** fechar as lacunas declarativas e os critérios restantes da fase 0 com os exemplos da
-proposta. Os ADRs restantes (006, 007, 009 a 015, 017 a 019) seguem as dependências do roadmap, antes dos
-respectivos componentes. O ADR-003 fixa a camada de dados; a persistência ainda exige o ADR de migrações
-e o teste de compatibilidade do Sequel e do `pg` com Ruby 4.0.x, que ele deixa em aberto.
+## Sondas
+
+Alguns ADRs se apoiam em comportamentos de bibliotecas e do PostgreSQL. Em vez de afirmá-los de memória,
+cada um tem uma sonda em `script/`, fora da suíte do compilador, que o confere e pode ser repetida em outra
+versão. Todas passaram em Ruby 4.0.9; as que usam banco rodaram contra o PostgreSQL 16.15.
+
+| Sonda | ADR | O que confere |
+|---|---|---|
+| `script/sonda_adr003.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md) | Parametrização, contexto por `set_config`, savepoints, travas, fibras e agendador |
+| `script/sonda_adr006.rb` | [006](006-isolamento-de-dominios-em-tres-niveis.md) | O que o `Ruby::Box` isola e não isola, e gems nativas dentro dele |
+| `script/sonda_adr009.rb` | [009](009-workflows-por-historico-e-replay.md) | Replay em Fiber e os limites do bloqueio por `TracePoint` (só biblioteca padrão) |
+| `script/sonda_adr015.rb` | [015](015-migracoes-expand-contract.md) | Nível de lock e custo de cada DDL, e a fila de locks |
+| `script/sonda_adr019.rb` | [019](019-sinais-efemeros.md) | Limites do `NOTIFY` e o volume de WAL de tabelas `UNLOGGED` |
+
+Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais recente (ADR-002), aponte
+`DATABASE_URL` para um banco **descartável**; cada script informa o que cria e remove.
+
+## Próximo passo
+
+1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Um ADR
+   aceito não é editado; uma mudança de decisão gera outro que o substitui.
+2. **Repetir as sondas** no PostgreSQL 17 e na versão estável mais recente, que é o que a matriz do ADR-002
+   exige e o que as medições acima ainda não cobrem.
+3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
+4. Antes de implementar a persistência, resolver as questões em aberto dos ADRs 003, 005, 014 e 015.
 
 ## Convenção
 
