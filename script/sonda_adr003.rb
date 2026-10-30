@@ -13,6 +13,7 @@ gemfile do
   gem "sequel", "5.109.0"
   gem "pg"
   gem "async"
+  gem "logger" # deixou de ser gem padrão no Ruby 4.0
 end
 
 require "logger"
