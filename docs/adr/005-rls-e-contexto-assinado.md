@@ -49,7 +49,8 @@ v1.<kid>.<payload>.<mac>
 
 - `kid`: identificador da chave que assinou (permite rotação).
 - `payload`: JSON em base64url com `tenant_id`, `actor_id`, `op_id` (identificador da operação, também
-  gravado na auditoria), `iat` e `exp` (segundos desde a época) e, se for operação de operador de plataforma,
+  gravado na auditoria), `cmd` (nome do comando em execução, usado pelo reforço no banco dos campos de
+  transição, ADR-021), `iat` e `exp` (segundos desde a época) e, se for operação de operador de plataforma,
   `operator_id`.
 - `mac`: HMAC-SHA256 sobre `v1.<kid>.<payload>`.
 
@@ -110,7 +111,7 @@ consegue produzir sem a chave.
 - O contexto não sobrevive ao fim da transação (efeito do `SET LOCAL`), o que é compatível com PgBouncer em
   modo de transação. A conexão volta ao pool sem contexto; isso é teste obrigatório.
 - A conexão `LISTEN` dedicada das consultas reativas não carrega contexto de tenant e não lê dados de tenant;
-  só recebe identificadores (ADR-020).
+  só recebe identificadores (ADR-008).
 
 ### 5. O que o RLS garante e o que fica com a aplicação
 

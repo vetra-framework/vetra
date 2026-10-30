@@ -9,11 +9,14 @@ por completo. Cada ADR deve ser escrito antes da implementação do componente c
 |---|---|---|
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
+| [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
+| [020](020-entrega-live-incremental.md) | Entrega live incremental | proposto |
+| [021](021-campos-de-transicao.md) | Campos de transição | proposto |
 
-**Próximo passo:** o ADR-020 (entrega live incremental), que depende do 005 e do 016, e o ADR-021 (campos de
-transição), que o 016 já pressupõe. O ADR-005 resolveu as questões que o 016 deixou para ele: formato do
-contexto assinado, emissão, validade e rotação da chave.
+**Próximo passo:** os ADRs 001 (Grafo compilado em IR) e 002 (somente PostgreSQL) são os fundadores que
+faltam; os demais (003, 006, 007, 009 a 015, 017 a 019) seguem a ordem das fases do roadmap. Antes de
+implementar a fase 0, o ADR-001 precisa definir o esquema da IR e sua política de compatibilidade.
 
 ## Convenção
 

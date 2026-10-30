@@ -2,7 +2,8 @@
 
 - Status: proposto
 - Data: 2026-10-30
-- Dependem deste ADR: 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado), 020 (entrega live incremental)
+- Dependem deste ADR: 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado), 008 (ordem e
+  continuidade dos eventos), 020 (entrega live incremental), 021 (campos de transição)
 
 ## Contexto
 
@@ -119,7 +120,7 @@ idempotência. Não existe estado intermediário visível.
   chamar API de terceiros, publicar em fila: tudo isso é feito por um **handler**, depois do commit.
 - O relay lê a outbox com `SKIP LOCKED`, na ordem do `xid8`, e só entrega eventos abaixo de
   `pg_snapshot_xmin(pg_current_snapshot())`, o ponto em que todas as transações anteriores já terminaram
-  (a mecânica completa fica no ADR-020).
+  (a mecânica completa fica no ADR-008).
 - A entrega é **pelo menos uma vez**. O handler deduplica pela chave do evento (`idempotent_by :event_id`).
   Essa deduplicação protege o **handler**, não o mundo externo: o efeito só ocorre exatamente uma vez se o
   provedor externo aceitar uma chave de idempotência.
@@ -224,7 +225,7 @@ Nenhuma superfície pode pular uma etapa, trocar a ordem ou ter transação pró
 ## Questões que este ADR deixa para outros
 
 - Formato do contexto assinado, emissão, validade e rotação da chave: ADR-005.
-- Ordem e continuidade da entrega de eventos, checkpoint e ressincronização: ADR-020.
+- Ordem e continuidade da entrega de eventos, checkpoint e ressincronização: ADR-008.
 - Como o MCP classifica comandos sensíveis e coleta a aprovação humana: ADR-011.
 - Custo medido do HMAC por consulta e da escrita na tabela de idempotência: medição da fase 1.
 - Retenção da chave de idempotência (24 horas é hipótese de trabalho).
