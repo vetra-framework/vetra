@@ -103,6 +103,129 @@ check("um papel com BYPASSRLS ignora a política (por isso o doctor o proíbe na
   [rows == 2, "BYPASSRLS viu #{rows} de 2 linhas"]
 end
 
+# --- Combinação de políticas e troca de política (ADR-005 e ADR-015) ---
+
+def policy_table(admin, name, policies)
+  admin.exec("SET ROLE vetra_sonda_owner")
+  admin.exec("DROP TABLE IF EXISTS vetra_sonda.#{name}")
+  admin.exec("CREATE TABLE vetra_sonda.#{name} (id int, tenant int, regiao text, grupo int)")
+  admin.exec("INSERT INTO vetra_sonda.#{name} VALUES (1, 1, 'A', 1), (2, 1, 'B', 2), (3, 2, 'A', 3), (4, 2, 'B', 3)")
+  admin.exec("ALTER TABLE vetra_sonda.#{name} ENABLE ROW LEVEL SECURITY")
+  policies.each { |sql| admin.exec(sql) }
+  admin.exec("GRANT SELECT ON vetra_sonda.#{name} TO vetra_sonda_app")
+  admin.exec("RESET ROLE")
+end
+
+def visible_ids(conn, relation, tenant: 1)
+  conn.exec("BEGIN")
+  conn.exec("SET LOCAL ROLE vetra_sonda_app")
+  conn.exec_params("SELECT set_config('vetra.tenant', $1, true)", [tenant.to_s])
+  conn.exec("SELECT id FROM #{relation} ORDER BY id").map { |row| row["id"].to_i }
+ensure
+  conn.exec("ROLLBACK")
+end
+
+TENANT_USING = "tenant = NULLIF(current_setting('vetra.tenant', true), '')::int".freeze
+
+check("isolamento PERMISSIVO somado a um escopo permissivo VAZA entre tenants (por isso o isolamento é RESTRICTIVE)") do
+  policy_table(admin, "c1", ["CREATE POLICY isolamento ON vetra_sonda.c1 USING (#{TENANT_USING})", "CREATE POLICY escopo ON vetra_sonda.c1 USING (regiao = 'A')"])
+  ids = visible_ids(admin, "vetra_sonda.c1")
+  [ids.include?(3), "contexto tenant=1 viu #{ids.inspect}; a linha 3 é do tenant 2"]
+end
+check("isolamento RESTRICTIVE somado a um escopo permissivo respeita tenant e escopo") do
+  policy_table(admin, "c2", ["CREATE POLICY isolamento ON vetra_sonda.c2 AS RESTRICTIVE USING (#{TENANT_USING})", "CREATE POLICY escopo ON vetra_sonda.c2 USING (regiao = 'A')"])
+  ids = visible_ids(admin, "vetra_sonda.c2")
+  [ids == [1], "contexto tenant=1 viu #{ids.inspect}"]
+end
+check("só políticas RESTRICTIVE, sem nenhuma permissiva, não concedem acesso a ninguém") do
+  policy_table(admin, "c3", ["CREATE POLICY isolamento ON vetra_sonda.c3 AS RESTRICTIVE USING (#{TENANT_USING})"])
+  ids = visible_ids(admin, "vetra_sonda.c3")
+  [ids.empty?, "contexto tenant=1 viu #{ids.inspect}"]
+end
+check("RESTRICTIVE de tenant mais uma permissiva USING (true) dá acesso só ao tenant (entidade sem escopo)") do
+  policy_table(admin, "c4", ["CREATE POLICY isolamento ON vetra_sonda.c4 AS RESTRICTIVE USING (#{TENANT_USING})", "CREATE POLICY acesso ON vetra_sonda.c4 USING (true)"])
+  ids = visible_ids(admin, "vetra_sonda.c4")
+  [ids == [1, 2], "contexto tenant=1 viu #{ids.inspect}"]
+end
+
+STATES = { [1, 2] => "ANTIGO", [2, 3, 4] => "NOVO", [1, 2, 3, 4] => "UNIAO", [] => "VAZIO" }.freeze
+
+# Troca a política "antiga" (grupos 1 e 2) pela "nova" (grupos 2 e 3) enquanto um leitor consulta o tempo todo;
+# devolve os estados que o leitor chegou a ver, na ordem. O grupo 1 deve ser revogado e o 3 concedido.
+def states_during_swap(admin)
+  policy_table(admin, "troca", ["CREATE POLICY antiga ON vetra_sonda.troca USING (grupo IN (1, 2))"])
+  reader = connect
+  reader.exec("SET ROLE vetra_sonda_app")
+  seen = []
+  stop = false
+  watcher = Thread.new do
+    until stop
+      ids = reader.exec("SELECT id FROM vetra_sonda.troca ORDER BY id").map { |row| row["id"].to_i }
+      seen << ids if seen.last != ids
+    end
+  end
+  sleep 0.2
+  yield
+  sleep 0.2
+  stop = true
+  watcher.join
+  reader.close
+  seen.map { |ids| STATES.fetch(ids, ids.inspect) }
+end
+
+NEW_POLICY = "USING (grupo IN (2, 3))".freeze
+
+check("criar a nova política antes de remover a antiga expõe a UNIÃO dos acessos (contraste do procedimento antigo)") do
+  states = states_during_swap(admin) do
+    admin.exec("CREATE POLICY nova ON vetra_sonda.troca #{NEW_POLICY}")
+    sleep 0.4
+    admin.exec("DROP POLICY antiga ON vetra_sonda.troca")
+  end
+  [states.include?("UNIAO"), "o leitor viu #{states.join(' -> ')}"]
+end
+check("DROP POLICY + CREATE POLICY na mesma transação: o leitor nunca vê a união nem o vazio") do
+  states = states_during_swap(admin) do
+    admin.exec("BEGIN")
+    admin.exec("DROP POLICY antiga ON vetra_sonda.troca")
+    admin.exec("CREATE POLICY nova ON vetra_sonda.troca #{NEW_POLICY}")
+    sleep 0.5
+    admin.exec("COMMIT")
+  end
+  [states == %w[ANTIGO NOVO], "o leitor viu #{states.join(' -> ')}"]
+end
+check("ALTER POLICY troca a política de uma vez: o leitor nunca vê a união nem o vazio") do
+  states = states_during_swap(admin) { admin.exec("ALTER POLICY antiga ON vetra_sonda.troca #{NEW_POLICY}") }
+  [states == %w[ANTIGO NOVO], "o leitor viu #{states.join(' -> ')}"]
+end
+check("uma falha no CREATE dentro da transação preserva a política anterior") do
+  policy_table(admin, "falha", ["CREATE POLICY antiga ON vetra_sonda.falha USING (grupo IN (1, 2))"])
+  message = begin
+    admin.exec("BEGIN")
+    admin.exec("DROP POLICY antiga ON vetra_sonda.falha")
+    admin.exec("CREATE POLICY nova ON vetra_sonda.falha USING (coluna_que_nao_existe = 1)")
+    admin.exec("COMMIT")
+    nil
+  rescue PG::Error => e
+    admin.exec("ROLLBACK")
+    e.message.lines.first.strip
+  end
+  kept = admin.exec("SELECT count(*) FROM pg_policies WHERE schemaname = 'vetra_sonda' AND tablename = 'falha' AND policyname = 'antiga'").getvalue(0, 0) == "1"
+  ids = visible_ids(admin, "vetra_sonda.falha")
+  [!message.nil? && kept && STATES[ids] == "ANTIGO", "erro: #{message}; a antiga continua? #{kept}; acesso: #{STATES.fetch(ids, ids.inspect)}"]
+end
+check("ALTER POLICY não muda PERMISSIVE/RESTRICTIVE nem o comando (isso exige DROP + CREATE)") do
+  policy_table(admin, "alter", ["CREATE POLICY antiga ON vetra_sonda.alter USING (grupo IN (1, 2))"])
+  refused = ["AS RESTRICTIVE", "FOR SELECT"].map do |clause|
+    begin
+      admin.exec("ALTER POLICY antiga ON vetra_sonda.alter #{clause}")
+      nil
+    rescue PG::Error => e
+      e.message.lines.first.strip
+    end
+  end
+  [refused.none?(&:nil?), "recusado: #{refused.inspect}"]
+end
+
 check("view comum contorna o RLS; view security_invoker o respeita") do
   admin.exec("SET ROLE vetra_sonda_owner")
   admin.exec("CREATE VIEW vetra_sonda.v_dono AS SELECT * FROM vetra_sonda.t2")

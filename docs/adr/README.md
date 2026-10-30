@@ -49,7 +49,7 @@ e no 18 (job `postgres`).
 
 | Sonda | ADR | O que confere |
 |---|---|---|
-| `script/sonda_adr002.rb` | [002](002-somente-postgresql.md) | Os requisitos de PostgreSQL: versão mínima, RLS com `FORCE`, `security_invoker`, `xmin`, timeouts, `pgcrypto` |
+| `script/sonda_adr002.rb` | [002](002-somente-postgresql.md) | Os requisitos de PostgreSQL: versão mínima, RLS com `FORCE`, combinação e troca de políticas, `security_invoker`, `xmin`, timeouts, `pgcrypto` |
 | `script/sonda_adr003.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md) | Parametrização, contexto por `set_config`, savepoints, travas, fibras e agendador |
 | `script/sonda_adr006.rb` | [006](006-isolamento-de-dominios-em-tres-niveis.md) | O que o `Ruby::Box` isola e não isola, e gems nativas dentro dele |
 | `script/sonda_adr009.rb` | [009](009-workflows-por-historico-e-replay.md) | Replay em Fiber e os limites do bloqueio por `TracePoint` (só biblioteca padrão) |

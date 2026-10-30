@@ -93,8 +93,16 @@ porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.
   então a remoção da antiga, em fases separadas.
 - **Renomeação declarada:** coluna nova, escrita nos dois lados durante o deploy, preenchimento, troca de
   leitura e, na fase contract, remoção da antiga. `RENAME` direto quebraria o código antigo.
-- **Política RLS que muda:** criar a nova antes de remover a antiga. Como as políticas se somam e a negação é
-  o padrão (ADR-005), remover primeiro abriria uma janela em que ninguém lê.
+- **Política RLS que muda:** a troca é **atômica e indivisível**: `ALTER POLICY` (que troca `USING` e
+  `WITH CHECK`) ou `DROP POLICY` seguido de `CREATE POLICY` **na mesma transação**, quando muda o comando ou a
+  classificação permissiva/restritiva, que o `ALTER POLICY` não altera. A política nova preserva `USING`,
+  `WITH CHECK`, comando e classificação que o grafo declara. Os dois passos nunca ficam em etapas ou deploys
+  separados. Criar a nova antes de remover a antiga, em passos distintos, **expõe a união dos acessos**: as
+  políticas permissivas se combinam por OR, então o acesso que deveria ser revogado continua valendo até o
+  `DROP`, e um plano interrompido no meio deixa a união permanente (medido: um leitor viu o conjunto antigo, a
+  união e só então o novo). Dentro de uma transação, esses comandos seguram `AccessExclusive` até o commit: os
+  leitores esperam e depois enxergam apenas o estado novo, nunca a união nem o vazio. Uma falha desfaz a
+  transação e preserva a política anterior.
 
 ### 5. Todo passo roda com limite de espera
 
@@ -123,6 +131,8 @@ porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.
 - **Janela de manutenção:** resolve o lock, mas contradiz o objetivo de deploy sem parada.
 - **`down` automático:** não restaura dados preenchidos nem remove com segurança o que o código novo já usa.
   Roll-forward é mais previsível.
+- **Criar a política nova antes de remover a antiga, em passos separados** (era o procedimento deste ADR): a
+  união temporária concede acesso que devia ser revogado, e um plano interrompido a torna permanente.
 - **Inferir renomeações por semelhança de nome ou tipo:** pode apagar dado. A renomeação é sempre declarada
   (ADR-001).
 - **Ferramentas externas de mudança online como requisito:** o núcleo precisa funcionar só com PostgreSQL.
@@ -144,6 +154,7 @@ porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.
 | Nenhum passo espera um lock além do limite | Transacional | `lock_timeout` por passo, com repetição |
 | Código N-1 e N funcionam depois do expand | Verificável por testes | Suíte executada contra o esquema expandido |
 | Plano revisável e sem divergência da IR | Estrutural | `db:plan --check` |
+| A troca de uma política não concede a união dos acessos nem nega a todos | Transacional e verificável por testes | `ALTER POLICY` ou `DROP` + `CREATE` na mesma transação (`script/sonda_adr002.rb`) |
 | Passos escritos à mão | **Fora da garantia** | Marcados no relatório |
 
 ## Testes de aceitação
@@ -160,6 +171,9 @@ porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.
 9. Duas execuções simultâneas de `db:migrate` não aplicam o mesmo passo duas vezes.
 10. `db:plan --check` falha quando a IR mudou e o plano não.
 11. A suíte e a sonda rodam no PostgreSQL 17 e na versão estável mais recente (ADR-002).
+12. Com um leitor consultando durante a troca de uma política, ele vê o estado antigo e depois o novo, nunca a
+    união nem o vazio; uma falha no `CREATE` preserva a política anterior; a política nova mantém `USING`,
+    `WITH CHECK`, comando e classificação permissiva/restritiva do grafo.
 
 ## Questões em aberto
 
