@@ -20,26 +20,42 @@ jobs:
         with:
           bundler-cache: true
       - run: bundle exec rake test
-      - run: bundle exec bin/vetra graph:check --root examples/blog
-      - run: bundle exec bin/vetra graph:check --root examples/mini_crm
-      - run: bundle exec bin/vetra graph:check --root examples/mini_crm_revendas
-      - run: bundle exec bin/vetra graph:check --root examples/chat
-      - run: bundle exec bin/vetra graph:validate --root examples/blog --sources
-      - run: bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
-      - run: bundle exec bin/vetra graph:validate --root examples/mini_crm_revendas --sources
-      - run: bundle exec bin/vetra graph:validate --root examples/chat --sources
+      - name: graph:check em todos os exemplos
+        run: |
+          for app in examples/*/; do
+            bundle exec bin/vetra graph:check --root "${app%/}"
+          done
+      - name: graph:validate em todos os exemplos
+        run: |
+          for app in examples/*/; do
+            bundle exec bin/vetra graph:validate --root "${app%/}" --sources
+          done
       - name: Diff arquitetural contra a base do PR
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          for app in blog mini_crm; do
-            bundle exec bin/vetra graph:diff "git:origin/$BASE_REF" "examples/$app/.vetra/graph.json" --root "examples/$app" --format json --fail-on-breaking
+          # Descobre os grafos na BASE, não no PR: um artefato removido ou uma pasta apagada não pode
+          # escapar da comparação. Exemplos novos (sem versão na base) passam só pelos checks normais.
+          base="origin/$BASE_REF"
+          status=0
+          while IFS= read -r path; do
+            app="${path%/.vetra/graph.json}"
+            [ "$app" = "$path" ] && app=.
+            if [ ! -f "$path" ]; then
+              echo "::error file=$path::Artefato removido: $path existe em $base e não existe neste PR"
+              status=1
+              continue
+            fi
+            echo "graph:diff $app contra $base"
+            bundle exec bin/vetra graph:diff "git:$base" "$path" --root "$app" --format json --fail-on-breaking || status=1
+          done < <(git ls-tree -r --name-only "$base" | grep -E '(^|/)\.vetra/graph\.json$' || true)
+          exit "$status"
+      - name: graph:link em todos os exemplos
+        run: |
+          for app in examples/*/; do
+            bundle exec bin/vetra graph:link --root "${app%/}"
           done
-      - run: bundle exec bin/vetra graph:link --root examples/blog
-      - run: bundle exec bin/vetra graph:link --root examples/mini_crm
-      - run: bundle exec bin/vetra graph:link --root examples/mini_crm_revendas
-      - run: bundle exec bin/vetra graph:link --root examples/chat
 
   postgres:
     name: sondas (PostgreSQL ${{ matrix.postgres }})
