@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256" role="img" aria-labelledby="t">
+  <title id="t">Vetra</title>
+  <defs>
+    <linearGradient id="vetra-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FB7185"/>
+      <stop offset="1" stop-color="#BE123C"/>
+    </linearGradient>
+  </defs>
+  <!-- faceta da gema: o triângulo formado pelos três nós -->
+  <path d="M14 14 H50 L32 50 Z" fill="url(#vetra-g)" fill-opacity=".16"/>
+  <!-- aresta superior (fina) e braços do V -->
+  <path d="M14 14 H50" stroke="url(#vetra-g)" stroke-width="2.5" stroke-linecap="round" opacity=".55" fill="none"/>
+  <path d="M14 14 L32 50 L50 14" stroke="url(#vetra-g)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- nós do grafo -->
+  <g fill="url(#vetra-g)">
+    <circle cx="14" cy="14" r="7"/>
+    <circle cx="50" cy="14" r="7"/>
+    <circle cx="32" cy="50" r="7"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="14" cy="14" r="2.5"/>
+    <circle cx="50" cy="14" r="2.5"/>
+    <circle cx="32" cy="50" r="2.5"/>
+  </g>
+</svg>
