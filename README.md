@@ -50,8 +50,11 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 | [Revisões](docs/revisoes.pdf) | Histórico das rodadas de revisão e erros reconhecidos |
 | [Pendências (rodada 7)](docs/pendencias-rodada-7.pdf) | Decisões em aberto, pontos que dependem de medição e próximo passo |
 
-O primeiro ADR completo é o [ADR-016: ciclo de vida da operação](docs/adr/016-ciclo-de-vida-da-operacao.md),
-o central do qual dependem os ADRs 004, 005 e 020. Veja o índice em [docs/adr](docs/adr/README.md).
+As decisões detalhadas estão no [índice de ADRs](docs/adr/README.md), ainda com status proposto. O
+[ADR-016](docs/adr/016-ciclo-de-vida-da-operacao.md) define o ciclo de vida comum às operações; o
+[ADR-001](docs/adr/001-grafo-da-aplicacao-e-ir.md) define o grafo e a compatibilidade da
+[IR 0.1, com schema e exemplos](docs/ir/README.md), antes do protótipo da fase 0. Os PDFs preservam o
+histórico da proposta; os ADRs desenvolvem as decisões posteriores.
 
 ## Estrutura do repositório
 
@@ -62,7 +65,8 @@ o central do qual dependem os ADRs 004, 005 e 020. Veja o índice em [docs/adr](
 │   ├── revisoes.pdf
 │   ├── pendencias-rodada-7.pdf
 │   ├── exemplos/          # mini CRM, blog e chat
-│   └── adr/               # registro de decisões arquiteturais
+│   ├── adr/               # registro de decisões arquiteturais
+│   └── ir/                # schema versionado e exemplos da representação intermediária
 ├── logo/                  # SVG, PNG e favicon
 └── LICENSE
 ```

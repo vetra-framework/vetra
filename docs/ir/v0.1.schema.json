@@ -1,0 +1,941 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:vetra:ir:0.1",
+  "title": "Vetra Application Graph IR 0.1",
+  "description": "Contrato proposto pelo ADR-001. Forma estrutural; referências, tipos de literais, manifesto, digest e demais invariantes exigem validação semântica.",
+  "type": "object",
+  "properties": {
+    "ir_version": {"const": "0.1"},
+    "requires": {
+      "type": "array",
+      "items": {"enum": ["vetra.core", "vetra.live"]},
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": {"const": "vetra.core"}
+    },
+    "producer": {
+      "type": "object",
+      "properties": {
+        "name": {"const": "vetra"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"},
+        "ruby_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      },
+      "required": ["name", "version", "ruby_version"],
+      "additionalProperties": false
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "tenant": {"$ref": "#/$defs/tenant"},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "locale": {"type": "string", "minLength": 1}
+      },
+      "required": ["name", "tenant", "currency", "locale"],
+      "additionalProperties": false
+    },
+    "inputs": {"type": "array", "items": {"$ref": "#/$defs/input_file"}, "minItems": 1, "uniqueItems": true},
+    "nodes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/domain"},
+          {"$ref": "#/$defs/entity"},
+          {"$ref": "#/$defs/contract"},
+          {"$ref": "#/$defs/command"},
+          {"$ref": "#/$defs/query"},
+          {"$ref": "#/$defs/role"},
+          {"$ref": "#/$defs/policy"},
+          {"$ref": "#/$defs/capability"},
+          {"$ref": "#/$defs/event"},
+          {"$ref": "#/$defs/handler"},
+          {"$ref": "#/$defs/route"},
+          {"$ref": "#/$defs/dependency"}
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "annotations": {"$ref": "#/$defs/annotations"}
+  },
+  "required": ["ir_version", "requires", "producer", "app", "inputs", "nodes", "digest"],
+  "additionalProperties": false,
+  "$defs": {
+    "domain_ref": {
+      "type": "object",
+      "properties": {"kind": {"const": "domain"}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}},
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "entity_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "entity"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "contract_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "contract"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "command_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "command"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "query_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "query"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "role_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "role"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "policy_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "policy"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "capability_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "capability"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "event_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "event"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "handler_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "handler"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "route_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "route"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "dependency_ref": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "dependency"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "json_value": {
+      "oneOf": [
+        {"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991},
+        {"type": "string"},
+        {"type": "boolean"},
+        {"type": "null"},
+        {"type": "array", "items": {"$ref": "#/$defs/json_value"}},
+        {"type": "object", "additionalProperties": {"$ref": "#/$defs/json_value"}}
+      ]
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "domain",
+            "entity",
+            "contract",
+            "command",
+            "query",
+            "role",
+            "policy",
+            "capability",
+            "event",
+            "handler",
+            "route",
+            "dependency"
+          ]
+        },
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\/$)[^\\u0000-\\u001f]+$"
+        },
+        "line": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": ["path", "line"],
+      "additionalProperties": false
+    },
+    "input_file": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\/$)[^\\u0000-\\u001f]+$"
+        },
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "required": ["path", "digest"],
+      "additionalProperties": false
+    },
+    "tenant": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "properties": {
+            "entity": {"$ref": "#/$defs/entity_ref"},
+            "field": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+          },
+          "required": ["entity", "field"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotations": {
+      "type": "object",
+      "propertyNames": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+      "additionalProperties": {"$ref": "#/$defs/json_value"}
+    },
+    "node_base": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"},
+        "kind": {
+          "enum": [
+            "domain",
+            "entity",
+            "contract",
+            "command",
+            "query",
+            "role",
+            "policy",
+            "capability",
+            "event",
+            "handler",
+            "route",
+            "dependency"
+          ]
+        },
+        "source": {"$ref": "#/$defs/source"},
+        "generated_from": {"$ref": "#/$defs/reference"},
+        "previous_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "annotations": {"$ref": "#/$defs/annotations"}
+      },
+      "required": ["id", "kind", "source"]
+    },
+    "type": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {"name": {"enum": ["string", "text", "email", "boolean", "integer", "date", "timestamp", "json"]}},
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {"name": {"const": "id"}, "entity": {"$ref": "#/$defs/entity_ref"}},
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {"const": "enum"},
+            "values": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+            "groups": {
+              "type": "object",
+              "propertyNames": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "additionalProperties": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          },
+          "required": ["name", "values"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {"enum": ["decimal", "money"]},
+            "precision": {"type": "integer", "minimum": 1, "maximum": 1000},
+            "scale": {"type": "integer", "minimum": 0, "maximum": 1000}
+          },
+          "required": ["name", "precision", "scale"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "privacy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {"personal": {"const": false}},
+          "required": ["personal"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {"personal": {"const": true}, "classification": {"enum": ["personal", "sensitive"]}},
+          "required": ["personal", "classification"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "literal": {
+      "type": "object",
+      "properties": {"kind": {"const": "literal"}, "value": {"$ref": "#/$defs/json_value"}},
+      "required": ["kind", "value"],
+      "additionalProperties": false
+    },
+    "default": {
+      "oneOf": [
+        {"$ref": "#/$defs/literal"},
+        {
+          "type": "object",
+          "properties": {"kind": {"const": "context"}, "name": {"enum": ["current_actor", "current_tenant"]}},
+          "required": ["kind", "name"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "guard": {
+      "type": "object",
+      "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "commands": {"type": "array", "items": {"$ref": "#/$defs/command_ref"}, "minItems": 1, "uniqueItems": true}
+      },
+      "required": ["value", "commands"],
+      "additionalProperties": false
+    },
+    "field": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "type": {"$ref": "#/$defs/type"},
+        "required": {"type": "boolean"},
+        "nullable": {"type": "boolean"},
+        "privacy": {"$ref": "#/$defs/privacy"},
+        "default": {"$ref": "#/$defs/default"},
+        "previous_names": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "set_by": {"type": "array", "items": {"$ref": "#/$defs/command_ref"}, "minItems": 1, "uniqueItems": true},
+        "guarded": {"type": "array", "items": {"$ref": "#/$defs/guard"}, "minItems": 1, "uniqueItems": true},
+        "normalize": {"type": "array", "items": {"enum": ["downcase"]}, "minItems": 1, "uniqueItems": true},
+        "generate": {
+          "type": "object",
+          "properties": {"kind": {"const": "slug"}, "from": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}},
+          "required": ["kind", "from"],
+          "additionalProperties": false
+        },
+        "constraints": {
+          "type": "object",
+          "properties": {
+            "min_length": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "max_length": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+            "unique": {"type": "boolean"}
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": ["name", "type", "required", "nullable", "privacy"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"properties": {"name": {"const": "decimal"}}}}},
+          "then": {
+            "properties": {
+              "default": {
+                "properties": {
+                  "value": {
+                    "oneOf": [{"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"}, {"type": "null"}]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"properties": {"name": {"const": "money"}}}}},
+          "then": {
+            "properties": {
+              "default": {
+                "properties": {
+                  "value": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "amount": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+                          "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+                        },
+                        "required": ["amount", "currency"],
+                        "additionalProperties": false
+                      },
+                      {"type": "null"}
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"required": ["guarded"]},
+          "then": {"properties": {"type": {"properties": {"name": {"const": "enum"}}}}}
+        }
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "kind": {"enum": ["belongs_to", "has_many", "many_to_many"]},
+        "target": {"$ref": "#/$defs/entity_ref"},
+        "same_tenant": {"type": "boolean"},
+        "local_fields": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "target_fields": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "through": {"$ref": "#/$defs/entity_ref"},
+        "include_on_create": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": ["name", "kind", "target", "same_tenant", "local_fields", "target_fields"],
+      "additionalProperties": false
+    },
+    "operand": {
+      "oneOf": [
+        {"$ref": "#/$defs/literal"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"enum": ["field", "actor", "input"]},
+            "path": {"type": "array", "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "minItems": 1}
+          },
+          "required": ["kind", "path"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "predicate": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {"op": {"enum": ["true", "false"]}},
+          "required": ["op"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {"enum": ["eq", "in"]},
+            "left": {"$ref": "#/$defs/operand"},
+            "right": {"$ref": "#/$defs/operand"}
+          },
+          "required": ["op", "left", "right"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {"enum": ["and", "or"]},
+            "terms": {"type": "array", "items": {"$ref": "#/$defs/predicate"}, "minItems": 1}
+          },
+          "required": ["op", "terms"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {"op": {"const": "not"}, "term": {"$ref": "#/$defs/predicate"}},
+          "required": ["op", "term"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {"const": "exists"},
+            "relation": {"type": "array", "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "minItems": 1},
+            "where": {"$ref": "#/$defs/predicate"}
+          },
+          "required": ["op", "relation", "where"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "status": {"enum": ["complete", "incomplete"]},
+        "constants": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 0, "uniqueItems": true},
+        "dynamic": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 0, "uniqueItems": true}
+      },
+      "required": ["status", "constants", "dynamic"],
+      "additionalProperties": false
+    },
+    "implementation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "builtin"},
+            "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
+          },
+          "required": ["kind", "name"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "ruby"},
+            "ref": {"type": "string", "pattern": "^[a-z][a-z0-9_.]*#call$"},
+            "path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\/$)[^\\u0000-\\u001f]+$"
+            },
+            "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "analysis": {"$ref": "#/$defs/analysis"}
+          },
+          "required": ["kind", "ref", "path", "digest", "analysis"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "properties": {
+        "action": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "entity": {"$ref": "#/$defs/entity_ref"},
+        "record": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+      },
+      "required": ["action", "entity"],
+      "additionalProperties": false
+    },
+    "emission": {
+      "type": "object",
+      "properties": {
+        "event": {"$ref": "#/$defs/event_ref"},
+        "from": {"$ref": "#/$defs/entity_ref"},
+        "fields": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": ["event", "from", "fields"],
+      "additionalProperties": false
+    },
+    "live": {
+      "type": "object",
+      "properties": {
+        "mode": {"enum": ["strict", "balanced"]},
+        "depends_on": {"type": "array", "items": {"$ref": "#/$defs/entity_ref"}, "minItems": 1, "uniqueItems": true}
+      },
+      "required": ["mode", "depends_on"],
+      "additionalProperties": false
+    },
+    "capability_config": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "repository"},
+            "entity": {"$ref": "#/$defs/entity_ref"},
+            "access": {"enum": ["read", "read_write"]}
+          },
+          "required": ["type", "entity", "access"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {"type": {"const": "deterministic"}},
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {"const": "external"},
+            "idempotency_key": {"type": "boolean"},
+            "hosts": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 0, "uniqueItems": true},
+            "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+          },
+          "required": ["type", "idempotency_key", "hosts", "timeout_ms"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {"type": {"const": "sql"}, "access": {"enum": ["read", "read_write"]}},
+          "required": ["type", "access"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "index": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "fields": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "unique": {"type": "boolean"},
+        "where": {"$ref": "#/$defs/predicate"}
+      },
+      "required": ["name", "fields", "unique"],
+      "additionalProperties": false
+    },
+    "http_config": {
+      "type": "object",
+      "properties": {
+        "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]},
+        "path": {"type": "string", "pattern": "^/[^\\s]*$"}
+      },
+      "required": ["method", "path"],
+      "additionalProperties": false
+    },
+    "named_config": {
+      "type": "object",
+      "properties": {"name": {"type": "string", "minLength": 1}},
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "domain": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "domain"},
+            "depends_on": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "array", "items": {"$ref": "#/$defs/domain_ref"}, "minItems": 0, "uniqueItems": true}
+              ]
+            }
+          },
+          "required": ["kind", "depends_on"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "entity": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "entity"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "storage": {
+              "type": "object",
+              "properties": {
+                "schema": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                "table": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                "primary_key": {
+                  "type": "array",
+                  "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": ["schema", "table", "primary_key"],
+              "additionalProperties": false
+            },
+            "tenant": {"$ref": "#/$defs/tenant"},
+            "fields": {"type": "array", "items": {"$ref": "#/$defs/field"}, "minItems": 1, "uniqueItems": true},
+            "relations": {"type": "array", "items": {"$ref": "#/$defs/relation"}, "minItems": 0, "uniqueItems": true},
+            "indexes": {"type": "array", "items": {"$ref": "#/$defs/index"}, "minItems": 0, "uniqueItems": true},
+            "history": {"enum": ["none", "full"]},
+            "transitions": {
+              "type": "object",
+              "properties": {"enforce": {"enum": ["application", "db"]}},
+              "required": ["enforce"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["kind", "domain", "storage", "tenant", "fields", "relations", "indexes", "history", "transitions"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "contract": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "contract"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "fields": {"type": "array", "items": {"$ref": "#/$defs/field"}, "minItems": 0, "uniqueItems": true}
+          },
+          "required": ["kind", "domain", "fields"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "command": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "command"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "input": {"$ref": "#/$defs/contract_ref"},
+            "output": {"$ref": "#/$defs/contract_ref"},
+            "authorize": {"$ref": "#/$defs/authorization"},
+            "uses": {"type": "array", "items": {"$ref": "#/$defs/capability_ref"}, "minItems": 0, "uniqueItems": true},
+            "implementation": {"$ref": "#/$defs/implementation"},
+            "unsafe_effect": {"type": "string", "minLength": 1},
+            "emits": {"type": "array", "items": {"$ref": "#/$defs/emission"}, "minItems": 0, "uniqueItems": true}
+          },
+          "required": ["kind", "domain", "input", "output", "authorize", "uses", "implementation", "emits"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "query": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "query"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "input": {"$ref": "#/$defs/contract_ref"},
+            "output": {"$ref": "#/$defs/contract_ref"},
+            "authorize": {"$ref": "#/$defs/authorization"},
+            "uses": {"type": "array", "items": {"$ref": "#/$defs/capability_ref"}, "minItems": 0, "uniqueItems": true},
+            "implementation": {"$ref": "#/$defs/implementation"},
+            "unsafe_effect": {"type": "string", "minLength": 1},
+            "live": {"$ref": "#/$defs/live"}
+          },
+          "required": ["kind", "domain", "input", "output", "authorize", "uses", "implementation"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "role": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "role"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "anonymous": {"type": "boolean"}
+          },
+          "required": ["kind", "domain", "anonymous"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "policy": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "policy"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "role": {"$ref": "#/$defs/role_ref"},
+            "entity": {"$ref": "#/$defs/entity_ref"},
+            "actions": {
+              "type": "array",
+              "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "fields": {
+              "oneOf": [
+                {"const": "*"},
+                {
+                  "type": "array",
+                  "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                  "minItems": 0,
+                  "uniqueItems": true
+                }
+              ]
+            },
+            "predicate": {"$ref": "#/$defs/predicate"},
+            "reads": {"type": "array", "items": {"$ref": "#/$defs/entity_ref"}, "minItems": 1, "uniqueItems": true}
+          },
+          "required": ["kind", "domain", "role", "entity", "actions", "fields", "predicate", "reads"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "capability": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "capability"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "adapter": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+            "retry_safe": {"type": "boolean"},
+            "simulation": {"enum": ["seeded", "memory", "none"]},
+            "config": {"$ref": "#/$defs/capability_config"}
+          },
+          "required": ["kind", "domain", "adapter", "retry_safe", "simulation", "config"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "event": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "event"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "payload": {"$ref": "#/$defs/contract_ref"},
+            "version": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+            "visibility": {"enum": ["internal", "public"]},
+            "consumer_required": {"type": "boolean"}
+          },
+          "required": ["kind", "domain", "payload", "version", "visibility", "consumer_required"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "handler": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "handler"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "on": {"type": "array", "items": {"$ref": "#/$defs/event_ref"}, "minItems": 1, "uniqueItems": true},
+            "uses": {"type": "array", "items": {"$ref": "#/$defs/capability_ref"}, "minItems": 0, "uniqueItems": true},
+            "calls": {"type": "array", "items": {"$ref": "#/$defs/command_ref"}, "minItems": 0, "uniqueItems": true},
+            "idempotent_by": {"const": "event_id"},
+            "implementation": {"$ref": "#/$defs/implementation"},
+            "unsafe_effect": {"type": "string", "minLength": 1}
+          },
+          "required": ["kind", "domain", "on", "uses", "calls", "idempotent_by", "implementation"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "route": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "route"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "surface": {"enum": ["http", "cli", "job", "webhook"]},
+            "target": {"oneOf": [{"$ref": "#/$defs/command_ref"}, {"$ref": "#/$defs/query_ref"}]},
+            "config": {"oneOf": [{"$ref": "#/$defs/http_config"}, {"$ref": "#/$defs/named_config"}]},
+            "idempotency": {"enum": ["optional", "required"]}
+          },
+          "required": ["kind", "domain", "surface", "target", "config", "idempotency"]
+        },
+        {
+          "if": {"properties": {"surface": {"enum": ["http", "webhook"]}}},
+          "then": {"properties": {"config": {"$ref": "#/$defs/http_config"}}},
+          "else": {"properties": {"config": {"$ref": "#/$defs/named_config"}}}
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "dependency": {
+      "allOf": [
+        {"$ref": "#/$defs/node_base"},
+        {
+          "type": "object",
+          "properties": {
+            "kind": {"const": "dependency"},
+            "domain": {"$ref": "#/$defs/domain_ref"},
+            "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+            "version": {"type": "string", "minLength": 1},
+            "trust": {"enum": ["trusted", "restricted", "outside_guarantee", "unclassified"]}
+          },
+          "required": ["kind", "domain", "name", "version", "trust"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

@@ -1,0 +1,386 @@
+{
+  "ir_version": "0.1",
+  "requires": ["vetra.core"],
+  "producer": {"name": "vetra", "version": "0.1.0-design", "ruby_version": "4.0.0"},
+  "app": {
+    "name": "mini_crm",
+    "tenant": {"entity": {"kind": "entity", "id": "crm.company"}, "field": "company_id"},
+    "currency": "BRL",
+    "locale": "pt-BR"
+  },
+  "inputs": [
+    {
+      "path": ".ruby-version",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "Gemfile.lock",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/company.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/domain.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/find_lead.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/lead.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/notify_sales.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/roles.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/crm/win_lead.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "config/app.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "capability",
+      "id": "crm.leads",
+      "source": {"path": "app/domains/crm/lead.rb", "line": 1},
+      "adapter": "core.repository",
+      "retry_safe": true,
+      "simulation": "memory",
+      "config": {"type": "repository", "entity": {"kind": "entity", "id": "crm.lead"}, "access": "read_write"},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "capability",
+      "id": "crm.leads_read",
+      "source": {"path": "app/domains/crm/lead.rb", "line": 1},
+      "adapter": "core.repository",
+      "retry_safe": true,
+      "simulation": "memory",
+      "config": {"type": "repository", "entity": {"kind": "entity", "id": "crm.lead"}, "access": "read"},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "capability",
+      "id": "crm.mailer",
+      "source": {"path": "config/app.rb", "line": 1},
+      "adapter": "app.mailer",
+      "retry_safe": true,
+      "simulation": "memory",
+      "config": {"type": "external", "idempotency_key": true, "hosts": [], "timeout_ms": 5000},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "command",
+      "id": "crm.win_lead",
+      "source": {"path": "app/domains/crm/win_lead.rb", "line": 1},
+      "input": {"kind": "contract", "id": "crm.lead_input"},
+      "output": {"kind": "contract", "id": "crm.lead_result"},
+      "authorize": {"action": "update", "entity": {"kind": "entity", "id": "crm.lead"}, "record": "lead_id"},
+      "uses": [{"kind": "capability", "id": "crm.leads"}],
+      "emits": [
+        {
+          "event": {"kind": "event", "id": "crm.lead.won"},
+          "from": {"kind": "entity", "id": "crm.lead"},
+          "fields": ["id"]
+        }
+      ],
+      "implementation": {
+        "kind": "ruby",
+        "ref": "crm.win_lead#call",
+        "path": "app/domains/crm/win_lead.rb",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "analysis": {"status": "complete", "constants": [], "dynamic": []}
+      },
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "contract",
+      "id": "crm.lead_input",
+      "source": {"path": "app/domains/crm/win_lead.rb", "line": 1},
+      "fields": [
+        {
+          "name": "lead_id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.lead"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        }
+      ],
+      "generated_from": {"kind": "command", "id": "crm.win_lead"},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "contract",
+      "id": "crm.lead_result",
+      "source": {"path": "app/domains/crm/lead.rb", "line": 1},
+      "fields": [
+        {
+          "name": "company_id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.company"}},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "email",
+          "type": {"name": "email"},
+          "nullable": true,
+          "privacy": {"personal": true, "classification": "personal"},
+          "required": true
+        },
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.lead"}},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "name",
+          "type": {"name": "string"},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": {
+            "name": "enum",
+            "values": ["new", "contacted", "won", "lost"],
+            "groups": {"closed": ["won", "lost"]}
+          },
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "valor",
+          "type": {"name": "money", "precision": 19, "scale": 2},
+          "nullable": true,
+          "privacy": {"personal": false},
+          "required": true
+        }
+      ],
+      "generated_from": {"kind": "entity", "id": "crm.lead"},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "contract",
+      "id": "crm.won_payload",
+      "source": {"path": "app/domains/crm/win_lead.rb", "line": 1},
+      "fields": [
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.lead"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        }
+      ],
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "dependency",
+      "id": "crm.pg",
+      "source": {"path": "Gemfile.lock", "line": 1},
+      "name": "pg",
+      "version": "1.6.0",
+      "trust": "trusted",
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "domain",
+      "id": "crm",
+      "source": {"path": "app/domains/crm/domain.rb", "line": 1},
+      "depends_on": []
+    },
+    {
+      "kind": "entity",
+      "id": "crm.company",
+      "source": {"path": "app/domains/crm/company.rb", "line": 1},
+      "storage": {"schema": "public", "table": "companies", "primary_key": ["id"]},
+      "tenant": null,
+      "fields": [
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.company"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        },
+        {
+          "name": "name",
+          "type": {"name": "string"},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        }
+      ],
+      "relations": [],
+      "history": "full",
+      "transitions": {"enforce": "application"},
+      "domain": {"kind": "domain", "id": "crm"},
+      "indexes": []
+    },
+    {
+      "kind": "entity",
+      "id": "crm.lead",
+      "source": {"path": "app/domains/crm/lead.rb", "line": 1},
+      "storage": {"schema": "public", "table": "leads", "primary_key": ["id"]},
+      "tenant": {"entity": {"kind": "entity", "id": "crm.company"}, "field": "company_id"},
+      "fields": [
+        {
+          "name": "company_id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.company"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        },
+        {
+          "name": "email",
+          "type": {"name": "email"},
+          "required": false,
+          "nullable": true,
+          "privacy": {"personal": true, "classification": "personal"}
+        },
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "crm.lead"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        },
+        {
+          "name": "name",
+          "type": {"name": "string"},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false},
+          "constraints": {"min_length": 2, "max_length": 160}
+        },
+        {
+          "name": "status",
+          "type": {
+            "name": "enum",
+            "values": ["new", "contacted", "won", "lost"],
+            "groups": {"closed": ["won", "lost"]}
+          },
+          "required": false,
+          "nullable": false,
+          "privacy": {"personal": false},
+          "default": {"kind": "literal", "value": "new"},
+          "guarded": [{"value": "won", "commands": [{"kind": "command", "id": "crm.win_lead"}]}]
+        },
+        {
+          "name": "valor",
+          "type": {"name": "money", "precision": 19, "scale": 2},
+          "required": false,
+          "nullable": true,
+          "privacy": {"personal": false}
+        }
+      ],
+      "indexes": [{"name": "leads_company_status_idx", "fields": ["company_id", "status"], "unique": false}],
+      "relations": [
+        {
+          "name": "company",
+          "kind": "belongs_to",
+          "target": {"kind": "entity", "id": "crm.company"},
+          "same_tenant": false,
+          "local_fields": ["company_id"],
+          "target_fields": ["id"]
+        }
+      ],
+      "history": "full",
+      "transitions": {"enforce": "db"},
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "event",
+      "id": "crm.lead.won",
+      "source": {"path": "app/domains/crm/win_lead.rb", "line": 1},
+      "payload": {"kind": "contract", "id": "crm.won_payload"},
+      "version": 1,
+      "visibility": "internal",
+      "consumer_required": true,
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "handler",
+      "id": "crm.notify_sales",
+      "source": {"path": "app/domains/crm/notify_sales.rb", "line": 1},
+      "on": [{"kind": "event", "id": "crm.lead.won"}],
+      "uses": [{"kind": "capability", "id": "crm.mailer"}],
+      "calls": [],
+      "idempotent_by": "event_id",
+      "implementation": {
+        "kind": "ruby",
+        "ref": "crm.notify_sales#call",
+        "path": "app/domains/crm/notify_sales.rb",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "analysis": {"status": "complete", "constants": [], "dynamic": []}
+      },
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "policy",
+      "id": "crm.vendedor_leads",
+      "source": {"path": "app/domains/crm/roles.rb", "line": 1},
+      "role": {"kind": "role", "id": "crm.vendedor"},
+      "entity": {"kind": "entity", "id": "crm.lead"},
+      "actions": ["read", "update"],
+      "fields": "*",
+      "predicate": {"op": "true"},
+      "reads": [{"kind": "entity", "id": "crm.lead"}],
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "query",
+      "id": "crm.find_lead",
+      "source": {"path": "app/domains/crm/find_lead.rb", "line": 1},
+      "input": {"kind": "contract", "id": "crm.lead_input"},
+      "output": {"kind": "contract", "id": "crm.lead_result"},
+      "authorize": {"action": "read", "entity": {"kind": "entity", "id": "crm.lead"}, "record": "lead_id"},
+      "uses": [{"kind": "capability", "id": "crm.leads_read"}],
+      "implementation": {
+        "kind": "ruby",
+        "ref": "crm.find_lead#call",
+        "path": "app/domains/crm/find_lead.rb",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "analysis": {"status": "complete", "constants": [], "dynamic": []}
+      },
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "role",
+      "id": "crm.vendedor",
+      "source": {"path": "app/domains/crm/roles.rb", "line": 1},
+      "anonymous": false,
+      "domain": {"kind": "domain", "id": "crm"}
+    },
+    {
+      "kind": "route",
+      "id": "crm.win_lead_http",
+      "source": {"path": "app/domains/crm/win_lead.rb", "line": 1},
+      "surface": "http",
+      "target": {"kind": "command", "id": "crm.win_lead"},
+      "config": {"method": "POST", "path": "/leads/:lead_id/win"},
+      "idempotency": "optional",
+      "generated_from": {"kind": "command", "id": "crm.win_lead"},
+      "domain": {"kind": "domain", "id": "crm"}
+    }
+  ],
+  "annotations": {"example.note": "Design fixture; source digests are placeholders; not a release artifact."},
+  "digest": "sha256:002cfb864128e8ac5a82586877215f227109ef8477a0f568905c1eaa62a7db88"
+}

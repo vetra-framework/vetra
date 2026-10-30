@@ -1,0 +1,290 @@
+{
+  "ir_version": "0.1",
+  "requires": ["vetra.core"],
+  "producer": {"name": "vetra", "version": "0.1.0-design", "ruby_version": "4.0.0"},
+  "app": {"name": "blog", "tenant": null, "currency": "BRL", "locale": "pt-BR"},
+  "inputs": [
+    {
+      "path": ".ruby-version",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "Gemfile.lock",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/blog/domain.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/blog/find_post.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/blog/post.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/blog/publish_post.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "app/domains/blog/roles.rb",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "capability",
+      "id": "blog.clock",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "adapter": "core.clock",
+      "retry_safe": true,
+      "simulation": "seeded",
+      "config": {"type": "deterministic"},
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "capability",
+      "id": "blog.posts",
+      "source": {"path": "app/domains/blog/post.rb", "line": 1},
+      "adapter": "core.repository",
+      "retry_safe": true,
+      "simulation": "memory",
+      "config": {"type": "repository", "entity": {"kind": "entity", "id": "blog.post"}, "access": "read_write"},
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "capability",
+      "id": "blog.posts_read",
+      "source": {"path": "app/domains/blog/post.rb", "line": 1},
+      "adapter": "core.repository",
+      "retry_safe": true,
+      "simulation": "memory",
+      "config": {"type": "repository", "entity": {"kind": "entity", "id": "blog.post"}, "access": "read"},
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "command",
+      "id": "blog.publish_post",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "input": {"kind": "contract", "id": "blog.post_input"},
+      "output": {"kind": "contract", "id": "blog.post_result"},
+      "authorize": {"action": "update", "entity": {"kind": "entity", "id": "blog.post"}, "record": "post_id"},
+      "uses": [{"kind": "capability", "id": "blog.clock"}, {"kind": "capability", "id": "blog.posts"}],
+      "emits": [
+        {
+          "event": {"kind": "event", "id": "blog.post.published"},
+          "from": {"kind": "entity", "id": "blog.post"},
+          "fields": ["id"]
+        }
+      ],
+      "implementation": {
+        "kind": "ruby",
+        "ref": "blog.publish_post#call",
+        "path": "app/domains/blog/publish_post.rb",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "analysis": {"status": "complete", "constants": [], "dynamic": []}
+      },
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "contract",
+      "id": "blog.post_input",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "fields": [
+        {
+          "name": "post_id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "blog.post"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        }
+      ],
+      "generated_from": {"kind": "command", "id": "blog.publish_post"},
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "contract",
+      "id": "blog.post_result",
+      "source": {"path": "app/domains/blog/post.rb", "line": 1},
+      "fields": [
+        {
+          "name": "author_id",
+          "type": {"name": "id"},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "blog.post"}},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "published_at",
+          "type": {"name": "timestamp"},
+          "nullable": true,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": {"name": "enum", "values": ["draft", "published"]},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        },
+        {
+          "name": "title",
+          "type": {"name": "string"},
+          "nullable": false,
+          "privacy": {"personal": false},
+          "required": true
+        }
+      ],
+      "generated_from": {"kind": "entity", "id": "blog.post"},
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "contract",
+      "id": "blog.published_payload",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "fields": [
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "blog.post"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        }
+      ],
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "domain",
+      "id": "blog",
+      "source": {"path": "app/domains/blog/domain.rb", "line": 1},
+      "depends_on": []
+    },
+    {
+      "kind": "entity",
+      "id": "blog.post",
+      "source": {"path": "app/domains/blog/post.rb", "line": 1},
+      "storage": {"schema": "public", "table": "posts", "primary_key": ["id"]},
+      "tenant": null,
+      "fields": [
+        {
+          "name": "author_id",
+          "type": {"name": "id"},
+          "required": false,
+          "nullable": false,
+          "privacy": {"personal": false},
+          "default": {"kind": "context", "name": "current_actor"}
+        },
+        {
+          "name": "id",
+          "type": {"name": "id", "entity": {"kind": "entity", "id": "blog.post"}},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false}
+        },
+        {
+          "name": "published_at",
+          "type": {"name": "timestamp"},
+          "required": false,
+          "nullable": true,
+          "privacy": {"personal": false},
+          "set_by": [{"kind": "command", "id": "blog.publish_post"}]
+        },
+        {
+          "name": "status",
+          "type": {"name": "enum", "values": ["draft", "published"]},
+          "required": false,
+          "nullable": false,
+          "privacy": {"personal": false},
+          "default": {"kind": "literal", "value": "draft"},
+          "guarded": [{"value": "published", "commands": [{"kind": "command", "id": "blog.publish_post"}]}]
+        },
+        {
+          "name": "title",
+          "type": {"name": "string"},
+          "required": true,
+          "nullable": false,
+          "privacy": {"personal": false},
+          "constraints": {"max_length": 200}
+        }
+      ],
+      "relations": [],
+      "history": "full",
+      "transitions": {"enforce": "application"},
+      "domain": {"kind": "domain", "id": "blog"},
+      "indexes": []
+    },
+    {
+      "kind": "event",
+      "id": "blog.post.published",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "payload": {"kind": "contract", "id": "blog.published_payload"},
+      "version": 1,
+      "visibility": "public",
+      "consumer_required": false,
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "policy",
+      "id": "blog.autor_posts",
+      "source": {"path": "app/domains/blog/roles.rb", "line": 1},
+      "role": {"kind": "role", "id": "blog.autor"},
+      "entity": {"kind": "entity", "id": "blog.post"},
+      "actions": ["create", "delete", "read", "update"],
+      "fields": "*",
+      "predicate": {
+        "op": "eq",
+        "left": {"kind": "field", "path": ["author_id"]},
+        "right": {"kind": "actor", "path": ["id"]}
+      },
+      "reads": [{"kind": "entity", "id": "blog.post"}],
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "query",
+      "id": "blog.find_post",
+      "source": {"path": "app/domains/blog/find_post.rb", "line": 1},
+      "input": {"kind": "contract", "id": "blog.post_input"},
+      "output": {"kind": "contract", "id": "blog.post_result"},
+      "authorize": {"action": "read", "entity": {"kind": "entity", "id": "blog.post"}, "record": "post_id"},
+      "uses": [{"kind": "capability", "id": "blog.posts_read"}],
+      "implementation": {
+        "kind": "ruby",
+        "ref": "blog.find_post#call",
+        "path": "app/domains/blog/find_post.rb",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "analysis": {"status": "complete", "constants": [], "dynamic": []}
+      },
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "role",
+      "id": "blog.autor",
+      "source": {"path": "app/domains/blog/roles.rb", "line": 1},
+      "anonymous": false,
+      "domain": {"kind": "domain", "id": "blog"}
+    },
+    {
+      "kind": "route",
+      "id": "blog.publish_post_http",
+      "source": {"path": "app/domains/blog/publish_post.rb", "line": 1},
+      "surface": "http",
+      "target": {"kind": "command", "id": "blog.publish_post"},
+      "config": {"method": "POST", "path": "/posts/:post_id/publish"},
+      "idempotency": "optional",
+      "generated_from": {"kind": "command", "id": "blog.publish_post"},
+      "domain": {"kind": "domain", "id": "blog"}
+    }
+  ],
+  "annotations": {"example.note": "Design fixture; source digests are placeholders; not a release artifact."},
+  "digest": "sha256:5bf8ac91e6836af5d146d9016ed1a868c94c0ae0fb1c558c9b4be47b3caabe7e"
+}

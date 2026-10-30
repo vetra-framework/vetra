@@ -1,12 +1,15 @@
 # Registro de decisões arquiteturais (ADRs)
 
-A proposta técnica lista 21 decisões fundadoras. Hoje cada uma é só uma linha de tabela; nenhuma foi escrita
-por completo. Cada ADR deve ser escrito antes da implementação do componente correspondente.
+A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
+os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
+componente correspondente. Todos os ADRs escritos ainda têm status **proposto**.
 
 ## Escritos
 
 | ADR | Título | Status |
 |---|---|---|
+| [001](001-grafo-da-aplicacao-e-ir.md) | Grafo da Aplicação compilado em IR versionada | proposto |
+| [002](002-somente-postgresql.md) | Somente PostgreSQL | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
@@ -14,9 +17,13 @@ por completo. Cada ADR deve ser escrito antes da implementação do componente c
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | proposto |
 | [021](021-campos-de-transicao.md) | Campos de transição | proposto |
 
-**Próximo passo:** os ADRs 001 (Grafo compilado em IR) e 002 (somente PostgreSQL) são os fundadores que
-faltam; os demais (003, 006, 007, 009 a 015, 017 a 019) seguem a ordem das fases do roadmap. Antes de
-implementar a fase 0, o ADR-001 precisa definir o esquema da IR e sua política de compatibilidade.
+O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
+à pendência documental anterior à fase 0. A aceitação das decisões e os testes do compilador/runtime
+continuam pendentes; o esquema e os exemplos não constituem uma implementação.
+
+**Próximo passo:** revisar as decisões propostas e iniciar o protótipo do grafo da fase 0 pelos critérios
+de aceitação do ADR-001. Os ADRs restantes (003, 006, 007, 009 a 015, 017 a 019) devem ser escritos antes
+dos respectivos componentes, seguindo as dependências do roadmap.
 
 ## Convenção
 
