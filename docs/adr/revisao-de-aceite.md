@@ -48,6 +48,10 @@ A coluna "Evidência" lista as sondas que conferem o que o ADR afirma sobre o Po
 Onde está "nenhuma", o ADR é uma decisão de projeto e o que o sustenta são os testes de aceitação, ainda sem
 implementação.
 
+A CI reverifica a cada PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `sonda_adr003`, `sonda_adr009`,
+`sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler` (exige um PgBouncer)
+são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados que a CI não repete.
+
 | ADR | Rodada | Depende de | Evidência | Testes de aceitação | Questões em aberto |
 |---|---|---|---|---|---|
 | 016 Ciclo de vida da operação | 1 | | nenhuma | 11 | 5 (deixadas a outros) |
