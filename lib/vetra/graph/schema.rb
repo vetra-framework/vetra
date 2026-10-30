@@ -9,7 +9,7 @@ module Vetra
       PATH = File.expand_path("../../../docs/ir/v0.1.schema.json", __dir__)
 
       def initialize
-        definition = JSON.parse(File.read(PATH))
+        definition = JSON.parse(File.read(PATH, encoding: Encoding::UTF_8))
         properties = definition.fetch("properties")
         envelope = definition.merge("properties" => properties.merge("nodes" => properties.fetch("nodes").merge("items" => { "type" => "object" })))
         @envelope = schemer(envelope)
