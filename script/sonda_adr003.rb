@@ -215,15 +215,28 @@ def scheduler
   require "async"
   Sequel.extension :fiber_concurrency
   results = []
-  check(results, "pg cede a fibra durante a consulta (4 fibras x pg_sleep(1) em ~1 s)") do
+  check(results, "pg cede a fibra durante a consulta (4 fibras x pg_sleep(1) sobrepostas no servidor)") do
     db = connect(max: 4)
     db.run("SELECT 1")
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    janelas = []
     Async do |task|
-      4.times.map { task.async { db.transaction { db.get(Sequel.function(:pg_sleep, 1)) } } }.each(&:wait)
+      # Cada fibra registra o início e o fim da sua espera no relógio do servidor. Se o pg bloqueasse a thread, a
+      # segunda espera só começaria depois do fim da primeira, e as janelas não teriam um instante em comum.
+      4.times.map do
+        task.async do
+          db.transaction do
+            inicio = db.get(Sequel.function(:clock_timestamp))
+            db.get(Sequel.function(:pg_sleep, 1))
+            janelas << [inicio, db.get(Sequel.function(:clock_timestamp))]
+          end
+        end
+      end.each(&:wait)
     end
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-    [elapsed < 2.0, "#{elapsed.round(2)} s (serial seria ~4 s)"]
+    comum = janelas.map(&:last).min - janelas.map(&:first).max # janela que as quatro esperas compartilham
+    # O tempo total fica como indício: depende da máquina, e só a sobreposição no servidor decide o veredito.
+    [janelas.size == 4 && comum.positive?, "janela comum de #{(comum * 1000).round} ms entre as 4 esperas; total #{elapsed.round(2)} s (serial seria ~4 s)"]
   end
   results
 end

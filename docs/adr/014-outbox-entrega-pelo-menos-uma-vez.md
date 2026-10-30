@@ -41,7 +41,8 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
   `FOR UPDATE SKIP LOCKED`, e **confirma na hora**. O efeito externo roda **depois**, fora de qualquer
   transação do relay.
 - Não se segura um `SELECT ... FOR UPDATE` aberto durante o efeito. O `FOR UPDATE` atribui um `xid` à
-  transação (medido no PostgreSQL 16.15, 17.11 e 18.6: um `SELECT` simples não atribui, o `FOR UPDATE` sim), e uma transação
+  transação (medido no PostgreSQL 16.15, 17.11 e 18.6 por `script/sonda_adr002.rb`: um `SELECT` simples não
+  atribui, o `FOR UPDATE` sim), e uma transação
   com `xid` aberta prende o `xmin` e atrasa a entrega de todos os eventos de todos os tenants (ADR-008, §5).
 - Uma entrega com `leased_until` vencido volta a ser elegível: é o que recupera o trabalho de um worker que
   caiu. O lease precisa exceder o timeout do handler (padrão proposto: lease de 2 vezes o timeout declarado).
