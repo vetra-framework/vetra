@@ -186,7 +186,7 @@ que esta decisão se apoia. Resultado de 2026-10-30, com **Sequel 5.109.0, `pg` 
 | `transaction(read_only: true)` | O PostgreSQL recusa o `INSERT` |
 | **Sem** `fiber_concurrency`, uma fibra enxerga a transação e o contexto de outra na mesma thread | Reproduzido: a fibra B viu `in_transaction? == true` e o contexto `"so-da-A"` |
 | **Com** `fiber_concurrency` | A fibra B não vê nenhum dos dois |
-| O `pg` cede a fibra sob um agendador | 4 fibras com `pg_sleep(1)` terminaram em 1,01 s; bloqueando a thread seriam cerca de 4 s |
+| O `pg` cede a fibra sob um agendador | 4 fibras com `pg_sleep(1)` terminaram em 1,01 s; bloqueando a thread seriam cerca de 4 s. O veredito da sonda é a sobreposição das quatro esperas no relógio do servidor (janela comum de 995 a 999 ms), não o tempo total |
 
 O contraste de fibras mostra que a extensão é requisito de segurança, não otimização: sem ela, o contexto
 assinado de uma operação pode vazar para outra.
