@@ -50,8 +50,8 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 | [Revisões](docs/revisoes.pdf) | Histórico das rodadas de revisão e erros reconhecidos |
 | [Pendências (rodada 7)](docs/pendencias-rodada-7.pdf) | Decisões em aberto, pontos que dependem de medição e próximo passo |
 
-O próximo passo definido nas pendências é escrever o ADR-016 (ciclo de vida da operação) completo; veja
-[docs/adr](docs/adr/README.md).
+O primeiro ADR completo é o [ADR-016: ciclo de vida da operação](docs/adr/016-ciclo-de-vida-da-operacao.md),
+o central do qual dependem os ADRs 004, 005 e 020. Veja o índice em [docs/adr](docs/adr/README.md).
 
 ## Estrutura do repositório
 
@@ -63,9 +63,10 @@ O próximo passo definido nas pendências é escrever o ADR-016 (ciclo de vida d
 │   ├── pendencias-rodada-7.pdf
 │   ├── exemplos/          # mini CRM, blog e chat
 │   └── adr/               # registro de decisões arquiteturais
-└── logo/                  # SVG, PNG e favicon
+├── logo/                  # SVG, PNG e favicon
+└── LICENSE
 ```
 
 ## Licença
 
-A licença e a governança do projeto ainda estão em aberto (veja as questões em aberto na proposta).
+[MIT](LICENSE). A governança do projeto ainda está em aberto (veja as questões em aberto na proposta).

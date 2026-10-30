@@ -3,8 +3,15 @@
 A proposta técnica lista 21 decisões fundadoras. Hoje cada uma é só uma linha de tabela; nenhuma foi escrita
 por completo. Cada ADR deve ser escrito antes da implementação do componente correspondente.
 
-**Próximo passo:** o ADR-016 (ciclo de vida da operação) é o central e deve ser escrito primeiro, porque os
-ADRs 004, 005 e 020 dependem dele.
+## Escritos
+
+| ADR | Título | Status |
+|---|---|---|
+| [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
+
+**Próximo passo:** com o ADR-016 escrito, os ADRs 004 (capacidades e Effect Boundary), 005 (RLS e contexto
+assinado) e 020 (entrega live incremental) podem ser detalhados. O 005 resolve as questões que o 016 deixou
+para ele: formato do contexto assinado, emissão, validade e rotação da chave.
 
 ## Convenção
 
