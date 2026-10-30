@@ -19,31 +19,9 @@ module Vetra
 
       def build
         manifest = Manifest.new(root)
-        registry = Registry.new
-        paths = manifest.entries.map { |entry| entry['path'] }
-        declarations = paths.grep(/\Aapp\/domains\/.*\.rb\z/).sort_by { |path| [path.split('/')[2], File.basename(path) == 'domain.rb' ? 0 : 1, path] }
-        ['config/app.rb', *declarations].each do |path|
-          domain = path == 'config/app.rb' ? nil : path.split('/')[2]
-          if domain && !domain.match?(/\A[a-z][a-z0-9_]*\z/)
-            raise Error.single('domain_name', 'Use nomes de domínio em snake_case ASCII.', source: { 'path' => path, 'line' => 1 })
-          end
-          context = DSL::Context.new(registry, manifest, domain, { 'path' => path, 'line' => 1 })
-          previous = Thread.current[:vetra_graph_context]
-          begin
-            Thread.current[:vetra_graph_context] = context
-            context.evaluate_source(manifest.read(path), root.join(path).to_s)
-          rescue SyntaxError, ArgumentError, TypeError, NameError => e
-            raise Error.single('dsl_error', "Declaração inválida (#{e.class}): #{e.message.lines.first&.strip}", source: { 'path' => path, 'line' => 1 })
-          ensure
-            Thread.current[:vetra_graph_context] = previous
-          end
-        end
-        registry.seal!
-        document = Normalizer.new(registry, manifest).document
-        validator = Validator.new
-        validator.validate!(document)
+        document, registry, warnings = compile(manifest)
         Manifest.new(root).verify!(document)
-        Data.freeze(Result.new(document: document, warnings: validator.warnings, implementation_ids: registry.bindings.keys.sort))
+        Data.freeze(Result.new(document: document, warnings: warnings, implementation_ids: registry.bindings.keys.sort))
       end
 
       def write
@@ -84,6 +62,56 @@ module Vetra
 
       def artifact
         root.join('.vetra/graph.json')
+      end
+
+      def link
+        bytes = artifact_bytes
+        document = Canonical.parse(bytes)
+        Validator.new.validate!(document)
+        unless bytes == "#{Canonical.dump(document)}\n"
+          raise Error.single('graph_not_canonical', 'O artefato deve usar JSON canônico seguido de LF; execute graph:build no pipeline.')
+        end
+        producer = document.fetch('producer')
+        unless producer['version'] == Vetra::VERSION && producer['ruby_version'] == RUBY_VERSION
+          raise Error.single('producer_mismatch', 'Versões do Vetra/Ruby diferem do build; carregue o pacote com as versões registradas.', pointer: '/producer')
+        end
+        manifest = Manifest.new(root)
+        manifest.verify!(document)
+        Data.freeze(document)
+
+        # Registration is needed to recreate Ruby closures in this process. The
+        # normalized declaration is an audit only: it never replaces the artifact.
+        audit, registry, warnings = compile(manifest)
+        unless Canonical.dump(audit) == Canonical.dump(document)
+          raise Error.single('graph_model_mismatch', 'As declarações carregadas diferem da IR aprovada; reconstrua e revise o pacote.')
+        end
+        linked = Linker.new(document, manifest).link(registry, warnings: warnings)
+        Manifest.new(root).verify!(document)
+        unless artifact_bytes == bytes
+          raise Error.single('graph_changed', 'O artefato mudou durante a vinculação; use um pacote imutável.')
+        end
+        linked
+      end
+
+      private
+
+      def compile(manifest)
+        registry = DeclarationLoader.new(manifest).load
+        document = Normalizer.new(registry, manifest).document
+        warnings = Validator.new.validate!(document)
+        [document, registry, warnings]
+      end
+
+      def artifact_bytes
+        unless artifact.file? && !artifact.symlink?
+          raise Error.single('graph_missing', 'IR ausente ou não regular; publique .vetra/graph.json junto ao pacote.')
+        end
+        if artifact.dirname.symlink? || !artifact.dirname.realpath.to_s.start_with?("#{root}/")
+          raise Error.single('artifact_path', '.vetra deve ser um diretório dentro do projeto.')
+        end
+        artifact.binread
+      rescue Errno::ENOENT, Errno::ENOTDIR
+        raise Error.single('graph_missing', 'Arquivo da IR não existe.')
       end
     end
   end

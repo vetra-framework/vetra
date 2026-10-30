@@ -1,7 +1,8 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação** e o diff arquitetural
-do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental. Os ADRs continuam propostos e a fase 0
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação**, o diff arquitetural
+e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
+Os ADRs continuam propostos e a fase 0
 ainda não cumpriu todos os critérios de aceitação.
 
 ## Executar
@@ -18,6 +19,8 @@ bundle exec bin/vetra graph:build --root examples/mini_crm
 bundle exec bin/vetra graph:check --root examples/mini_crm
 bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
 bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog
+bundle exec bin/vetra graph:link --root examples/blog
+bundle exec bin/vetra graph:link --root examples/mini_crm
 ```
 
 Os dois diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
@@ -32,12 +35,14 @@ persistidos do PDF ficam para incrementos posteriores.
 | `graph:validate ARQUIVO` | Valida versão, recursos, schema, invariantes implementados e digest, sem avaliar o DSL |
 | `graph:validate --root APP --sources` | Também confere arquivos e hashes; usa o grafo padrão quando não recebe arquivo |
 | `graph:diff ANTERIOR POSTERIOR` | Compara arquivos/revisões Git validados; aceita texto ou JSON e sinaliza quebras potenciais |
+| `graph:link --root APP` | Confere o artefato/pacote, recria o registro e vincula blocos Ruby; não executa operações |
 
 Saída 0 significa sucesso, 1 indica erro de compilação/validação/arquivo e 2 indica uso incorreto da CLI.
 Avisos vão para stderr e não mudam o código de sucesso. `graph:validate` sem `--sources` também aceita as
 [fixtures documentais](ir/README.md), cujos hashes de arquivos são placeholders.
 No diff, `--fail-on-breaking` adiciona a saída 3 quando houver quebra potencial; o
 [guia de comparação](graph-diff.md) explica categorias, renomeações, limites e formato JSON.
+O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a API de metadados.
 
 ## DSL implementado
 
@@ -60,7 +65,8 @@ No diff, `--fail-on-breaking` adiciona a saída 3 quando houver quebra potencial
 Cada `call` recebe a entrada/evento seguido dos parâmetros das capacidades na ordem de `uses`, com os
 nomes declarados. Os parâmetros são conferidos e o bloco é registrado separadamente da IR; **nenhum
 `call` é executado**. IDs e referências da IR são qualificados pelo domínio. O normalizador pode reordenar
-o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica com o bloco no registro do build.
+o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora dela e é conferida em
+`graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI,
 MCP, workflows, consultas live, relações muitos-para-muitos no DSL, metadados de dependências por gem,
@@ -94,9 +100,11 @@ triggers e não chama serviços. `transitions enforce: :db` é apenas metadado a
 Nem toda relação semântica possível no schema tem uma implementação; recursos fora do subconjunto
 suportado devem ser recusados, não tratados como seguros.
 
-O arquivo versionado sempre é recompilado nos comandos de build/check. `.vetra/cache/` é ignorado; o
-cache de compilação e o carregamento de produção ainda não existem. `graph:validate --sources` verifica
-integridade, mas não substitui um boot com vinculação de implementações ou autenticação do pacote.
+O arquivo versionado sempre é recompilado nos comandos de build/check. `graph:link` exige o artefato
+existente e não o substitui: carrega declarações confiáveis para registrar as closures e audita o modelo
+em memória contra a IR aprovada. `.vetra/cache/` é ignorado. Cache de compilação, servidor de produção e
+execução de operações ainda não existem. `graph:validate --sources` permanece uma verificação de dados
+e integridade, sem carregamento de código ou vinculação. Hashes não autenticam o pacote.
 
 ## Cobertura e continuação
 
@@ -105,9 +113,12 @@ repetidas, imutabilidade/compartilhamento da IR, alterações e remoções de fo
 defaults/valores protegidos, efeitos diretos, limites de capacidades, permissões, eventos e erros da CLI.
 O diff cobre direção de contratos, renomeações, ordem posicional, metadados, impacto indeterminado de
 permissões e leitura de revisões/tags em repositórios temporários, sem executar o DSL ou alterar o checkout.
+A vinculação cobre assinatura/origem dos blocos, correspondência exata do registro, fontes e artefato
+antes/depois do carregamento e recusa de mudanças sem reconstrução automática. Primitivas CRUD são
+descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 
-Os próximos incrementos da fase 0 são a vinculação completa de implementações no carregamento validado e
-a ampliação do subconjunto declarativo. A suíte deverá acompanhar cada expansão.
+Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
+restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.
 Depois, o motor de comandos e o Vetra Data precisam de seus ADRs, PostgreSQL real e testes transacionais;
 as garantias de RLS, entrega de eventos e live continuam pendentes dessas implementações.

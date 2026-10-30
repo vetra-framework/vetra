@@ -285,12 +285,7 @@ module Vetra
         if !@nodes.key?(['capability', id]) && %w[clock uuid random].include?(name)
           add(base(entry, 'capability', id, generated: true).merge('adapter' => "core.#{name}", 'retry_safe' => true, 'simulation' => 'seeded', 'config' => { 'type' => 'deterministic' }))
         end
-        found = @nodes[['capability', id]]
-        fail!('reference_missing', "Declare effect ou repositório #{id} antes de usá-lo.", entry) unless found
-        if %w[query handler].include?(entry['kind']) && found.dig('config', 'type') == 'repository'
-          id = "#{id}_read" if found.dig('config', 'access') == 'read_write'
-        end
-        Data.reference('capability', id)
+        Capabilities.reference(name, domain: entry['domain'], operation_kind: entry['kind'], nodes: @nodes, source: entry['source'])
       end
 
       def operation(entry)
@@ -302,7 +297,7 @@ module Vetra
           fail!('unsupported_declaration', "#{key} não é válido em #{kind} neste protótipo.", entry) if value && (!value.respond_to?(:empty?) || !value.empty?)
         end
         block = @registry.bindings.fetch("#{entry['id']}#call")
-        report = @analysis.inspect_block(block, entry['uses'])
+        report = @analysis.inspect_block(block, entry['uses'], declaration_source: entry['source'], declaration_kind: kind)
         unless report['forbidden'].empty? || entry['unsafe_effect']
           fail!('direct_effect', "Efeito direto #{report['forbidden'].join(', ')}; use capacidades ou declare unsafe_effect com motivo.", entry)
         end

@@ -34,6 +34,10 @@ module Vetra
           end
         end
         document.fetch("nodes").each { |node| common(node) }
+        ruby_nodes = document['nodes'].select { |node| node.dig('implementation', 'kind') == 'ruby' }
+        ruby_nodes.group_by { |node| node.dig('implementation', 'ref') }.each_value do |nodes|
+          issue('duplicate_implementation', 'Referência de implementação usada por mais de uma operação.', nodes.last, suffix: '/implementation/ref') if nodes.size > 1
+        end
         fail_if_errors!
         document.fetch("nodes").each do |node|
           case node['kind']

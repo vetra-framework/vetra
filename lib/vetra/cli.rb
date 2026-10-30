@@ -6,7 +6,7 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
@@ -16,7 +16,7 @@ module Vetra
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link].include?(command)
         err.puts(parser)
         return 2
       end
@@ -41,9 +41,14 @@ module Vetra
       when 'graph:check' then compiler.check
       when 'graph:validate'
         compiler.validate_file(args.first || compiler.artifact, sources: options[:sources])
+      when 'graph:link' then compiler.link
       end
       result.warnings.each { |diagnostic| err.puts(diagnostic) }
-      out.puts("#{command}: OK — #{result.document.fetch('nodes').size} nós, #{result.document.fetch('digest')}")
+      if command == 'graph:link'
+        out.puts("#{command}: OK — #{result.implementation_ids.size} blocos Ruby vinculados; #{result.builtin_bindings.size} descritores de primitivas sem executor; #{result.document.fetch('digest')}")
+      else
+        out.puts("#{command}: OK — #{result.document.fetch('nodes').size} nós, #{result.document.fetch('digest')}")
+      end
       0
     rescue Graph::Error => e
       e.diagnostics.each { |diagnostic| err.puts(diagnostic) }

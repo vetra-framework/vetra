@@ -88,4 +88,28 @@ class CLITest < GraphTest
     assert_includes err.string, 'app/domains/crm/company.rb:1'
     assert_includes err.string, '/nodes/'
   end
+
+  def test_link_reports_registered_ruby_and_pending_builtins_without_running_commands
+    with_app do |root, compiler|
+      compiler.write
+      out, err = StringIO.new, StringIO.new
+      assert_equal 0, Vetra::CLI.run(['graph:link', '--root', root], out: out, err: err), err.string
+      assert_includes out.string, '2 blocos Ruby vinculados'
+      assert_includes out.string, '4 descritores de primitivas sem executor'
+      assert_empty err.string
+      assert_equal 2, Vetra::CLI.run(['graph:link', '--root', root, '--sources'], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run(['graph:link', '--root', root, compiler.artifact.to_s], out: StringIO.new, err: StringIO.new)
+      assert_equal 2, Vetra::CLI.run(['graph:link', '--root', root, '--format', 'json'], out: StringIO.new, err: StringIO.new)
+    end
+  end
+
+  def test_link_failure_does_not_rebuild_or_emit_partial_success
+    with_app do |root, compiler|
+      out, err = StringIO.new, StringIO.new
+      assert_equal 1, Vetra::CLI.run(['graph:link', '--root', root], out: out, err: err)
+      assert_empty out.string
+      assert_includes err.string, '[graph_missing]'
+      refute compiler.artifact.exist?
+    end
+  end
 end

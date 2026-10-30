@@ -21,13 +21,14 @@ O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política d
 à pendência documental anterior à fase 0. A aceitação das decisões e os testes do compilador/runtime
 continuam pendentes; o esquema e os exemplos não constituem uma implementação.
 
-O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL e
-[compara versões da IR](../graph-diff.md); ainda não cobre todos os critérios do ADR-001. O runtime e suas
-garantias continuam pendentes.
+O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL,
+[compara versões da IR](../graph-diff.md) e [vincula blocos Ruby ao artefato aprovado](../graph-link.md).
+Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
+transacionais continuam pendentes.
 
-**Próximo passo:** ampliar a fase 0 com vinculação validada de implementações, mantendo os testes dos
-contratos existentes. Os ADRs restantes (003, 006, 007, 009 a 015, 017 a 019) devem ser
-escritos antes dos respectivos componentes, seguindo as dependências do roadmap.
+**Próximo passo:** fechar as lacunas declarativas e os critérios restantes da fase 0 com os exemplos da
+proposta. Antes da persistência, escrever o ADR-003 (Sequel sobre PostgreSQL). Os demais ADRs restantes
+(006, 007, 009 a 015, 017 a 019) seguem as dependências do roadmap, antes dos respectivos componentes.
 
 ## Convenção
 

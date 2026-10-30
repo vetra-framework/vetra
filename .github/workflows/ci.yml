@@ -21,3 +21,5 @@ jobs:
       - run: bundle exec bin/vetra graph:validate --root examples/blog --sources
       - run: bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
       - run: bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog --format json --fail-on-breaking
+      - run: bundle exec bin/vetra graph:link --root examples/blog
+      - run: bundle exec bin/vetra graph:link --root examples/mini_crm

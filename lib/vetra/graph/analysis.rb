@@ -13,19 +13,25 @@ module Vetra
         @trees = {}
       end
 
-      def inspect_block(block, declared_uses)
+      def inspect_block(block, declared_uses, declaration_source:, declaration_kind:)
         path, line = block.source_location
         source = @manifest.source(path, line)
         parsed = @trees[source['path']] ||= Prism.parse(@manifest.read(source['path']))
-        candidates = descendants(parsed.value).select do |node|
+        declarations = descendants(parsed.value).select do |node|
+          node.is_a?(Prism::CallNode) && node.name.to_s == declaration_kind && node.block.is_a?(Prism::BlockNode) && node.block.location.start_line == declaration_source['line']
+        end
+        unless source['path'] == declaration_source['path'] && declarations.size == 1
+          raise Error.single('analysis_binding', 'O bloco deve pertencer à declaração exata da operação.', source: declaration_source)
+        end
+        candidates = descendants(declarations.first.block.body).select do |node|
           node.is_a?(Prism::CallNode) && node.name == :call && node.block.is_a?(Prism::BlockNode) && node.block.location.start_line == line
         end
         unless candidates.size == 1
-          raise Error.single("analysis_binding", "Cada implementação call deve ocupar uma linha própria e ter origem no arquivo declarado.", source: source)
+          raise Error.single("analysis_binding", "O call deve estar dentro da declaração da operação, em uma linha própria e sem ambiguidade.", source: declaration_source)
         end
         parameters = block.parameters
         expected = declared_uses.map { |name| name.split('.').last }
-        unless parameters.size == expected.size + 1 && parameters.all? { |kind, _| %i[opt req].include?(kind) } && parameters.drop(1).map { |_, name| name.to_s } == expected
+        unless parameters.size == expected.size + 1 && parameters.all? { |kind, name| %i[opt req].include?(kind) && name } && parameters.drop(1).map { |_, name| name.to_s } == expected
           raise Error.single("implementation_parameters", "call exige um parâmetro de entrada seguido das capacidades na ordem de uses: #{expected.join(', ')}.", source: source)
         end
         constants, dynamic, forbidden, writes = [], [], [], []

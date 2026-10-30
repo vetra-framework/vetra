@@ -46,6 +46,7 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 |---|---|
 | [Protótipo da fase 0](docs/fase-0.md) | Como executar, DSL implementado, testes e limites atuais |
 | [Diff arquitetural](docs/graph-diff.md) | Comparação de grafos/versões Git, contratos, permissões e relatório JSON |
+| [Vinculação de implementações](docs/graph-link.md) | Carregamento validado, parâmetros/capacidades e limites do registro Ruby |
 | [Proposta técnica](docs/proposta-tecnica.pdf) | Tese, os nove pilares, arquitetura, ADRs, roadmap, riscos e métricas |
 | [Exemplo 1: Mini CRM](docs/exemplos/01-mini-crm.pdf) | Multiempresa com RLS, comando e evento, comparado ao Rails 8.1 |
 | [Exemplo 2: Blog](docs/exemplos/02-blog.pdf) | O caso simples, sem multiempresa, com UI no servidor |
@@ -70,10 +71,12 @@ bundle exec bin/vetra graph:build --root examples/blog
 bundle exec bin/vetra graph:check --root examples/blog
 bundle exec bin/vetra graph:validate --root examples/blog --sources
 bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog
+bundle exec bin/vetra graph:link --root examples/blog
 ```
 
-Há também um exemplo multiempresa em `examples/mini_crm`. Os comandos geram e verificam o grafo;
-as operações de negócio ainda não são executadas. Veja o [escopo atual](docs/fase-0.md).
+Há também um exemplo multiempresa em `examples/mini_crm`. Os comandos geram, verificam e vinculam o grafo;
+as operações de negócio ainda não são executadas. As primitivas CRUD continuam sem executor.
+Veja o [escopo atual](docs/fase-0.md).
 
 ## Estrutura do repositório
 

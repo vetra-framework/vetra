@@ -45,6 +45,11 @@ código Ruby do build ─→ registro de implementações ─→ vinculação ao
    privado. Referência ausente/ambígua impede o boot. Não há `eval`, desserialização de objetos ou resolução
    de constantes arbitrárias a partir de uma IR recebida.
 
+Em um processo novo, o registro de closures exige carregar código confiável do pacote. O
+[protótipo de vinculação](../graph-link.md) avalia as declarações uma vez, depois de validar artefato e
+fontes, e normaliza o registro apenas para conferir correspondência com a IR aprovada. Divergência recusa
+o carregamento; essa auditoria não substitui nem regrava o grafo. Operações posteriores não releem o DSL.
+
 O construtor é uma API restrita, **não um sandbox**. Ruby arbitrário nas declarações e gems pode realizar
 I/O. As garantias estruturais cobrem o modelo declarado; análise e exceções seguem o ADR-004. Geradores
 de dados não precisam executar os blocos da aplicação; o runtime precisa deles.
