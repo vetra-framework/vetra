@@ -226,7 +226,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e mede as lacunas: 43 dos 121 códigos de diagnóstico do compilador nunca são emitidos por um teste.
+e registra o que foi fechado: os 121 códigos de diagnóstico do compilador são disparados por algum teste.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
 restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.
