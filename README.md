@@ -86,6 +86,7 @@ Veja o [escopo atual](docs/fase-0.md).
 ├── bin/vetra              # CLI do compilador
 ├── lib/vetra/             # DSL, normalização e validação
 ├── test/                  # testes do compilador e da CLI
+├── script/                # sondas dos ADRs, fora da suíte (script/sonda_adr003.rb)
 ├── examples/              # blog, mini CRM e mini CRM com revendas compiláveis
 ├── docs/
 │   ├── proposta-tecnica.pdf
