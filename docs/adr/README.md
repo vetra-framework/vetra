@@ -18,6 +18,7 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
 | [009](009-workflows-por-historico-e-replay.md) | Workflows duráveis por histórico de eventos e replay determinístico | proposto |
 | [010](010-adocao-hospedada-e-modo-servico.md) | Adoção hospedada em Rails ou modo serviço | proposto |
+| [012](012-canario-em-modo-sombra.md) | Canário em modo sombra com capacidades simuladas | proposto |
 | [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | proposto |
 | [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | proposto |
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | proposto |
