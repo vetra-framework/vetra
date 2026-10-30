@@ -236,6 +236,22 @@ module Vetra
           if relation['kind'] == 'many_to_many' && !relation['through']
             issue("relation_join", "Relação muitos-para-muitos exige entidade de junção.", node, suffix: "/relations/#{index}")
           end
+          if relation['kind'] == 'many_to_many' && relation['through']
+            junction = resolve(relation['through'])
+            owner_links = junction['relations'].select { |other| other['kind'] == 'belongs_to' && other.dig('target', 'id') == node['id'] }
+            target_links = junction['relations'].select { |other| other['kind'] == 'belongs_to' && other.dig('target', 'id') == relation.dig('target', 'id') }
+            keys = owner_links.size == 1 && target_links.size == 1 && owner_links.first != target_links.first &&
+              owner_links.first['target_fields'] == relation['local_fields'] && target_links.first['target_fields'] == relation['target_fields']
+            issue("relation_through", "A junção exige um belongs_to para cada lado, com as chaves da relação; auto-relações não são suportadas.", node, suffix: "/relations/#{index}/through") unless keys
+          elsif relation['through']
+            issue("relation_through", "through só é válido em relação muitos-para-muitos.", node, suffix: "/relations/#{index}/through")
+          end
+          if relation['include_on_create']
+            included = relation['kind'] == 'many_to_many' && relation['include_on_create'].all? do |name|
+              node['relations'].any? { |other| other['name'] == name && other['kind'] == 'belongs_to' && other.dig('target', 'id') == relation.dig('target', 'id') }
+            end
+            issue("relation_include", "include_on_create deve citar belongs_to da entidade que apontem para o alvo da relação muitos-para-muitos.", node, suffix: "/relations/#{index}/include_on_create") unless included
+          end
           if relation['kind'] == 'has_many'
             inverse = target['relations'].any? do |other|
               other['kind'] == 'belongs_to' && other.dig('target', 'id') == node['id'] && other['local_fields'] == relation['target_fields'] && other['target_fields'] == relation['local_fields']

@@ -74,8 +74,8 @@ bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root
 bundle exec bin/vetra graph:link --root examples/blog
 ```
 
-Há também um exemplo multiempresa em `examples/mini_crm` e outro com revendas e papéis por vínculo em
-`examples/mini_crm_revendas`. Os comandos geram, verificam e vinculam o grafo;
+Há também um exemplo multiempresa em `examples/mini_crm` e outros com revendas e papéis por vínculo
+(`examples/mini_crm_revendas`) e com salas e membros muitos-para-muitos (`examples/chat`). Os comandos geram, verificam e vinculam o grafo;
 as operações de negócio ainda não são executadas. As primitivas CRUD continuam sem executor.
 Veja o [escopo atual](docs/fase-0.md).
 
@@ -86,7 +86,8 @@ Veja o [escopo atual](docs/fase-0.md).
 ├── bin/vetra              # CLI do compilador
 ├── lib/vetra/             # DSL, normalização e validação
 ├── test/                  # testes do compilador e da CLI
-├── examples/              # blog, mini CRM e mini CRM com revendas compiláveis
+├── script/                # sondas dos ADRs, fora da suíte (script/sonda_adr003.rb)
+├── examples/              # blog, mini CRM, mini CRM com revendas e chat compiláveis
 ├── docs/
 │   ├── proposta-tecnica.pdf
 │   ├── revisoes.pdf

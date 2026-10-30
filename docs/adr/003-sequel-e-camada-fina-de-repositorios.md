@@ -161,12 +161,49 @@ migração do Sequel: o plano é SQL explícito e revisável.
     d. o rollback de um savepoint não dispara eventos ou callbacks indevidos;
     e. a conexão volta ao pool sem contexto de autorização da operação anterior.
 11. Sequel e `pg` funcionam em Ruby 4.0.9, no PostgreSQL 17 e na versão estável mais recente (ADR-002).
+    A sonda `script/sonda_adr003.rb` cobre o comportamento das bibliotecas; os testes dos repositórios
+    gerados entram com o Vetra Data.
+
+## Verificação preliminar
+
+A sonda `script/sonda_adr003.rb` confere, contra um PostgreSQL real, os comportamentos do Sequel e do `pg` em
+que esta decisão se apoia. Resultado de 2026-10-30, com **Sequel 5.109.0, `pg` 1.7.0 (libpq 18), PostgreSQL
+16.15 e `async` 2.46.0**: 19 de 19 verificações passaram **em Ruby 3.3.6 e em Ruby 4.0.9** (imagem oficial
+`ruby:4.0.9`).
+
+| Verificado | Resultado |
+|---|---|
+| `pg_auto_parameterize` envia o valor como parâmetro; sem a extensão o Sequel o literaliza | Texto SQL com `$1` e o valor à parte; sem a extensão, `'abc'` no texto |
+| Consulta parametrizada não cria statement nomeado; `Dataset#prepare` cria | `pg_prepared_statements` vazio no primeiro caso, com 1 linha no segundo |
+| `SET LOCAL` não aceita parâmetro de protocolo; `set_config(..., true)` aceita | `syntax error at or near "$1"` no primeiro; o valor vale só na transação no segundo |
+| A conexão volta ao pool sem contexto, após commit e após rollback | `current_setting` vazio nos dois casos |
+| O contexto gravado dentro de um savepoint some no rollback dele | Confirma a regra do ADR-016 |
+| Hooks com `savepoint: true` respeitam o savepoint revertido | `after_rollback` na hora; `after_commit` do savepoint não roda |
+| `for_update` e `skip_locked` | SQL esperado; a segunda transação pula a linha travada |
+| `transaction(read_only: true)` | O PostgreSQL recusa o `INSERT` |
+| **Sem** `fiber_concurrency`, uma fibra enxerga a transação e o contexto de outra na mesma thread | Reproduzido: a fibra B viu `in_transaction? == true` e o contexto `"so-da-A"` |
+| **Com** `fiber_concurrency` | A fibra B não vê nenhum dos dois |
+| O `pg` cede a fibra sob um agendador | 4 fibras com `pg_sleep(1)` terminaram em 1,01 s; bloqueando a thread seriam cerca de 4 s |
+
+O contraste de fibras mostra que a extensão é requisito de segurança, não otimização: sem ela, o contexto
+assinado de uma operação pode vazar para outra.
+
+Um achado do Ruby 4.0: o `logger` deixou de ser gem padrão e passou a ser gem empacotada. Código que o carrega
+(a sonda, ou a aplicação que passe um `Logger` ao Sequel) precisa declará-lo no Gemfile ou na gemspec. O
+Sequel em si não exigiu nada além disso.
+
+**O que isto não cobre.** Foi medido o comportamento das bibliotecas, não os repositórios do Vetra, que ainda
+não existem (testes 1, 2, 6, 7 e 9). Não foi exercitado: PostgreSQL 17 (o teste 11 pede 17 e a versão estável
+mais recente; a sonda rodou no 16.15), o Falcon em si (só o agendador `async`), pooler em modo de transação
+(teste 8; só se verificou que não há statements nomeados) e o modo hospedado com o Active Record (teste 10). A
+sonda roda em qualquer Ruby com um banco descartável.
 
 ## Questões em aberto
 
-- Se o Sequel e o `pg` acompanham o Ruby 4.0.x sem ajustes. Não foi medido; é o teste 11.
-- Se o driver `pg` cede a fibra durante uma consulta sob o agendador de fibras do Falcon, ou bloqueia a
-  thread. Afeta a capacidade do servidor e precisa de medição.
+- Se o Sequel e o `pg` se comportam igual no PostgreSQL 17 e na versão estável mais recente. No Ruby 4.0.9
+  a sonda passou contra o 16.15; falta repetir nas duas versões da matriz do ADR-002 (teste 11).
+- Se o `pg` continua cedendo a fibra com o Falcon em si, e não só com o agendador `async` (medido em Ruby
+  4.0.9).
 - A forma dos registros devolvidos (valores imutáveis) e o custo de alocação em consultas grandes.
 - Se `uses :sql` entra na fase 1 ou só depois dos repositórios gerados.
 - A política de atualização do Sequel e da ponte com o Active Record: ritmo, janela de suporte e quem decide.

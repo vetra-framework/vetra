@@ -184,6 +184,13 @@ module Vetra
           @attributes["relations"] << { "name" => name.to_s, "target" => entity.to_s, "kind" => "has_many", "by" => by.to_s, "same_tenant" => false }
         end
 
+        def many_to_many(name, entity:, through:, include: nil)
+          @attributes["relations"] << {
+            "name" => name.to_s, "target" => entity.to_s, "kind" => "many_to_many", "through" => through.to_s,
+            "include" => ::Kernel.Array(include).map(&:to_s), "same_tenant" => false
+          }
+        end
+
         def memberships(of:, actor:, role:)
           error("duplicate_memberships", "Declare memberships uma única vez por entidade.") if @attributes.key?("memberships")
           @attributes["memberships"] = { "of" => of.to_s, "actor" => actor.to_s, "role" => role.to_s }

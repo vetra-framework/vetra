@@ -2,7 +2,8 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. Todos os ADRs escritos ainda têm status **proposto**.
+componente correspondente. **Os 21 ADRs estão escritos**, e todos ainda têm status **proposto**: nenhum foi
+aceito, e nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -13,8 +14,20 @@ componente correspondente. Todos os ADRs escritos ainda têm status **proposto**
 | [003](003-sequel-e-camada-fina-de-repositorios.md) | Sequel com camada fina de repositórios | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
+| [006](006-isolamento-de-dominios-em-tres-niveis.md) | Isolamento de domínios em três níveis, com Ruby::Box opcional | proposto |
+| [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | proposto |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | proposto |
+| [009](009-workflows-por-historico-e-replay.md) | Workflows duráveis por histórico de eventos e replay determinístico | proposto |
+| [010](010-adocao-hospedada-e-modo-servico.md) | Adoção hospedada em Rails ou modo serviço | proposto |
+| [011](011-mcp-com-identidade-delegada.md) | MCP opt-in com identidade delegada, aprovação para sensíveis e limite de taxa | proposto |
+| [012](012-canario-em-modo-sombra.md) | Canário em modo sombra com capacidades simuladas | proposto |
+| [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | proposto |
+| [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | proposto |
+| [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | proposto |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
+| [017](017-tipo-money.md) | Tipo money nativo | proposto |
+| [018](018-camada-de-ui-em-modulos.md) | Camada de UI em módulos fora do núcleo, com ejeção em três níveis | proposto |
+| [019](019-sinais-efemeros.md) | Sinais efêmeros autorizados pelo mesmo motor | proposto |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | proposto |
 | [021](021-campos-de-transicao.md) | Campos de transição | proposto |
 
@@ -27,10 +40,31 @@ O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DS
 Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
 transacionais continuam pendentes.
 
-**Próximo passo:** fechar as lacunas declarativas e os critérios restantes da fase 0 com os exemplos da
-proposta. Os ADRs restantes (006, 007, 009 a 015, 017 a 019) seguem as dependências do roadmap, antes dos
-respectivos componentes. O ADR-003 fixa a camada de dados; a persistência ainda exige o ADR de migrações
-e o teste de compatibilidade do Sequel e do `pg` com Ruby 4.0.x, que ele deixa em aberto.
+## Sondas
+
+Alguns ADRs se apoiam em comportamentos de bibliotecas e do PostgreSQL. Em vez de afirmá-los de memória,
+cada um tem uma sonda em `script/`, fora da suíte do compilador, que o confere e pode ser repetida em outra
+versão. Todas passaram em Ruby 4.0.9; as que usam banco rodaram contra o PostgreSQL 16.15.
+
+| Sonda | ADR | O que confere |
+|---|---|---|
+| `script/sonda_adr003.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md) | Parametrização, contexto por `set_config`, savepoints, travas, fibras e agendador |
+| `script/sonda_adr006.rb` | [006](006-isolamento-de-dominios-em-tres-niveis.md) | O que o `Ruby::Box` isola e não isola, e gems nativas dentro dele |
+| `script/sonda_adr009.rb` | [009](009-workflows-por-historico-e-replay.md) | Replay em Fiber e os limites do bloqueio por `TracePoint` (só biblioteca padrão) |
+| `script/sonda_adr015.rb` | [015](015-migracoes-expand-contract.md) | Nível de lock e custo de cada DDL, e a fila de locks |
+| `script/sonda_adr019.rb` | [019](019-sinais-efemeros.md) | Limites do `NOTIFY` e o volume de WAL de tabelas `UNLOGGED` |
+
+Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais recente (ADR-002), aponte
+`DATABASE_URL` para um banco **descartável**; cada script informa o que cria e remove.
+
+## Próximo passo
+
+1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Um ADR
+   aceito não é editado; uma mudança de decisão gera outro que o substitui.
+2. **Repetir as sondas** no PostgreSQL 17 e na versão estável mais recente, que é o que a matriz do ADR-002
+   exige e o que as medições acima ainda não cobrem.
+3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
+4. Antes de implementar a persistência, resolver as questões em aberto dos ADRs 003, 005, 014 e 015.
 
 ## Convenção
 

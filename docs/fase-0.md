@@ -21,18 +21,24 @@ bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
 bundle exec bin/vetra graph:build --root examples/mini_crm_revendas
 bundle exec bin/vetra graph:check --root examples/mini_crm_revendas
 bundle exec bin/vetra graph:validate --root examples/mini_crm_revendas --sources
+bundle exec bin/vetra graph:build --root examples/chat
+bundle exec bin/vetra graph:check --root examples/chat
+bundle exec bin/vetra graph:validate --root examples/chat --sources
 bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root examples/blog
 bundle exec bin/vetra graph:link --root examples/blog
 bundle exec bin/vetra graph:link --root examples/mini_crm
 bundle exec bin/vetra graph:link --root examples/mini_crm_revendas
+bundle exec bin/vetra graph:link --root examples/chat
 ```
 
 Os diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
 e versionado. São recortes sem autenticação, UI ou persistência: o blog demonstra escopo do autor e
 publicação; o CRM demonstra tenant, dinheiro, transição e um handler declarado; o `mini_crm_revendas`
 reproduz o exemplo da proposta com revendas, vendedores e papéis por vínculo
-(veja [escopo por vínculo](#escopo-por-vínculo)). Cadastro, login e persistência de usuários e
-vínculos continuam fora: as entidades são declaradas à mão, e não geradas por `auth`.
+(veja [escopo por vínculo](#escopo-por-vínculo)); o `chat` reproduz as salas e mensagens do exemplo 3, com
+membros por relação muitos-para-muitos (veja [muitos-para-muitos](#relações-muitos-para-muitos)).
+Cadastro, login e persistência de usuários e vínculos continuam fora: as entidades são declaradas à mão,
+e não geradas por `auth`.
 
 | Comando | Comportamento |
 |---|---|
@@ -55,7 +61,8 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
 - `Vetra.app`, com `tenant`, `currency` e `locale`.
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
 - `entity`, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
-  `belongs_to`, incluindo chaves compostas para `same_tenant`, e `has_many` como inverso de um `belongs_to`.
+  `belongs_to`, incluindo chaves compostas para `same_tenant`, `has_many` como inverso de um `belongs_to` e
+  `many_to_many` por uma entidade de junção declarada.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
   repositórios e rotas HTTP. Ainda não existe execução dessas primitivas.
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
@@ -75,7 +82,7 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 `graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI,
-MCP, workflows, consultas live, relações muitos-para-muitos no DSL, `auth` e geração de usuários/vínculos, metadados de dependências por gem,
+MCP, workflows, consultas live, geração automática de junções muitos-para-muitos, `auth` e geração de usuários/vínculos, metadados de dependências por gem,
 SQL explícito e políticas baseadas em atributos materializados do ator além de `id`. O schema 0.1 possui
 algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
 
@@ -136,6 +143,44 @@ percorrendo as relações do registro até o vínculo, e `reads` passa a incluir
 
 A tradução em RLS não existe ainda: o ADR-005 prevê políticas SQL geradas para esse escopo, que dependem do
 Vetra Data. O predicado é o contrato que essa geração vai consumir.
+
+## Relações muitos-para-muitos
+
+`many_to_many` liga duas entidades por uma terceira, a **junção**, que a aplicação declara como entidade
+comum. A proposta gera a junção (`room_memberships`); aqui ela é explícita, porque inferir seu nome a partir
+do nome da relação seria uma regra frágil e a IR não a registra.
+
+```ruby
+entity :room do
+  belongs_to :owner, entity: :user, default: :current_actor
+  string :name, required: true, max: 80
+  many_to_many :members, entity: :user, through: :room_membership, include: :owner
+end
+
+entity :room_membership do
+  belongs_to :room
+  belongs_to :user
+  index :room_id, :user_id, unique: true
+end
+```
+
+Na IR 0.1 a relação usa campos que o schema já tem, com este significado:
+
+- `through` referencia a junção. `local_fields` e `target_fields` são as chaves do dono e do alvo que a
+  junção referencia (`["id"]`, ou `[tenant, "id"]` com `same_tenant`), as mesmas dos `belongs_to` dela.
+- `include_on_create` (de `include:`) lista `belongs_to` do dono que apontam para o alvo; o proprietário da
+  sala entra como membro na criação. É dado do grafo: nenhum comando o executa ainda.
+- A junção precisa ter **exatamente um** `belongs_to` para o dono e um para o alvo. Auto-relações (amigos de
+  um usuário) têm dois para a mesma entidade e são recusadas (`relation_through`), pois a IR não registra
+  qual coluna é qual.
+- `include:` que não cite um `belongs_to` do dono para o alvo é erro (`relation_include`). O validador da IR
+  confere as mesmas regras, inclusive em artefatos vindos de fora.
+- Políticas aceitam `where: { members: :current_actor }` e a forma aninhada
+  `where: { room: { members: :current_actor } }`. O predicado é um `exists` pela relação, e `reads` inclui a
+  junção, senão o validador acusa `policy_reads`.
+
+Ainda não existem: a geração automática da junção, os comandos `add_member`/`remove_member` e o `created_at`
+implícito do exemplo da proposta (o índice de mensagens usa só `room_id`).
 
 ## Integridade e limites
 

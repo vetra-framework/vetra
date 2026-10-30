@@ -147,13 +147,17 @@ module Vetra
         entry['relations'].each do |relation|
           target_id = entity_id(relation['target'], entry['domain'], entry)
           target = @entities.fetch(target_id)
-          if relation['kind'] == 'has_many'
+          extra = {}
+          case relation['kind']
+          when 'has_many'
             local, remote, same_tenant = inverse_keys(entry, relation, target_id, target)
+          when 'many_to_many'
+            local, remote, same_tenant, extra = junction_keys(entry, relation, target_id)
           else
             local, remote = foreign_keys(node, relation, target, entry)
             same_tenant = relation['same_tenant']
           end
-          node['relations'] << relation.slice('name', 'kind').merge('same_tenant' => same_tenant, 'target' => Data.reference('entity', target_id), 'local_fields' => local, 'target_fields' => remote)
+          node['relations'] << relation.slice('name', 'kind').merge('same_tenant' => same_tenant, 'target' => Data.reference('entity', target_id), 'local_fields' => local, 'target_fields' => remote).merge(extra)
         end
         check_memberships(entry, node) if entry['memberships']
         repository = entry['options'].fetch(:repository, plural(entry['id'].split('.').last)).to_s
@@ -193,6 +197,37 @@ module Vetra
         end
         local, remote = foreign_keys(target, inverse, @entities.fetch(entry['id']), target_entry)
         [remote, local, inverse['same_tenant']]
+      end
+
+      # A many_to_many goes through a junction entity declared by the application.
+      # Its local and target fields are the keys of the two sides that the junction
+      # references; which junction columns hold them comes from its belongs_to pair.
+      def junction_keys(entry, relation, target_id)
+        through_id = entity_id(relation['through'], entry['domain'], entry)
+        junction = raw('entity').find { |item| item['id'] == through_id }
+        links = lambda do |wanted|
+          junction['relations'].select { |item| item['kind'] == 'belongs_to' && entity_id(item['target'], junction['domain'], junction) == wanted }
+        end
+        owner_link, target_link = links.call(entry['id']), links.call(target_id)
+        unless owner_link.size == 1 && target_link.size == 1 && !owner_link.first.equal?(target_link.first)
+          fail!('relation_through', "A junção #{through_id} exige exatamente um belongs_to para #{entry['id']} e um para #{target_id}; auto-relações não são suportadas.", entry)
+        end
+        if owner_link.first['same_tenant'] != target_link.first['same_tenant']
+          fail!('relation_through', "Os dois belongs_to da junção #{through_id} devem usar o mesmo same_tenant.", entry)
+        end
+        junction_node = @entities.fetch(through_id)
+        _, local = foreign_keys(junction_node, owner_link.first, @entities.fetch(entry['id']), junction)
+        _, remote = foreign_keys(junction_node, target_link.first, @entities.fetch(target_id), junction)
+        included = relation['include'].uniq.map do |name|
+          own = entry['relations'].find { |item| item['kind'] == 'belongs_to' && item['name'] == name }
+          unless own && entity_id(own['target'], entry['domain'], entry) == target_id
+            fail!('relation_include', "include: :#{name} deve ser um belongs_to de #{entry['id']} para #{target_id}.", entry)
+          end
+          name
+        end
+        extra = { 'through' => Data.reference('entity', through_id) }
+        extra['include_on_create'] = included unless included.empty?
+        [local, remote, owner_link.first['same_tenant'], extra]
       end
 
       def check_memberships(entry, node)
@@ -334,6 +369,7 @@ module Vetra
             relation = target['relations'].find { |item| item['name'] == name }
             fail!('predicate_relation', "Relação #{name} não declarada.", entry) unless relation
             reads << relation['target']
+            reads << relation['through'] if relation['through']
             destination = @entities.fetch(relation.dig('target', 'id'))
             nested = value == :current_actor ? { id: :current_actor } : value
             { 'op' => 'exists', 'relation' => [name], 'where' => where(nested, destination, reads, entry) }
