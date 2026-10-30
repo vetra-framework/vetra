@@ -23,9 +23,11 @@ jobs:
       - run: bundle exec bin/vetra graph:check --root examples/blog
       - run: bundle exec bin/vetra graph:check --root examples/mini_crm
       - run: bundle exec bin/vetra graph:check --root examples/mini_crm_revendas
+      - run: bundle exec bin/vetra graph:check --root examples/chat
       - run: bundle exec bin/vetra graph:validate --root examples/blog --sources
       - run: bundle exec bin/vetra graph:validate --root examples/mini_crm --sources
       - run: bundle exec bin/vetra graph:validate --root examples/mini_crm_revendas --sources
+      - run: bundle exec bin/vetra graph:validate --root examples/chat --sources
       - name: Diff arquitetural contra a base do PR
         if: github.event_name == 'pull_request'
         env:
@@ -37,3 +39,4 @@ jobs:
       - run: bundle exec bin/vetra graph:link --root examples/blog
       - run: bundle exec bin/vetra graph:link --root examples/mini_crm
       - run: bundle exec bin/vetra graph:link --root examples/mini_crm_revendas
+      - run: bundle exec bin/vetra graph:link --root examples/chat
