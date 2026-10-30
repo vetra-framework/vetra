@@ -62,7 +62,8 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 
 ## Próximo passo
 
-1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Um ADR
+1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. A
+   [lista de revisão](revisao-de-aceite.md) traz a ordem, os critérios e o que conferir em cada um. Um ADR
    aceito não é editado; uma mudança de decisão gera outro que o substitui.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
