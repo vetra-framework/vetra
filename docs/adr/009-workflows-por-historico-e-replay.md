@@ -3,7 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-004 (capacidades e Effect Boundary), ADR-014 (outbox)
-- Relacionados: ADR-007 (comando e adaptadores), ADR-008 (ordem dos eventos), ADR-001 (análise do código)
+- Relacionados: ADR-001 (análise do código), ADR-005 (RLS e contexto assinado), ADR-007 (comando e
+  adaptadores), ADR-008 (ordem dos eventos), ADR-013 (privacidade)
 
 ## Contexto
 
@@ -49,6 +50,9 @@ end
   aberta (mesmo padrão do ADR-014, para não prender o `xmin`, ADR-008).
 - Temporizadores são linhas com `fire_at`, lidas com `SKIP LOCKED`. Sinais entram como eventos do histórico, na
   ordem em que foram gravados.
+- Os campos pessoais das entradas e dos resultados dos passos entram no histórico **cifrados pela DEK do
+  titular** (ADR-013, §6), como na outbox. Se o titular é eliminado, a execução que depende deles não pode ser
+  reexecutada: ela falha fechada e é cancelada pelo contrato de cancelamento (seção 2), sem expor o dado.
 
 ### 2. Efeitos só por comandos idempotentes
 
@@ -56,7 +60,7 @@ end
   que passa pelas oito etapas do ADR-016 e tem uma chave de idempotência derivada de `(execução, posição)`.
   Uma repetição do mesmo passo, depois de uma queda, não duplica o efeito.
 - Cancelamento, sinais concorrentes e compensações (desfazer passos já feitos) são definidos **por contrato**,
-  e não por convenção.
+  e não por convenção. O conteúdo do contrato ainda não está especificado (veja as questões em aberto).
 
 ### 3. Determinismo: três camadas, com garantias diferentes
 
@@ -97,17 +101,38 @@ versão, mas **não** detecta um relógio lido e usado sem alterar a sequência 
 - Uma mudança que reordena ou remove passos de uma versão em uso é um novo workflow (nova versão), nunca uma
   edição.
 
-### 5. O Fiber::Scheduler determinístico
+### 5. Sem escalonador de fibras nesta versão
 
-A execução usa um escalonador de fibras que não depende do relógio real nem de threads: o tempo avança pelo
-histórico (virtual), e a ordem de retomada é a dos eventos. É o modelo do Temporal Ruby SDK, que usa Fibers com
-escalonador determinístico. A viabilidade do replay em Fiber foi verificada na sonda (retomada sem repetir o
-passo já feito); o escalonador completo, não.
+O código do workflow é linear. Cada chamada a `ctx` **suspende** a Fiber (`Fiber.yield`) e a retoma com o
+resultado que está no histórico, como no motor da sonda (`script/sonda_adr009.rb`): o workflow linear completa e
+cada efeito roda uma vez; depois de uma queda, o replay reaproveita o histórico e não repete o passo já feito.
+Como o código não faz I/O nem usa `sleep` ou threads (seção 3), nada precisa ser interceptado por um
+`Fiber::Scheduler`, e a ordem de retomada é a do histórico. O tempo é virtual: vem de `ctx.now` e `ctx.wait`, que
+o histórico registra. Uma corrida entre um temporizador e um sinal (`unless_signal`) se resolve pelo que foi
+gravado primeiro.
+
+**Ramos concorrentes dentro de um workflow (`ctx.parallel`, por exemplo) exigem um escalonador determinístico e
+ficam fora desta decisão.** O Temporal Ruby SDK usa Fibers com um escalonador assim, mas a sonda não o cobre.
+Esse recurso volta por ADR novo, depois que o escalonador for provado.
 
 ### 6. Alternativa mantida: adaptador para o Temporal
 
 Para quem já tem essa infraestrutura, um adaptador mantém os mesmos comandos como atividades e o mesmo grafo,
 com o motor do Temporal no lugar do motor do Vetra.
+
+### 7. O ator de um workflow
+
+- Como um handler (ADR-014, §8), um workflow **não age como o ator que o iniciou**: ele pode durar dias, e o ator
+  pode ter perdido a permissão nesse tempo. Age como um **ator de sistema do tenant da execução**, identificado
+  pelo workflow e pela versão. O tenant da execução fica no histórico.
+- A autoridade desse ator é **exatamente a dos comandos que o workflow declara executar**: a lista que o grafo
+  conhece e que o diff arquitetural mostra para revisão. Um `ctx.run` de outro comando é recusado.
+- O contexto assinado (ADR-005) vale 30 s por padrão, muito menos que uma execução. Por isso ele é **emitido a
+  cada passo**, para cada comando, com o tenant da execução, o ator de sistema e o `op_id` do comando. Nunca é
+  guardado no histórico nem reaproveitado entre passos.
+- **Agir como o ator que iniciou** a execução exige a capacidade explícita e auditada do ADR-016, e não é
+  concedida por padrão.
+- A auditoria de cada comando registra o workflow, a versão e a posição como origem.
 
 ## Alternativas rejeitadas
 
@@ -118,6 +143,12 @@ com o motor do Temporal no lugar do motor do Vetra.
 - **Cron, flags e jobs** (o estado atual): o estado do processo fica implícito e não há versão nem replay.
 - **Confiar no `TracePoint` para o determinismo:** medido acima; tem furos e é caro.
 - **Executar workflows dentro de uma única transação longa:** prende conexão e `xmin` (ADR-008, ADR-016).
+- **Um escalonador de fibras determinístico já na primeira versão:** a sonda não o cobre, e um workflow linear
+  não precisa dele; só ramos concorrentes o exigem, e voltam por ADR novo.
+- **O workflow agir como o ator que o iniciou:** a execução dura dias e o ator pode perder a permissão, ou sair
+  da empresa, no meio.
+- **Guardar o contexto assinado no histórico:** ele vale 30 s, e um token guardado seria um segredo de vida
+  longa no banco.
 
 ## Consequências
 
@@ -126,6 +157,11 @@ com o motor do Temporal no lugar do motor do Vetra.
 - O histórico cresce com a duração da execução e o replay fica mais lento com ele; é preciso um limite e uma
   forma de continuar a execução com um histórico novo.
 - Código de versões antigas precisa ser mantido enquanto houver execuções nelas.
+- Nesta versão um workflow tem um fluxo só, sem ramos concorrentes. O paralelismo exige o escalonador e um ADR
+  novo.
+- O dado pessoal dos passos fica cifrado no histórico, e eliminar o titular cancela as execuções que dependem
+  dele (ADR-013).
+- Cada comando de um workflow exige um contexto assinado novo, o que é uma emissão por passo.
 - É extensão da fase final e não bloqueia a fundação.
 
 ## Garantias e seus níveis
@@ -137,6 +173,8 @@ com o motor do Temporal no lugar do motor do Vetra.
 | Mudança incompatível de código é detectada no replay | Verificável por testes | Comparação de cada passo com o histórico |
 | Bloqueio por `TracePoint` | **Rede de segurança de desenvolvimento** | Lista de negação com furos e custo alto; não é garantia |
 | Execuções antigas terminam na versão original | Verificável por testes | Versão explícita por workflow |
+| Um workflow age só pelos comandos que declara, no tenant da execução | Estrutural, com os limites do ADR-004 | Lista declarada e contexto assinado por passo (§7) |
+| O dado pessoal do histórico do workflow não fica em claro | Verificável por testes | Cifra por DEK do titular (ADR-013, §6) |
 
 ## Testes de aceitação
 
@@ -151,15 +189,24 @@ com o motor do Temporal no lugar do motor do Vetra.
 8. Cancelamento e compensação seguem o contrato declarado, inclusive com falha no meio da compensação.
 9. O workflow não segura transação nem prende o `xmin` enquanto espera um temporizador ou um comando.
 10. Os efeitos de cada passo passam pelas oito etapas e pelo RLS, com os papéis de banco de produção.
+11. Um workflow que tenta executar um comando que não declarou é recusado. Cada comando executa com o ator de
+    sistema do workflow e um contexto assinado novo, e o contexto não aparece no histórico.
+12. Uma execução que espera mais que a validade do contexto (30 s) ainda executa o passo seguinte, com um
+    contexto novo.
+13. Eliminado o titular de um dado pessoal do histórico, a execução que depende dele falha fechada e é
+    cancelada pelo contrato, sem expor o dado.
 
 ## Questões em aberto
 
 - Limite de tamanho do histórico e a forma de continuar uma execução com um histórico novo, para o replay não
   degradar.
 - Como o código de versões antigas é mantido e descartado com segurança.
-- Quem é o ator de um workflow que age por comandos, e como o tenant e o contexto assinado são aplicados a
-  cada passo (ADR-004, ADR-005).
+- Como a política `authorize` de um comando trata o ator de sistema de um workflow: a mesma questão aberta do
+  ADR-014, para o handler.
+- O contrato de cancelamento, de sinais concorrentes e de compensação: o que o desenvolvedor declara e como o
+  motor o aplica. A seção 2 diz apenas que é por contrato.
 - A sintaxe do DSL (`workflow`, `ctx.run`, `ctx.wait`, sinais) e o seu lugar no grafo e na IR; o schema 0.1
-  não representa workflows.
-- A viabilidade e o custo do escalonador de fibras determinístico completo, que a sonda não cobre.
+  não representa workflows. Inclui como o workflow declara os comandos que executa.
+- Ramos concorrentes: a viabilidade e o custo do escalonador de fibras determinístico, que a sonda não cobre.
+  Fora desta versão (seção 5).
 - Precisão e carga dos temporizadores com muitas execuções simultâneas.
