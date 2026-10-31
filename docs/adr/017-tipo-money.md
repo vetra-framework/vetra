@@ -1,6 +1,6 @@
 # ADR-017: Tipo `money` nativo
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-001 (Grafo da Aplicação e IR)
 - Relacionados: ADR-016 (ciclo de vida da operação), ADR-013 (histórico e auditoria), ADR-018 (camada de UI)

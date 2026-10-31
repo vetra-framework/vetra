@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), sete da rodada 2 (003, 004, 005, 006, 007, 008 e 015) e
-o 020 da rodada 3 foram aceitos; os outros 10 têm status **proposto**. Esta lista organiza a revisão: em que ordem
-ler, o
+Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
+017) e o 020 da rodada 3 foram aceitos; os outros 9 têm status **proposto**. Esta lista organiza a revisão: em que
+ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -38,7 +38,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 | Rodada | ADRs | Depende de |
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
-| 2 | 003, 004, 005, 006, 007, 008, 015 (**aceitos**); 017 (espera uma decisão) | só da rodada 1 |
+| 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
 | 3 | 020 (**aceito**); 010, 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
@@ -66,7 +66,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 007 Comando e adaptadores | 2 | 016 | compilador da fase 0 (regras de rota; teste 6 em parte) | 9 | 4 |
 | 008 Ordem e continuidade dos eventos | 2 | 016, 002 | `sonda_adr002`, `sonda_pooler` | 9 | 3 |
 | 015 Migrações expand/contract | 2 | 002, 001 | `sonda_adr015`, `sonda_adr002` | 12 | 6 |
-| 017 Tipo `money` | 2 | 001 | nenhuma | 10 | 5 |
+| 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma | 8 | 6 |
 | 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
 | 012 Canário em modo sombra | 3 | 004, 016 | nenhuma | 10 | 6 |
@@ -120,9 +120,9 @@ revisor precisou aceitar.
 listas de dependentes do 005 e do 008 estavam incompletas (faltavam 011, 013 e 019 no primeiro, e 019 no
 segundo); o 015 chamava de "matriz do ADR-002" as três versões medidas, quando a matriz é 17 e 18; o 008 ganhou a
 seção "Verificação preliminar", que separa o que as sondas conferem do que ainda não tem sonda; o 011 passou a
-dizer que a extensão do contexto assinado é dele, e não do ADR-005. As decisões não mudaram. **O 017 continua
-proposto** porque tem uma questão que pode mudar a decisão (marcada abaixo) e a resposta é de quem revisa. O
-**004** e o **007** foram aceitos depois, cada um num PR à parte, com a questão resolvida (veja o item deles).
+dizer que a extensão do contexto assinado é dele, e não do ADR-005. As decisões não mudaram. Os **004**, **007** e
+**017** tinham, cada um, uma questão que podia mudar a decisão (marcada abaixo) e foram aceitos depois, cada um num
+PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rodada 2 está completa.
 
 **ADR-003 · Sequel com camada fina de repositórios**
 - [ ] Evidência: `sonda_adr003` (19 itens, no 16.15, 17.11 e 18.6) e `sonda_pooler` (8 itens, PgBouncer 1.26.1).
@@ -193,10 +193,18 @@ proposto** porque tem uma questão que pode mudar a decisão (marcada abaixo) e 
 - [ ] Pode mudar a decisão: nenhuma. Como o `db:plan` conhece o esquema atual (introspecção ou `db/schema.sql`) é
   escolha de projeto a fechar antes da persistência.
 
-**ADR-017 · Tipo `money` nativo**
-- [ ] Limites: nenhum; as seis garantias são verificáveis por testes ou estruturais.
-- [ ] Pode mudar a decisão: **como o `scale` do campo e o expoente da moeda convivem** (o valor de uma transação
-  deve ter no máximo as casas da moeda; um preço unitário pode ter mais). Define o modelo do tipo.
+**ADR-017 · Tipo `money` nativo** (aceito)
+- [ ] Evidência: o compilador da fase 0 recusa `Float` na serialização canônica da IR e confere os literais de
+  `money` (texto decimal, até `precision - scale` dígitos inteiros e `scale` casas, com teste para `1.001`). Ele
+  usa `scale` 2 por padrão e não conhece o expoente ISO 4217. Os demais testes dependem do runtime.
+- [ ] Limites: nenhum; as oito garantias são verificáveis por testes ou estruturais, e a verificação do `scale`
+  contra o expoente ainda não está implementada.
+- [ ] Pode mudar a decisão: **era como o `scale` do campo e o expoente da moeda convivem**. Resolvida no §6 do
+  ADR: sem `scale` declarado, o campo é monetário e o `scale` é o expoente da moeda; com `scale` maior, é de
+  precisão estendida (preço unitário); `scale` menor que o expoente é erro de compilação. As alternativas
+  descartadas foram a escala única sem relação com a moeda (o que o protótipo faz hoje), só o expoente sem
+  precisão estendida e um tipo à parte para preço unitário. A moeda por tenant exige uma nova MENOR da IR e ficou
+  como questão em aberto.
 - [ ] Adiável: taxas de conversão, arredondamento por tenant, biblioteca de formatação, moedas sem ISO 4217.
 
 ### Rodada 3
@@ -310,6 +318,8 @@ proposto** porque tem uma questão que pode mudar a decisão (marcada abaixo) e 
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-017: nova seção 6 (escala do campo e casas da moeda), três alternativas rejeitadas, duas garantias, os
+  testes de aceitação 11 e 12 e o ADR-018 em "Relacionados".
 - ADR-007: nova seção 7 (a exposição não restringe o contrato), lista de dependentes (011 e 018), ADRs 005, 009 e
   020 em "Relacionados" e o teste de aceitação 6 distingue a regra implementada do que o teste cobre.
 - ADR-004: nova seção 7 (dado externo para um comando), lista de dependentes (009, 012 e 021) e o ADR-006 em
