@@ -140,9 +140,14 @@ class CompilerTest < GraphTest
   def test_bad_declarations_fail_with_source_and_cleanup_loader_context
     with_app do |root, compiler|
       edit(root, 'app/domains/blog/post.rb') { |text| text.sub('crud scope: :author', 'crud ui: :admin') }
-      error = assert_graph_error('dsl_error') { compiler.build }
+      error = assert_graph_error('unsupported_option') { compiler.build }
       assert_includes error.message, 'app/domains/blog/post.rb'
       assert_graph_error('dsl_context') { Vetra.app(:outside) {} }
+    end
+    # Um erro de argumentos que não é de palavra-chave continua sendo dsl_error.
+    with_app do |root, compiler|
+      edit(root, 'app/domains/blog/post.rb') { |text| text.sub('crud scope: :author', 'crud :author') }
+      assert_graph_error('dsl_error') { compiler.build }
     end
   end
 
