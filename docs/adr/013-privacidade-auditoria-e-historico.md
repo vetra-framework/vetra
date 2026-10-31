@@ -3,7 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-005 (RLS e contexto assinado)
-- Relacionados: ADR-001 (classificação de dados na IR), ADR-017 (formato canônico de valores)
+- Relacionados: ADR-001 (classificação de dados na IR), ADR-014 (outbox), ADR-017 (formato canônico de valores),
+  ADR-020 (entrega live)
 
 ## Contexto
 
@@ -41,6 +42,14 @@ juntos, ou nenhum existe.
 - A classificação alimenta o mascaramento, a criptografia do histórico e da auditoria, a exportação e a
   eliminação. Mudar a privacidade de um campo aparece como mudança de revisão no diff arquitetural (já
   implementado).
+- **Todo campo pessoal tem um titular declarado.** O titular é a pessoa a quem o dado se refere, e a chave de
+  dados (§6) é por titular. A declaração é por entidade: `subject :self` quando a própria linha é o titular
+  (uma entidade `customer`), ou `subject :relacao` quando o titular é a entidade apontada por um `belongs_to`
+  (o `customer` de um `order`). Um campo pode sobrescrevê-la (`personal: true, subject: :relacao`) quando a linha
+  traz dado de mais de uma pessoa. O titular nunca é inferido, e **um campo pessoal sem titular é erro de
+  compilação**. Ele é identificado por (tenant, entidade do titular, identificador da linha). A sintaxe é
+  proposta; nada disso existe ainda, e a IR 0.1 não tem onde registrá-lo (`privacy` é fechado), então exige uma
+  nova MENOR (ADR-001).
 
 ### 3. Mascaramento
 
@@ -59,8 +68,10 @@ juntos, ou nenhum existe.
 
 ### 5. Audit
 
-- A auditoria é **somente de inclusão**: o papel `vetra_app` tem `INSERT` e não tem `UPDATE` nem `DELETE` nas
-  suas tabelas (ADR-005).
+- A auditoria é **somente de inclusão**. As tabelas de auditoria são do Vetra, e não "da aplicação" no sentido da
+  tabela de papéis do ADR-005 (que lista `UPDATE` e `DELETE` só para as tabelas da aplicação). A elas o papel
+  `vetra_app` recebe `SELECT`, sob RLS, e `INSERT`, e nunca `UPDATE` nem `DELETE`. Este ADR fixa essa concessão
+  como extensão da tabela do ADR-005.
 - Cada registro traz o ator, o tenant, o identificador da operação (`op_id` do contexto assinado), o comando e a
   alteração, com os valores pessoais cifrados como no histórico.
 - A eliminação de um titular é ela mesma um evento de auditoria, **sem o dado pessoal**.
@@ -68,6 +79,12 @@ juntos, ou nenhum existe.
 ### 6. Criptografia por envelope
 
 - Os dados pessoais **no histórico e na auditoria** são cifrados com uma **chave de dados (DEK) por titular**.
+  Quando há retenção obrigatória (§7), os dados sob a regra usam uma **DEK própria da regra**, separada da DEK
+  geral do titular. Assim a eliminação do restante pode destruir a DEK geral sem tornar ilegível o que a lei
+  manda guardar.
+- Os campos pessoais do payload de um **evento da outbox** são cifrados do mesmo modo. A eliminação torna
+  ilegíveis os eventos pendentes do titular, e o handler que os lê recebe o campo como ilegível, nunca em claro.
+  Os eventos de mudança de linha do live não carregam campo pessoal (ADR-020, §10).
 - Cada DEK é guardada cifrada por uma **chave mestra (KEK)** mantida fora do banco, em KMS ou HSM.
 - As DEKs ficam num **armazenamento de chaves separado** do banco principal, com retenção de backup própria e
   curta.
@@ -79,9 +96,15 @@ juntos, ou nenhum existe.
 
 ### 7. Eliminação e exportação
 
-- A eliminação de um titular (a pedido, ou por fim de retenção) faz, em ordem: verificar se há retenção
-  obrigatória declarada pelo controlador; sobrescrever ou anonimizar os campos pessoais das tabelas de estado
-  atual; destruir a DEK; registrar o evento no Audit.
+- A eliminação de um titular (a pedido, ou por fim de retenção) faz, em ordem: identificar as regras de
+  retenção que se aplicam aos dados dele; sobrescrever ou anonimizar os campos pessoais do estado atual que **não**
+  estão sob retenção; destruir a DEK geral do titular; registrar o evento no Audit, com as regras que adiaram
+  parte do pedido e a data em que vencem.
+- **Retenção obrigatória.** O controlador a declara na entidade, com o motivo legal, o prazo e o campo de onde o
+  prazo conta (por exemplo, `retention :fiscal, years: 5, from: :issued_at, reason: "..."`; sintaxe proposta).
+  O motivo é texto do controlador, e o Vetra não o avalia. Uma regra **adia a eliminação do que ela cobre, não do
+  restante**: os dados sob retenção ficam legíveis, sob a DEK da regra (§6), e quando o prazo vence a eliminação do
+  que restava ocorre sozinha, pela mesma sequência, e é registrada no Audit.
 - A exportação reúne os dados do titular em formato estruturado, lendo o estado atual e o histórico enquanto a
   DEK existe.
 - **Pseudonimização sozinha não basta:** um dado reidentificável continua sendo pessoal. Só o dado
@@ -104,6 +127,17 @@ mesmo vale para o que está fora do banco: backups, arquivos exportados e integr
 - **Chamar o KMS a cada linha lida:** inviável em latência e custo; por isso o cache curto na memória.
 - **Pseudonimização como substituto da eliminação:** não elimina o dado pessoal reidentificável.
 - **Prometer conformidade automática:** a decisão jurídica é do controlador.
+- **Titular inferido** (pelo nome do campo, da entidade ou da relação): um erro vaza dado ou destrói o de outra
+  pessoa. O titular é declarado, como as renomeações (ADR-015).
+- **O ator da operação como titular:** um administrador que edita o dado de um cliente cifraria com a chave do
+  administrador.
+- **Uma DEK por linha ou por campo:** multiplica as chaves e não corresponde ao pedido do titular, que é por
+  pessoa.
+- **Retenção que adia a eliminação do titular inteiro:** mantém dado além do que a lei manda guardar.
+- **Retenção sem DEK própria:** destruir a DEK geral tornaria ilegível o que a lei manda guardar, e não
+  destruí-la manteria legível o que o titular pediu para eliminar.
+- **Dado pessoal em claro no payload dos eventos:** a outbox o guardaria até a retenção dela (ADR-014), fora da
+  proteção por titular do histórico e da auditoria.
 
 ## Consequências
 
@@ -116,6 +150,10 @@ mesmo vale para o que está fora do banco: backups, arquivos exportados e integr
   na fase 1.
 - O mascaramento por classificação exige que todo dado pessoal seja classificado; um campo pessoal não
   declarado vaza.
+- Cada entidade com campo pessoal declara o titular, e esquecer é erro de compilação, não vazamento. Isso exige
+  uma nova MENOR da IR.
+- Uma regra de retenção multiplica as DEKs: um titular passa a ter uma DEK geral e uma por regra que o alcança.
+- Os eventos com campo pessoal passam a pagar a cifra e a decifra, e o handler depende da DEK em cache.
 
 ## Garantias e seus níveis
 
@@ -126,7 +164,10 @@ mesmo vale para o que está fora do banco: backups, arquivos exportados e integr
 | Dado pessoal não aparece em log, trace nem erro | Verificável por testes | Mascaramento por classificação |
 | Eliminar o titular torna o histórico e a auditoria ilegíveis | Operacional | Destruição da DEK; depende do armazenamento de chaves e do KMS |
 | Eliminação alcança os backups | **Limitada** | Só após a retenção dos backups de chaves ou a rotação da KEK |
-| Auditoria não é alterável pela aplicação | Transacional | Privilégios do papel `vetra_app` |
+| Auditoria não é alterável pela aplicação | Transacional | Privilégios do papel `vetra_app` (§5) |
+| Todo campo pessoal tem um titular declarado | Estrutural | Verificação na compilação (ainda não implementada; exige nova MENOR da IR) |
+| Dado sob retenção sobrevive à eliminação do restante e é eliminado ao vencer | Verificável por testes | DEK própria da regra e a sequência do §7 |
+| Eventos da outbox não trazem dado pessoal em claro | Verificável por testes | Cifra por DEK dos campos pessoais do payload (§6) |
 | Conformidade com a LGPD | **Fora da garantia** | Decisão do controlador; o Vetra fornece ferramentas |
 
 ## Testes de aceitação
@@ -143,19 +184,24 @@ mesmo vale para o que está fora do banco: backups, arquivos exportados e integr
    eliminados.
 9. A exportação de um titular contém o estado atual e o histórico legível, enquanto a DEK existe.
 10. Uma retenção obrigatória declarada adia a eliminação e é registrada.
+11. Um campo pessoal sem titular declarado falha na compilação.
+12. Um pedido de eliminação de um titular com dados sob retenção elimina o restante agora, mantém legível o que
+    está sob a regra, registra no Audit a regra e a data, e elimina o que restava quando o prazo vence.
+13. O payload de um evento da outbox não contém campo pessoal em claro; depois da eliminação, o handler recebe o
+    campo ilegível.
 
 ## Questões em aberto
 
 - Onde fica o armazenamento de chaves (KMS, banco separado), qual a retenção dos backups dele e como se faz a
   rotação da KEK.
-- Como se identifica o **titular** de um campo pessoal (a própria linha, uma entidade relacionada, ou uma
-  declaração explícita), já que a DEK é por titular.
+- A sintaxe da declaração do titular e da regra de retenção, e como a IR a registra (nova MENOR). Também o caso
+  de uma pessoa que aparece como titular em mais de uma entidade.
 - Se o histórico "por campos" entra no schema, e se o padrão `full` é o certo para entidades sem necessidade de
   trilha.
 - Formato do histórico (instantâneo completo ou diferença) e política de compactação e retenção.
 - Integridade da auditoria além dos privilégios: encadeamento por hash ou assinatura.
 - Algoritmo de cifra e formato do envelope (uma cifra autenticada, por exemplo AES-256-GCM, é a hipótese) e
   como os registros referenciam a versão da chave.
-- Como o controlador declara retenção obrigatória por exceção legal, e como isso interage com a eliminação
-  pedida pelo titular.
+- Retenção: de onde o prazo conta quando o campo de origem muda, e o texto devolvido ao titular quando o pedido
+  é adiado em parte.
 - Classificações além de `personal` e `sensitive`, e regras por domínio que exijam classificação.
