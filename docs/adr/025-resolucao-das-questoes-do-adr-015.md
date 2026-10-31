@@ -1,6 +1,6 @@
 # ADR-025: Resolução das questões em aberto do ADR-015
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-31
 - Resolve: ADR-015 (as seis questões em aberto)
 - Depende de: ADR-015 (migrações expand/contract), ADR-001 (IR), ADR-005 (papéis e RLS), ADR-024 (tabelas
