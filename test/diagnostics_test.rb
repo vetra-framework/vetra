@@ -120,6 +120,24 @@ class DiagnosticsTest < GraphTest
     end
   end
 
+  # O que o DSL ainda não implementa falha nomeando a opção, como já faz nas opções de campo, e não com o
+  # ArgumentError do Ruby embrulhado em dsl_error (docs/fase-0-criterios.md, critério 7).
+  def test_unimplemented_options_are_named_instead_of_leaking_a_ruby_argument_error
+    {
+      'rate_limit' => ['app/domains/blog/roles.rb', ->(text) { text.sub('scope: :author', 'scope: :author, rate_limit: "5/min"') }],
+      'rounding' => ['config/app.rb', ->(text) { text.sub('currency "BRL"', 'currency "BRL", rounding: :half_up') }]
+    }.each do |option, (path, change)|
+      with_app('blog') do |root, compiler|
+        edit(root, path, &change)
+        error = assert_graph_error('unsupported_option') { compiler.build }
+        assert_includes error.message, option
+        diagnostic = error.diagnostics.find { |item| item.code == 'unsupported_option' }
+        assert diagnostic.source['path'], "#{option} sem origem"
+        refute_includes error.diagnostics.map(&:code), 'dsl_error'
+      end
+    end
+  end
+
   def test_project_root_must_exist
     Dir.mktmpdir('vetra-test-') do |directory|
       assert_graph_error('project_root') { Vetra::Graph::Compiler.new(root: File.join(directory, 'ausente')) }

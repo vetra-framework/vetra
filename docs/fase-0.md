@@ -83,7 +83,8 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI,
 MCP, workflows, consultas live, geração automática de junções muitos-para-muitos, `auth` e geração de usuários/vínculos, metadados de dependências por gem,
-SQL explícito e políticas baseadas em atributos materializados do ator além de `id`. O schema 0.1 possui
+SQL explícito, `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos
+materializados do ator além de `id`. As opções `rate_limit:` e `rounding:` falham com `unsupported_option`, que nomeia a opção. O schema 0.1 possui
 algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
 
 O construtor não é um sandbox. As declarações são código de desenvolvimento confiável e devem ser

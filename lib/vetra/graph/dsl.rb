@@ -58,7 +58,8 @@ module Vetra
           @attributes = { "name" => name.to_s, "currency" => "BRL", "locale" => "pt-BR", "tenant" => nil, "source" => @source }
         end
 
-        def currency(value)
+        def currency(value, **options)
+          options!(options, [])
           @attributes["currency"] = value.to_s
         end
 
@@ -278,7 +279,8 @@ module Vetra
           @permissions = []
         end
 
-        def can(*actions, on:, where: {}, fields: "*", scope: @scope)
+        def can(*actions, on:, where: {}, fields: "*", scope: @scope, **options)
+          options!(options, [])
           ::Kernel.Array(on).each do |entity|
             @permissions << { "entity" => entity.to_s, "actions" => actions.map(&:to_s), "where" => where, "fields" => fields == "*" ? "*" : fields.map(&:to_s), "scope" => scope&.to_s }
           end
