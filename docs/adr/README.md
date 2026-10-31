@@ -2,9 +2,8 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos**. Vinte estão **aceitos** (001, 002, 003, 004, 005, 006,
-007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 019, 020 e 021) e o outro (018) continua **proposto**.
-Nenhum componente além do compilador da fase 0 foi implementado.
+componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Nenhum componente
+além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -27,7 +26,7 @@ Nenhum componente além do compilador da fase 0 foi implementado.
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | aceito |
 | [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | aceito |
 | [017](017-tipo-money.md) | Tipo money nativo | aceito |
-| [018](018-camada-de-ui-em-modulos.md) | Camada de UI em módulos fora do núcleo, com ejeção em três níveis | proposto |
+| [018](018-camada-de-ui-em-modulos.md) | Camada de UI em módulos fora do núcleo, com ejeção em três níveis | aceito |
 | [019](019-sinais-efemeros.md) | Sinais efêmeros autorizados pelo mesmo motor | aceito |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | aceito |
 | [021](021-campos-de-transicao.md) | Campos de transição | aceito |
@@ -63,11 +62,9 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 
 ## Próximo passo
 
-1. **Revisar e aceitar** os ADRs restantes. A rodada 1 da [lista de revisão](revisao-de-aceite.md) (016, 001
-   e 002) foi aceita, assim como a rodada 2 inteira (003, 004, 005, 006, 007, 008, 015 e 017), o 010, o 011, o
-   012, o 013, o 014, o 020 e o 021 da rodada 3, e a rodada 4 inteira (009 e 019). Falta o 018 da rodada 3. A
-   lista traz a ordem, os critérios e o que conferir em cada um. Um ADR aceito não é editado; uma mudança de
-   decisão gera outro que o substitui.
+1. **Os 21 ADRs estão aceitos.** As quatro rodadas da [lista de revisão](revisao-de-aceite.md) foram concluídas.
+   Um ADR aceito não é editado; uma mudança de decisão gera outro que o substitui. Ainda não há uma regra formal
+   para resolver as questões em aberto de um ADR já aceito.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
