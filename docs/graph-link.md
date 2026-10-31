@@ -95,6 +95,18 @@ Só os dados da IR e dos descritores são compartilháveis entre Ractors. Congel
 os objetos capturados pela closure; a unidade que mantém implementações não deve ser tratada como IR
 serializável ou compartilhável. `call` permanece reservado ao futuro motor de operações.
 
+`test/ractor_test.rb` passa o `Result` compilado dos quatro exemplos a Ractors e confirma a mesma identidade
+no retorno, recalcula o digest no receptor e tenta alterar listas, strings e objetos aninhados. Também
+compartilha os leitores de dados da unidade vinculada (`document`, `bindings`, `warnings`, `implementation_ids`
+e `builtin_bindings`), sem transportar as closures privadas. Os objetos já são compartilháveis ao sair do
+compilador; os testes não usam `make_shareable` para corrigi-los antes da passagem.
+
+Um processo separado remove a constante `Ractor` antes de carregar o Vetra e executa build, check,
+validação com fontes, link e diff nos quatro exemplos. Isso verifica a independência do núcleo da API
+pública opcional, sem prometer um Ruby compilado sem o mecanismo interno de Ractors ou um executor de
+operações concorrentes. O critério 11 do ADR-001 cobre os dados do compilador, e está registrado como
+coberto na [matriz da fase 0](fase-0-criterios.md).
+
 As primitivas CRUD são **reconhecidas**, mas não têm executor neste incremento. Um vínculo bem-sucedido
 não torna a aplicação pronta para servir tráfego. Autorização, transações, RLS, efeitos e despacho das
 oito etapas do ADR-016 ainda precisam ser implementados e testados antes de executar comandos.

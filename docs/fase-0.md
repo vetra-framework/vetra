@@ -10,7 +10,7 @@ Usar Ruby 4.0.9, fixado em `.ruby-version`, e Bundler. Na raiz do repositório:
 
 ```sh
 bundle install
-bundle exec rake test
+bundle exec rake test:diagnostics
 bundle exec bin/vetra graph:build --root examples/blog
 bundle exec bin/vetra graph:check --root examples/blog
 bundle exec bin/vetra graph:validate --root examples/blog --sources
@@ -38,6 +38,17 @@ reproduz o exemplo da proposta com revendas, vendedores e papéis por vínculo
 membros por relação muitos-para-muitos (veja [muitos-para-muitos](#relações-muitos-para-muitos)).
 Cadastro, login e persistência de usuários e vínculos continuam fora: as entidades são declaradas à mão,
 e não geradas por `auth`.
+
+`bundle exec rake test:diagnostics` executa a suíte completa e exige que todos os códigos de diagnóstico
+literais de `lib/` sejam emitidos por algum teste. É a tarefa usada na CI e também o padrão de `bundle exec rake`.
+O catálogo é extraído com Prism; comentários e strings que apenas mencionam um código não contam. Código
+sem emissão ou emitido sem declaração literal reconhecida faz a tarefa falhar. A verificação cobre códigos,
+não cada ramo que reutiliza o mesmo código; os [limites da medição](fase-0-criterios.md#como-a-lacuna-do-critério-2-foi-medida)
+continuam explícitos.
+
+Para uma seleção parcial, usar `bundle exec rake test TEST=test/money_test.rb` ou
+`bundle exec ruby -Itest test/money_test.rb`, sem a exigência de cobertura global. Os testes de Ractors
+compartilham dados imutáveis de verdade; não executam operações da aplicação.
 
 | Comando | Comportamento |
 |---|---|

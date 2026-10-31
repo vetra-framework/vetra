@@ -19,7 +19,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec rake test
+      - name: Testes e cobertura dos códigos de diagnóstico
+        run: bundle exec rake test:diagnostics
       - name: graph:check em todos os exemplos
         run: |
           for app in examples/*/; do

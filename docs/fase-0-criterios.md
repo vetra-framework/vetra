@@ -11,26 +11,42 @@ testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.28
 implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco como efeito direto e da categoria
 `permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas. Depois da escala monetária por moeda
 (ADR-017, §6, com a fonte da tabela no ADR-026 proposto): 206 testes e 1.515 asserções, sem falhas. Depois das
-exposições CLI, job e webhook do ADR-007: 221 testes e 1.697 asserções, sem falhas.
+exposições CLI, job e webhook do ADR-007: 221 testes e 1.697 asserções, sem falhas. Com a verificação automática
+de diagnósticos e a passagem real entre Ractors: 230 testes e 1.769 asserções, sem falhas; 125 de 125 códigos
+de diagnóstico exercitados por `bundle exec rake test:diagnostics`.
 
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes
-não basta: um teste pode disparar a regra e conferir só a falha. Por isso a suíte foi executada com um gancho
-temporário em `Diagnostic.new` e em `Error.single`, os dois pontos por onde passa todo diagnóstico, registrando
-os códigos **efetivamente criados**. O resultado foi comparado com os códigos literais encontrados nos pontos de
-emissão de `lib/`. O gancho não faz parte do repositório, e a instrumentação não alterou o resultado da suíte.
+não basta: um teste pode disparar a regra e conferir só a falha. A primeira medição usou um gancho temporário em
+`Diagnostic.new` e em `Error.single`, registrando os códigos **efetivamente criados**, comparados aos literais
+encontrados nos pontos de emissão de `lib/`.
 
-Limites da medição: ela só enxerga códigos escritos como literal no ponto de emissão (nenhum código emitido veio
-de fora dessa lista) e não distingue uma regra inalcançável de uma regra sem teste. Algumas regras do validador
-só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que monta a IR é o caminho para elas.
+A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
+literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
+cada ocorrência. São 125 códigos em 188 pontos de emissão. O carregador de teste
+`diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
+e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
+reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
+
+Executar `bundle exec rake test:diagnostics` ou `bundle exec rake`. A CI usa a primeira forma, sem executar a
+suíte duas vezes. `rake test` continua disponível para seleção parcial sem a exigência global. Os seis testes
+de `diagnostic_coverage_test.rb` cobrem catálogo sem falsos positivos de comentários/texto, códigos sem emissão,
+emissão repetida, código desconhecido, Ruby inválido, catálogo vazio e o status de falha do carregador mesmo
+quando o teste selecionado passa.
+
+Limites: a medição cobre **códigos**, não cada ramo nem cada ponto que reutiliza um código. Ela não distingue
+regra inalcançável de regra sem teste, nem verifica a qualidade das asserções. Um código calculado dinamicamente
+num ramo nunca executado não aparece no catálogo; se emitido sem literal reconhecido, falha. Subprocessos não
+alimentam o rastreio do processo principal. Algumas regras só são alcançáveis por uma IR montada à mão, e esse
+continua sendo o caminho de teste para elas.
 
 ## Matriz dos 11 critérios
 
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte emite todos (123 na última medição, com os dois códigos criados depois). `test/money_test.rb` acrescenta casos para os dois novos, `money_currency` e `money_scale`, com código, ponteiro JSON e origem; a medição global por rastreio não foi repetida nesta continuação. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo os casos de `money_test.rb`, emite os 125 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto, exceto o que depende de uma evolução | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`. Leitura anterior e conversão só podem ser testadas quando existir a primeira evolução do formato. |
@@ -39,7 +55,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
-| 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Parcial | `Ractor.make_shareable` é conferido nos documentos e na vinculação (`compiler_test`, `link_test`). O compartilhamento entre Ractors é opcional no ADR-001 e não existe como extensão; o núcleo roda sem ele. |
+| 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Coberto para os dados do compilador | `ractor_test.rb` compartilha os resultados dos quatro exemplos e os dados da vinculação com identidade preservada, recalcula o digest no receptor e recusa mutações profundas. Um subprocesso remove `Ractor` antes de carregar o Vetra e executa build/check/validate/link/diff nos quatro exemplos. Closures ficam no processo dono; execução concorrente de operações não foi implementada. |
 
 ## Os 43 códigos que antes não eram emitidos
 
@@ -144,5 +160,6 @@ revisão, e nenhuma quebra potencial. Os adaptadores ainda não existem, e o cri
 - Um caso do validador prova que a regra dispara sobre uma IR montada à mão, não que o DSL consegue alcançá-la.
   Para as regras que o normalizador impede de chegar ao validador, isso é o esperado: o validador existe para
   recusar uma IR que não veio do compilador.
-- A medição por rastreio de códigos não faz parte do repositório. Quem acrescentar uma regra nova precisa
-  acrescentar o caso correspondente; nada ainda impede que um código novo nasça sem teste.
+- A verificação automática impede um código literal novo de passar na CI sem emissão na suíte. Quem
+  acrescentar outro ramo com um código já coberto ainda precisa escrever o teste desse ramo; a contagem por
+  código não prova essa cobertura.

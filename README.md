@@ -67,7 +67,7 @@ Com Ruby 4.0.9 e Bundler, na raiz do repositório:
 
 ```sh
 bundle install
-bundle exec rake test
+bundle exec rake test:diagnostics
 bundle exec bin/vetra graph:build --root examples/blog
 bundle exec bin/vetra graph:check --root examples/blog
 bundle exec bin/vetra graph:validate --root examples/blog --sources

@@ -4,8 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre `635d926` (implementação de `money`, após o PR #35), com a
-  continuação local das exposições do ADR-007 descrita abaixo, ainda sem PR.
+- **Atualizado em:** 2026-10-31, sobre `7bd44cb` (exposições do ADR-007), com a continuação local da
+  verificação de diagnósticos e do critério 11 descrita abaixo, ainda sem PR.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -14,10 +14,10 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 continua proposto |
-| Testes do compilador | 221 testes e 1.697 asserções, sem falhas; os 123 códigos anteriormente medidos continuam cobertos e os 2 novos de `money` têm testes; as exposições reutilizam códigos existentes |
-| Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
+| Testes do compilador | 230 testes e 1.769 asserções, sem falhas; 125/125 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Último resultado registrado neste documento: verde no PR #33; a sonda 011 entrou na matriz no #35 |
-| PRs | #1 a #35 integrados; `money` em `635d926`; continuação das exposições ainda sem PR |
+| PRs | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; continuação atual ainda sem PR |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -35,7 +35,8 @@ grep -l '^- Status: aceito' docs/adr/0*.md | wc -l
 grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 ```
 
-- Os testes são medidos com `bundle exec rake test`, que informa o número de testes e de asserções.
+- Os testes são medidos com `bundle exec rake test:diagnostics`, que informa testes, asserções e cobertura dos
+  códigos de diagnóstico. É a tarefa da CI e o padrão de `bundle exec rake`.
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
@@ -46,6 +47,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
   linha da declaração (#10 e #11)
 - [x] Critérios 1, 7 e 10 do ADR-001 conferidos item a item (#9)
+- [x] Critério 11: os resultados dos quatro exemplos e os dados da vinculação atravessam Ractors sem cópia e
+  permanecem congelados em profundidade. O núcleo carrega e executa build/check/validate/link/diff sem a
+  constante pública `Ractor`. Três testes novos, sem implementar execução concorrente de operações
+  (continuação local, ainda sem PR)
 
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
@@ -60,11 +65,16 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   contrato e autorização. Nomes são únicos por superfície; HTTP e webhook compartilham a detecção de rotas
   ambíguas; webhook exige comando com `idempotency: :required` explícito. Consultas recusam POST, job e
   webhook. O mini CRM declara as quatro superfícies de `win_lead`; 15 testes novos cobrem geração, falhas,
-  vinculação e diff (continuação local, ainda sem PR)
+  vinculação e diff (`7bd44cb`)
 
 **CI e sondas**
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
+- [x] `test:diagnostics` executa a suíte uma vez e confere os códigos realmente criados em `Diagnostic.new`
+  contra o catálogo extraído com Prism. Código literal sem emissão, ou emissão sem literal reconhecido,
+  faz a tarefa falhar; códigos faltantes incluem as origens. Seis testes verificam o instrumento e seu status
+  de falha; a CI foi configurada para a
+  nova tarefa (continuação local, ainda sem PR). Cobertura por código, não por ramo
 - [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 009, 011, 015 e 019). A 011 (o `FOR SHARE` da revogação da
   delegação, que só estava conferido à mão no 16.15) entrou em #35
 - [x] Verdicts das sondas por contagem de varreduras e por relógio do servidor, não por tempo de parede (#7)
@@ -220,7 +230,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [x] **9** O diff distingue remoção, renomeação, capacidade nova, permissão e só origem
 - [x] **10** Registro congelado, implementação ausente ou duplicada, recarga como unidade. Coberto, com uma
   limitação de desenho mantida por decisão: o `binding` não guarda o digest da implementação, que fica na IR
-- [ ] **11** Compartilhamento de dados entre Ractors. Parcial: a extensão não existe, e o núcleo roda sem ela
+- [x] **11** Compartilhamento real dos dados imutáveis entre Ractors, sem transportar closures, e núcleo
+  funcional sem a constante pública `Ractor` (`ractor_test.rb`; não implementa executor concorrente)
 
 ## 5. Ainda não implementado
 
@@ -337,8 +348,6 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   existe
 - [ ] **ADR-020:** como o trigger de instrução da revisão de autorização obtém o tenant em escritas sem contexto,
   como o preenchimento do `vetra_migrator`; custo da releitura de campos pessoais por grupo
-- [ ] **Diagnósticos:** nada impede que um código de diagnóstico novo nasça sem teste. A medição por rastreio não
-  faz parte do repositório
 
 Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
@@ -346,7 +355,7 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta. A escala
+1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
    por moeda de `money` e as exposições do ADR-007 estão implementadas; os demais itens seguem pendentes nas
    seções 4 e 5
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
