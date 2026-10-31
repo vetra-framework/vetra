@@ -1,6 +1,6 @@
 # ADR-004: Capacidades e Effect Boundary
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação)
 - Dependem deste ADR (na data do aceite): 009 (workflows), 012 (canário em modo sombra) e 021 (campos de
