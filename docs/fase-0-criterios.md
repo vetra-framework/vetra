@@ -14,6 +14,8 @@ implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco com
 exposições CLI, job e webhook do ADR-007: 221 testes e 1.697 asserções, sem falhas. Com a verificação automática
 de diagnósticos e a passagem real entre Ractors: 230 testes e 1.769 asserções, sem falhas; 125 de 125 códigos
 de diagnóstico exercitados por `bundle exec rake test:diagnostics`.
+Com os comandos de membros declarados no chat: 239 testes e 1.844 asserções, sem falhas, mantendo 125/125
+códigos exercitados.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -117,8 +119,10 @@ No chat, a base foi `examples/chat`:
 
 - **Aceitos (3):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }`, o comando
   `add_member_by_email` com `authorize :add_member` e `input :email, :email`, e `many_to_many :members, entity: :user,
-  include: :owner` sem nenhuma junção declarada (antes era recusado). O compilador aceita as duas primeiras, mas o
-  repositório não tem os comandos `add_member` e `remove_member`, que o `fase-0.md` lista como inexistentes.
+  include: :owner` sem nenhuma junção declarada (antes era recusado). O compilador aceita as duas primeiras.
+  O repositório agora declara `add_member` e `remove_member` explicitamente, com contrato de IDs, política do
+  dono, rotas e recusa de remover o proprietário; `add_member_by_email` e a geração automática dos comandos
+  de vínculo do PDF continuam pendentes.
 - **Recusados (6):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse`, `index :room_id,
   :created_at`, uma consulta sem `returns` nem `authorize` e `live true`.
 
@@ -154,6 +158,11 @@ Os 15 testes de `exposure_test.rb` cobrem o vínculo único à operação, nomes
 métodos HTTP, consulta por POST, idempotência obrigatória de webhook, diagnósticos e IR externa. O mini CRM
 declara as quatro superfícies; o `graph:diff` contra `635d926` mostra três rotas adicionadas, todas para
 revisão, e nenhuma quebra potencial. Os adaptadores ainda não existem, e o critério 7 continua parcial.
+
+Os nove testes de `chat_test.rb` cobrem os comandos explícitos `add_member` e `remove_member`, incluindo
+contratos tipados, política do dono, rotas e alteração de membros em duplos de memória. Build e link apenas
+registram os dois blocos. Isso preenche a ausência dos comandos no exemplo, sem implementar sua geração
+automática, a inclusão por e-mail, a autorização em execução ou a revogação live. O critério 7 segue parcial.
 
 - O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
   construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.

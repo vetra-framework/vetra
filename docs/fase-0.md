@@ -288,8 +288,35 @@ end
   convenção das demais entidades (`post_tags`, `room_members`). A persistência ainda não existe, então isso não
   afeta nada hoje.
 
-Ainda não existem: os comandos `add_member`/`remove_member` e o `created_at` implícito do exemplo da proposta (o
-índice de mensagens usa só `room_id`).
+### Comandos de membros no chat
+
+O exemplo `examples/chat` declara `add_member` e `remove_member` explicitamente como comandos Ruby. Ambos
+recebem `room_id` e `user_id`, obrigatórios e não nulos, tipados para `chat.room` e `chat.user`. A autorização
+aponta para a sala de `room_id`, e os dois comandos usam apenas a capacidade `rooms`, retornando o contrato da
+sala. A política segue a proposta:
+
+```ruby
+can :add_member, :remove_member, on: :room, where: { owner: :current_actor }
+```
+
+O corpo de cada comando trava a sala antes de chamar `rooms.add_member!` ou `rooms.remove_member!`. A remoção
+recusa o `user_id` do dono com `fail!`, preservando o vínculo inicial do proprietário. As exposições são:
+
+| Comando | Método | Caminho |
+|---|---|---|
+| `chat.add_member` | POST | `/rooms/:room_id/members` |
+| `chat.remove_member` | DELETE | `/rooms/:room_id/members/:user_id` |
+
+`test/chat_test.rb` confere contratos, política do dono, rotas, vínculo dos blocos e a recusa dessas escritas
+quando declaradas como consulta. Testes unitários dos corpos usam um repositório em memória e um contexto de
+`fail!` de teste para conferir inclusão, remoção, retorno da sala e recusa de remover o dono. Esses testes não
+implementam o executor do framework, autorização em execução, transações, RLS ou revogação live. Build e link
+continuam sem executar os corpos.
+
+A geração automática desses comandos a partir de `many_to_many`, como prevê o PDF, permanece pendente:
+neste incremento os comandos são arquivos escritos pela aplicação, representáveis na IR 0.1. Também não
+existem no exemplo o comando por e-mail `add_member_by_email` e o `created_at` implícito (o índice de mensagens
+usa só `room_id`).
 
 ## Integridade e limites
 
@@ -329,7 +356,8 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 123 códigos de diagnóstico do compilador são disparados por algum teste.
+e registra o que foi fechado: os 125 códigos de diagnóstico do compilador são disparados por algum teste,
+conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
 restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.

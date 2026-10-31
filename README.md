@@ -76,7 +76,8 @@ bundle exec bin/vetra graph:link --root examples/blog
 ```
 
 Há também um exemplo multiempresa em `examples/mini_crm` e outros com revendas e papéis por vínculo
-(`examples/mini_crm_revendas`) e com salas e membros muitos-para-muitos (`examples/chat`). Os comandos geram, verificam e vinculam o grafo;
+(`examples/mini_crm_revendas`) e com salas, membros muitos-para-muitos e comandos explícitos de gestão de
+membros (`examples/chat`). Os comandos da CLI geram, verificam e vinculam o grafo;
 as operações de negócio ainda não são executadas. As primitivas CRUD continuam sem executor.
 Veja o [escopo atual](docs/fase-0.md).
 

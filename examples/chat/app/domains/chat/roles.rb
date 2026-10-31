@@ -5,5 +5,6 @@ roles do
     can :read, on: :message, where: { room: { members: :current_actor } }
     can :create, on: :message, fields: %i[room_id body], where: { room: { members: :current_actor } }
     can :delete, on: :message, where: { author: :current_actor }
+    can :add_member, :remove_member, on: :room, where: { owner: :current_actor }
   end
 end
