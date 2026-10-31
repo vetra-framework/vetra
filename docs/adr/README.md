@@ -4,7 +4,7 @@ A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
 componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
-há três até agora (022, 023 e 024). Nenhum componente além do compilador da fase 0 foi implementado.
+há quatro até agora (022 a 025). Nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -34,6 +34,7 @@ há três até agora (022, 023 e 024). Nenhum componente além do compilador da 
 | [022](022-resolucao-das-questoes-do-adr-003.md) | Resolução das questões em aberto do ADR-003 | aceito |
 | [023](023-resolucao-das-questoes-do-adr-005.md) | Resolução das questões em aberto do ADR-005 | aceito |
 | [024](024-resolucao-das-questoes-do-adr-014.md) | Resolução das questões em aberto do ADR-014 | aceito |
+| [025](025-resolucao-das-questoes-do-adr-015.md) | Resolução das questões em aberto do ADR-015 | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita, mas os testes do compilador/runtime
@@ -72,9 +73,11 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
-4. Antes de implementar a persistência, tratar as questões em aberto dos ADRs 003, 005, 014 e 015, cada ADR por
-   um ADR de resolução (veja a [Convenção](#convenção)). O 003 (ADR-022), o 005 (ADR-023) e o 014
-   (ADR-024) estão tratados; falta o 015.
+4. As questões em aberto dos ADRs 003, 005, 014 e 015, que o índice pedia tratar antes de implementar a
+   persistência, estão tratadas por ADRs de resolução (022 a 025). Os valores iniciais e as medições que eles
+   registram continuam por fazer, na fase 1. Os demais ADRs aceitos também têm questões em aberto, e nenhuma
+   bloqueia a persistência; elas se tratam pela mesma regra quando forem necessárias (veja a
+   [Convenção](#convenção)).
 
 ## Questões em aberto resolvidas
 
@@ -85,6 +88,7 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 | [022](022-resolucao-das-questoes-do-adr-003.md) | 003 | 1 poolers (medição); 2 `pg` sob o Falcon (medição); 3 registros (decidida e medição); 4 `uses :sql` (decidida); 5 atualização (valor inicial e adiada); 6 analisador (decidida) |
 | [023](023-resolucao-das-questoes-do-adr-005.md) | 005 | 1 custo do HMAC (medição); 2 vínculos múltiplos (decidida, medição e adiada); 3 relatórios entre tenants (adiada); 4 SSO (já resolvida); 5 versão do PostgreSQL (já resolvida) |
 | [024](024-resolucao-das-questoes-do-adr-014.md) | 014 | 1 padrões (valor inicial); 2 cursor por handler (já resolvida e adiada); 3 partição (decidida); 4 `authorize` do ator de sistema (decidida); 5 versões de evento (decidida); 6 eventos públicos (decidida e adiada) |
+| [025](025-resolucao-das-questoes-do-adr-015.md) | 015 | 1 esquema atual do `db:plan` (decidida); 2 lote, pausa e `lock_timeout` (valor inicial); 3 tabelas particionadas (decidida e medição); 4 FK composta por tenant (decidida e medição); 5 contract e deploy (decidida); 6 mudança de `enum` (decidida) |
 
 ## Convenção
 

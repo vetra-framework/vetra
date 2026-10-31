@@ -5,6 +5,7 @@
 - Depende de: ADR-002 (somente PostgreSQL), ADR-001 (Grafo da Aplicação e IR)
 - Relacionados: ADR-005 (papéis do banco e políticas RLS), ADR-008 (o `xmin` e a entrega de eventos), ADR-016
   (ciclo de vida da operação)
+- Questões resolvidas por: ADR-025
 
 ## Contexto
 

@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `610d397` (PR #31).
+- **Atualizado em:** 2026-10-31, sobre a main `c1c03dc` (PR #32).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 24 aceitos: os 21 fundadores e 3 ADRs de resolução (022, 023 e 024) |
+| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025) |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #31: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #31 integrados |
+| CI da main | Verde no PR #32: `test` e sondas no PostgreSQL 17 e 18 |
+| PRs | #1 a #32 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -124,6 +124,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   handler é autorizado pela lista `calls`, com a claim `system_actor` e a condição `is_system_actor()` nas
   políticas de escopo; uma mudança incompatível de evento é um evento novo emitido junto com o antigo; publicar
   para fora é um handler com capacidade externa (#32)
+- [x] ADR-025 resolveu as seis questões em aberto do ADR-015: o `db:plan` planeja contra o retrato commitado
+  `db/schema.sql` (a CI aplica os planos num PostgreSQL descartável para conferi-lo) e o `db:migrate` verifica o
+  alvo por introspecção; no PostgreSQL 16.15 o `CREATE INDEX CONCURRENTLY` não vale em tabela particionada e o
+  `ADD FOREIGN KEY ... NOT VALID` é recusado nela (o que abre uma lacuna no padrão do ADR-015, §4, resolvida com
+  índice por partição e chave por partição); a chave composta por tenant custa o mesmo que a simples na validação,
+  e o custo extra é o índice único de apoio; a fase contract só roda com a prova de batimentos em `vetra.instances`;
+  um `enum` é `text` com `CHECK`, não o tipo nativo (#33)
+- [x] As questões em aberto dos ADRs 003, 005, 014 e 015, que o índice pedia tratar antes da persistência, estão
+  tratadas (ADR-022 a 025) (#33)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -161,6 +170,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **022** Resolução das questões em aberto do ADR-003 (#30)
 - [x] **023** Resolução das questões em aberto do ADR-005 (#31)
 - [x] **024** Resolução das questões em aberto do ADR-014 (#32)
+- [x] **025** Resolução das questões em aberto do ADR-015 (#33)
 
 Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 
@@ -171,6 +181,10 @@ Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
 - [ ] Decidir se o ADR-011 ganha `script/sonda_adr011.rb` (`FOR SHARE` contra a revogação), com CI no PostgreSQL
   17 e 18
+- [ ] Decidir se a `sonda_adr015` ganha os quatro casos do ADR-025 (índice e chave em tabela particionada, chave
+  composta por tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18
+- [ ] Decidir quais das questões em aberto dos demais ADRs aceitos merecem um ADR de resolução agora. Nenhuma
+  bloqueia a persistência; o ADR-009 tem a do ator de sistema de um workflow, que o ADR-024 já responde em regra
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -274,8 +288,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **Sondas manuais:** `sonda_pooler` (precisa de PgBouncer) e `sonda_adr006` (precisa de `RUBY_BOX=1`) não rodam
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
-- [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 precisam estar tratadas por ADRs de
-  resolução antes de implementá-la. O 003 (ADR-022), o 005 (ADR-023) e o 014 (ADR-024) estão tratados; falta o 015
+- [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
+  (022 a 025), mas os valores iniciais e as medições que eles registram estão por fazer, e nada da persistência
+  existe (veja os itens ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador ainda aceita `Sequel.connect`, `ActiveRecord::Base.connection` e `PG.connect` num
@@ -291,6 +306,12 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   políticas de escopo não existem. O `graph:diff` ainda classifica `handler` como `events` e `capabilities`, não
   como `permissions`, e o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`,
   e a IR 0.1 não tem timeout nem papel por handler
+- [ ] **ADR-025:** conferido só no PostgreSQL 16.15, à mão: índice e chaves em tabela particionada, a chave composta
+  por tenant em 1 milhão de linhas e as limitações do `enum` nativo. O comportamento do `NOT VALID` em tabela
+  particionada no 17 e no 18, o custo na escrita do índice de apoio da chave composta e que uma partição nova herda
+  o índice do pai estão por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
+  tem protótipo, e nada do `db:plan`, do retrato `db/schema.sql` e do mapa de `enum` para `text` com `CHECK`
+  existe
 - [ ] **ADR-020:** como o trigger de instrução da revisão de autorização obtém o tenant em escritas sem contexto,
   como o preenchimento do `vetra_migrator`; custo da releitura de campos pessoais por grupo
 - [ ] **Diagnósticos:** nada impede que um código de diagnóstico novo nasça sem teste. A medição por rastreio não
@@ -303,6 +324,5 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
-2. [ ] Tratar, por ADR de resolução (um PR por ADR, um de cada vez), as questões em aberto do ADR aceito 015,
-   que precisam estar tratadas antes de implementar a persistência. O 003 (ADR-022), o 005 (ADR-023) e o 014
-   (ADR-024) já estão
+2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
+   começa quando quem revisa pedir
