@@ -224,6 +224,28 @@ class DiffTest < GraphTest
     assert report.breaking?
   end
 
+  def test_handler_calls_are_a_permission_change_and_a_handler_without_calls_is_not
+    before = Vetra::Graph::Canonical.parse(File.read(File.join(PROJECT, 'examples/mini_crm/.vetra/graph.json')))
+    after = Vetra::Graph::Data.copy(before)
+    node(after, 'handler', 'crm.notify_sales')['calls'] << { 'kind' => 'command', 'id' => 'crm.win_lead' }
+    before['digest'] = Vetra::Graph::Canonical.digest(before)
+    after['digest'] = Vetra::Graph::Canonical.digest(after)
+    report = Vetra::Graph::Diff.new.compare(before, after)
+    change = change_at(report, 'handler', 'crm.notify_sales', '/calls')
+    assert_equal ['permissions'], change['categories']
+    assert_equal 'review', change['impact']
+    assert change['requires_review']
+    [[], [{ 'kind' => 'command', 'id' => 'crm.win_lead' }]].each do |calls|
+      added = Vetra::Graph::Data.copy(before)
+      handler = Vetra::Graph::Data.copy(node(added, 'handler', 'crm.notify_sales')).merge('id' => 'crm.notify_other', 'calls' => calls)
+      handler['implementation']['ref'] = 'crm.notify_other#call' if handler.dig('implementation', 'kind') == 'ruby'
+      added['nodes'] << handler
+      added['digest'] = Vetra::Graph::Canonical.digest(added)
+      categories = change_at(Vetra::Graph::Diff.new.compare(before, added), 'handler', 'crm.notify_other', '/')['categories']
+      assert_equal !calls.empty?, categories.include?('permissions')
+    end
+  end
+
   def test_removing_unused_query_is_breaking_and_new_surface_is_reviewable
     @after['nodes'].reject! { |entry| (entry['kind'] == 'query' && entry['id'] == 'blog.find_post') || entry['generated_from'] == { 'kind' => 'query', 'id' => 'blog.find_post' } }
     report = compare

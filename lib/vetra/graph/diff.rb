@@ -296,7 +296,7 @@ module Vetra
         when 'command', 'query' then %w[contract permissions capabilities]
         when 'capability' then ['capabilities']
         when 'event' then %w[events contract]
-        when 'handler' then %w[events capabilities]
+        when 'handler' then node.fetch('calls', []).empty? ? %w[events capabilities] : %w[events capabilities permissions]
         when 'route' then %w[surface contract permissions]
         when 'application' then ['configuration']
         else ['dependencies']
@@ -313,6 +313,7 @@ module Vetra
         return ['transitions'] if %w[guarded set_by transitions].include?(key)
         return %w[isolation permissions] if key == 'tenant'
         return ['permissions'] if key == 'authorize'
+        return ['permissions'] if key == 'calls' && owner['kind'] == 'handler'
         return ['capabilities'] if key == 'uses'
         return ['dependencies'] if key == 'domain' || key == 'depends_on'
         return ['implementation'] if %w[implementation unsafe_effect].include?(key)
@@ -321,7 +322,7 @@ module Vetra
       end
 
       def impact(owner, key, before, after, contexts, prefix)
-        return 'review' if %w[privacy guarded set_by transitions history tenant authorize uses domain depends_on implementation unsafe_effect].include?(key)
+        return 'review' if %w[privacy guarded set_by transitions history tenant authorize calls uses domain depends_on implementation unsafe_effect].include?(key)
         return 'breaking' if owner['kind'] == 'route'
         return 'breaking' if %w[input output payload storage].include?(key)
         if prefix.start_with?('/fields/')
