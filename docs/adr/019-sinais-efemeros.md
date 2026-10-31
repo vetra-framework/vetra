@@ -3,8 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-020 (entrega live incremental), ADR-008 (notificação e conexão `LISTEN`), ADR-005 (RLS e
-  contexto assinado)
-- Relacionados: ADR-002 (tabelas `UNLOGGED` e Redis opcional), ADR-013 (privacidade), ADR-018 (cliente de UI)
+  contexto assinado), ADR-013 (privacidade)
+- Relacionados: ADR-002 (tabelas `UNLOGGED` e Redis opcional), ADR-018 (cliente de UI)
 
 ## Contexto
 
@@ -57,7 +57,14 @@ métrica de latência de commit.**
   Uma desconexão detectada remove a lease na hora; uma não detectada expira.
 - Um usuário está presente enquanto tiver **ao menos uma lease válida**. Se um de vários dispositivos
   desconecta, a presença continua correta.
-- O estado de presença **não** entra no histórico nem na auditoria (ADR-013).
+- A tabela de presença tem tenant, então tem `ENABLE` e `FORCE ROW LEVEL SECURITY` como toda tabela
+  multiempresa (ADR-005), e o servidor a lê com o mesmo contexto assinado.
+- **A presença é dado pessoal** (não sensível): ela associa um usuário e um dispositivo a um tópico num instante,
+  o que revela comportamento. O titular é o usuário (ADR-013, §2). Por isso o identificador do usuário e do
+  dispositivo é mascarado em logs, traces e erros, e a eliminação do titular **remove** as leases dele
+  (ADR-013, §7), sem anonimizar.
+- O estado de presença **não** entra no histórico, na auditoria nem na outbox (ADR-013). Por isso não precisa de
+  cifra nem de chave por titular: o dado vive só na tabela `UNLOGGED`, pelo prazo da lease, e não vai para o WAL.
 
 **Por que `UNLOGGED`.** Medido no PostgreSQL 16.15, 17.11 e 18.6:
 
@@ -112,11 +119,17 @@ os excede é limitado e, se persistir, desconectado.
 - **Redis como requisito:** uma peça operacional a mais no núcleo sem necessidade medida (ADR-002).
 - **Um contador de usuários online, sem identidade:** não responde "quem" nem "em qual dispositivo", que é o
   que a tela precisa.
+- **Tratar a presença como dado não pessoal:** o par usuário e tópico num instante identifica uma pessoa e revela
+  comportamento. Sem a classificação, o mascaramento e a eliminação do ADR-013 não a alcançariam.
+- **Tratar a presença como dado retido, com histórico e cifra por titular:** custo de chave e de escrita para um
+  dado que vive segundos e se recompõe sozinho.
 
 ## Consequências
 
 - A mesma regra de acesso vale para dados e sinais, e uma revogação os atinge juntos.
 - A presença se perde em um crash do banco e se recompõe sozinha em poucos segundos.
+- A presença é dado pessoal: o identificador do usuário e do dispositivo é mascarado nos logs, e a eliminação de
+  um titular remove as leases dele.
 - Cada heartbeat é uma escrita (sem WAL), e o volume cresce com os usuários presentes: o custo e o trabalho do
   `autovacuum` numa tabela com muitas atualizações precisam ser medidos.
 - A limitação de taxa dos sinais é uma regra de produto (quantos sinais por segundo), não só de infraestrutura.
@@ -131,6 +144,7 @@ os excede é limitado e, se persistir, desconectado.
 | O indicador de digitação expira após queda de conexão | Verificável por testes | Expiração no receptor; sem estado no banco |
 | A presença é correta com vários dispositivos | Verificável por testes | Lease por usuário e dispositivo |
 | Sinais não vão para o histórico nem para a auditoria | Estrutural | Tabela `UNLOGGED` e ausência de gravação no histórico |
+| A presença é tratada como dado pessoal do usuário | Verificável por testes | Mascaramento por classificação e remoção das leases na eliminação (ADR-013) |
 | A presença sobrevive a um crash do banco | **Não oferecida** | `UNLOGGED` volta vazia; recompõe-se pelos heartbeats |
 | Entrega em tempo hábil | Operacional | `LISTEN` dedicado; depende da carga de `NOTIFY` |
 
@@ -150,11 +164,15 @@ os excede é limitado e, se persistir, desconectado.
 10. Com o adaptador Redis, a autorização e os resultados dos testes anteriores não mudam.
 11. A matriz de carga mede os sinais efêmeros separadamente das alterações persistidas, com todos os usuários
     no mesmo grupo de permissão e com permissões individuais.
+12. A eliminação de um titular remove as leases dele, e o identificador do usuário e do dispositivo não aparece
+    em claro em log, trace nem erro.
+13. A tabela de presença tem `FORCE ROW LEVEL SECURITY`, e o papel `vetra_app` sem contexto de tenant não lê
+    nenhuma lease.
 
 ## Questões em aberto
 
-- Se o estado de presença é dado pessoal para fins de privacidade (ADR-013) e como é tratado, já que revela
-  comportamento.
+- Se a exportação do titular (ADR-013, §7) inclui a presença do instante do pedido. É uma decisão do controlador,
+  porque o dado não é retido além da validade da lease.
 - Valores de limitação de taxa, expiração de digitação, heartbeat e validade da lease (3 s, 5 s, 10 s e 30 s são
   hipóteses).
 - Custo e `autovacuum` da tabela de presença com muitos heartbeats; se uma escrita em lote por processo
