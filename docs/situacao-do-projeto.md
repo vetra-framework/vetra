@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `c4d81e5` (PR #26).
+- **Atualizado em:** 2026-10-31, sobre a main `df64c75` (PR #27).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 20 aceitos e 1 proposto, de 21 |
+| ADRs | 21 aceitos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #26: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #26 integrados |
+| CI da main | Verde no PR #27: `test` e sondas no PostgreSQL 17 e 18 |
+| PRs | #1 a #27 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -63,7 +63,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Os 21 ADRs estão escritos
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
-- [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20), 013 (#21), 014 (#22), 021 (#23), 012 (#25) e 011 (#27)
+- [x] Rodada 3 aceita por inteiro: 020 (#15), 010 (#20), 013 (#21), 014 (#22), 021 (#23), 012 (#25), 011 (#27) e
+  018 (#28)
 - [x] Rodada 4 aceita por inteiro: 019 (#24) e 009 (#26)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
@@ -96,6 +97,13 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   na etapa 6. A releitura corrigiu cinco lacunas: a IR 0.1 não representa a exposição MCP, a aprovação precisa
   repetir a autorização, a entrada da aprovação pendente é dado pessoal e passou a ser cifrada, as recusas das
   etapas 1 a 3 vão ao log e não ao Audit, e "suspender o agente" ganhou sentido transacional (#27)
+- [x] ADR-018 decidiu que todo arquivo de tela entregue ao desenvolvedor carrega o digest da projeção do contrato
+  de que partiu (a linha de base fica no arquivo, não na IR); o `vetra doctor` dá erro para a referência literal
+  que falha e aviso quando o digest difere, e `vetra ui:resync` regrava o digest. A releitura corrigiu seis
+  lacunas: a garantia de autorização da tela vale para o código que usa o runtime (com a análise do ADR-004
+  estendida à UI), uma página não executa comando num `GET`, o CSRF e o escape de saída (o ERB padrão não escapa)
+  passaram a ser tratados, `command_form` e `expose ui:` são servidos pela exposição `http` do comando, e a UI
+  não está na IR 0.1 (#28)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -104,7 +112,7 @@ real, o escopo por vínculo, as sondas no PostgreSQL 17 e 18 e no PgBouncer, e o
 
 ## 2. ADRs
 
-A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a pergunta que o ADR deixa a quem revisa.
+A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 
 **Aceitos**
 - [x] **001** Grafo da Aplicação e IR (rodada 1, #12)
@@ -124,18 +132,15 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **015** Migrações expand/contract (rodada 2, #14)
 - [x] **016** Ciclo de vida da operação (rodada 1, #12)
 - [x] **017** Tipo `money` (rodada 2, #19)
+- [x] **018** Camada de UI em módulos (rodada 3, #28)
 - [x] **019** Sinais efêmeros (rodada 4, #24)
 - [x] **020** Entrega live incremental (rodada 3, #15)
 - [x] **021** Campos de transição (rodada 3, #23)
 
-**Proposto, com decisão de quem revisa**
-- [ ] **018** Camada de UI em módulos (rodada 3). O 007 já está aceito. Decisão: como o gerador versiona os
-  templates ejetados e detecta que o contrato mudou.
+Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
-- [ ] Responder as decisões dos ADRs acima, ou aprovar uma recomendação redigida em PR próprio (um PR por ADR, um
-  de cada vez na branch de trabalho)
 - [ ] Definir uma regra para resolver as questões em aberto de um ADR **já aceito**, que não é editado. Hoje
   não há caminho formal
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
@@ -188,6 +193,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Modo sombra em execução: simulador determinístico, repositório simulado e relatório de divergências
 - [ ] Workflows duráveis em execução: histórico, replay, temporizadores, sinais e versões
 - [ ] MCP em execução: adaptador, delegações, aprovações, limite de taxa e o piso de sensibilidade no compilador
+- [ ] Camada de UI em execução: módulos, páginas, formulários por contrato, ejeção, cabeçalho de linha de base e
+  `vetra doctor`
 - [ ] Servidor de produção e cache de compilação
 - [ ] RLS, entrega de eventos e consultas live em execução. As garantias dos ADRs aceitos valem como decisão, não
   como código
@@ -208,6 +215,12 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   adaptador, o limite de taxa e o piso de sensibilidade não existem. O `FOR SHARE` da revogação foi conferido à
   mão no PostgreSQL 16.15, sem sonda versionada. O piso cobre só o que a IR enxerga, porque o `call` não é
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
+- [ ] **ADR-018:** os módulos de UI, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no protótipo), a
+  representação na IR (nova MENOR com `vetra.ui`), o `vetra doctor` e `vetra ui:resync` não existem; a CLI só tem
+  `graph:*`. O ERB da biblioteca padrão (4.0.3) não escapa a saída, conferido à mão, sem sonda versionada: o motor
+  precisa ser outro ou configurado para isso. Como o `can?` é avaliado e o mecanismo do token anti-CSRF estão em
+  aberto. A garantia de que a tela não ultrapassa a autorização vale para o código que usa o runtime; uma página
+  com conexão própria escapa
 - [ ] **ADR-012:** o simulador, o repositório simulado e o cálculo de elegibilidade não existem; o grafo só traz o
   campo `simulation` das capacidades. O comportamento do instantâneo exportado (a sombra parte do estado anterior
   à escrita da produção; importar depois que a produção terminou falha) foi conferido à mão no PostgreSQL 16.15,
@@ -219,7 +232,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-021:** o protótipo representa `set_by`, `guarded` e `transitions enforce:`, omite os campos e valores
   protegidos do contrato do CRUD, recusa a gravação literal por um comando fora da lista (`transition_owner`) e o
   valor protegido como `default:` (`guard_default`). A verificação na etapa 6, as telas administrativas, o trigger
-  e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018, ainda proposto
+  e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018
 - [ ] **ADR-014:** o protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor,
   mas o relay, as entregas, o lease e a reentrega não existem. Como a política `authorize` de um comando trata o
   ator de sistema de um handler é questão aberta; um papel de sistema exigiria uma nova MENOR da IR
@@ -251,6 +264,6 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Reler o 018 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde não houver
-   lacuna
-2. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
+1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
+2. [ ] Resolver as questões em aberto dos ADRs aceitos 003, 005, 014 e 015, que precisam estar resolvidas antes de
+   implementar a persistência (depende da regra da seção 3)

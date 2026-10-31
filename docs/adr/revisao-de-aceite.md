@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017), o 010, o 011, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e os da rodada 4 (009 e 019) foram aceitos; o
-outro (018) tem status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+Os 21 ADRs estão escritos e foram aceitos: os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006,
+007, 008, 015 e 017), os da rodada 3 (010, 011, 012, 013, 014, 018, 020 e 021) e os da rodada 4 (009 e 019). Esta
+lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 011, 012, 013, 014, 020, 021 (**aceitos**); 018 | rodadas 1 e 2 |
+| 3 | 010, 011, 012, 013, 014, 018, 020, 021 (**aceitos**) | rodadas 1 e 2 |
 | 4 | 009, 019 (**aceitos**) | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -72,7 +72,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 012 Canário em modo sombra | 3 | 004, 016 | `sonda_adr002` (`xid`); o campo `simulation` na IR | 13 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
-| 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
+| 018 Camada de UI | 3 | 007, 016 | nenhuma sonda (o ERB da biblioteca padrão foi conferido à mão) | 16 | 7 |
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
 | 021 Campos de transição | 3 | 016, 004 | compilador da fase 0 (testes 4 em parte e 8) | 9 | 2 |
 | 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 13 | 7 |
@@ -290,13 +290,22 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: tentativas máximas, espera e lease (hipóteses), partição, compatibilidade de versões de evento,
   publicação de eventos públicos. O índice pede resolver as questões deste ADR antes da persistência.
 
-**ADR-018 · Camada de UI em módulos fora do núcleo, com ejeção em três níveis**
-- [ ] Limites: "uma tela ejetada reflete o contrato atual" é limitada.
-- [ ] Pode mudar a decisão: **como o gerador versiona os templates ejetados e detecta que o contrato mudou.** A
-  garantia "limitada" acima depende disso.
-- [ ] Adiável: o que o `vetra doctor` verifica em ERB dinâmico; sintaxe de `page`, `command_form`, `crud ui:` e
-  `expose ui:` (o exemplo do blog as usa, mas o schema 0.1 da IR não representa páginas); autenticação e logs;
-  versionamento dos módulos; acessibilidade e internacionalização.
+**ADR-018 · Camada de UI em módulos fora do núcleo, com ejeção em três níveis** (aceito)
+- [ ] Evidência: nenhuma sonda. O ERB da biblioteca padrão (4.0.3) foi conferido à mão e não escapa a saída
+  (`<%= "<b>&" %>` sai cru). Os módulos, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no
+  protótipo), a representação na IR, o `vetra doctor` e os cabeçalhos de linha de base não existem.
+- [ ] Limites: "uma tela ejetada reflete o contrato atual" é limitada (erro só para a referência literal que
+  falha, aviso para o digest que difere); "a tela não ultrapassa a autorização" vale para o código que usa o
+  runtime do Vetra, e uma página com conexão própria escapa (limite do ADR-004).
+- [ ] Pode mudar a decisão: **era uma**. Resolvida no §5: todo arquivo entregue ao desenvolvedor nasce com um
+  cabeçalho com o digest (SHA-256 do JCS, como no ADR-001) da projeção do contrato das operações a que se liga; o
+  `vetra doctor` dá erro para o que prova de forma literal e aviso quando o digest difere, que é o caso de
+  ausência (um campo obrigatório novo), e `vetra ui:resync` regrava o digest depois da revisão. A linha de base
+  fica no arquivo, não na IR. As alternativas descartadas foram guardá-la na IR, usar o digest do grafo inteiro,
+  reprovar o build a qualquer diferença e o merge de três vias.
+- [ ] Adiável: o que o `vetra doctor` verifica em ERB dinâmico; como o `can?` é avaliado; sintaxe de `page`,
+  `command_form`, `crud ui:` e `expose ui:` e a representação na IR (nova MENOR); o mecanismo do token anti-CSRF e o
+  motor de template; autenticação e logs; versionamento dos módulos; acessibilidade e internacionalização.
 
 **ADR-020 · Entrega live incremental**
 - [ ] Limites: a revogação no modo `balanced` vale em até um intervalo (operacional); dados já entregues não são
@@ -320,7 +329,7 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   declarativa; `guarded:` para tipos além de enum) ampliam o recurso. Achou, porém, três lacunas de texto, já
   corrigidas: o trigger era só `BEFORE UPDATE` e um `INSERT` direto o contornava; o `vetra_migrator`, que o ADR
   libera, seria bloqueado pelo trigger por não ter contexto assinado; e a sintaxe de UI da regra 3 pertence ao
-  ADR-018, ainda proposto.
+  ADR-018 (então ainda proposto).
 
 ### Rodada 4
 
@@ -377,6 +386,14 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   abre transação, então as recusas das etapas 1 a 3 vão ao log; e "suspender o agente em andamento" não tinha
   sentido transacional. Sete alternativas rejeitadas novas, uma verificação preliminar, cinco garantias novas, os
   testes de aceitação 13 a 17 e os ADRs 001 e 017 em "Relacionados".
+- ADR-018: decisão sobre o versionamento da tela ejetada (cabeçalho com o digest da projeção do contrato, erro e
+  aviso no `doctor`, `ui:resync`). A releitura achou seis lacunas, corrigidas: a garantia de que a tela não
+  ultrapassa a autorização valia para qualquer código e passou a valer para o código que usa o runtime, com a
+  análise do ADR-004 estendida à UI; uma página do nível 3 podia chamar um comando durante um `GET` e contornar o
+  ADR-007, §4; o texto não tratava CSRF nem o escape de saída (o ERB padrão não escapa); `command_form` e
+  `expose ui:` não diziam por qual exposição são servidos (pela `http` do comando); e a UI não está na IR 0.1
+  (exige uma nova MENOR). Oito alternativas rejeitadas novas, três garantias novas, os testes de aceitação 11 a 16,
+  uma verificação preliminar e os ADRs 001, 004, 010 e 021 em "Relacionados".
 - ADR-009: decisões sobre o escalonador de fibras (fora desta versão) e o ator do workflow; o histórico do
   workflow, um terceiro lugar onde dado pessoal persiste, passou a ter os campos pessoais cifrados pela DEK do
   titular (ADR-013); o contrato de cancelamento, sinais e compensação, que a seção 2 citava sem definir, entrou

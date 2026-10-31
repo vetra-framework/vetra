@@ -1,6 +1,6 @@
 # ADR-018: Camada de UI em módulos fora do núcleo, com ejeção em três níveis
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-007 (comando e adaptadores), ADR-016 (ciclo de vida da operação)
 - Dependem deste ADR (na data do aceite): nenhum. Os ADRs 017, 019, 020 e 021 o citam, mas valem sem ele.
