@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017) e o 020 da rodada 3 foram aceitos; os outros 9 têm status **proposto**. Esta lista organiza a revisão: em que
-ordem ler, o
+017) e o 010 e o 020 da rodada 3 foram aceitos; os outros 8 têm status **proposto**. Esta lista organiza a
+revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 020 (**aceito**); 010, 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
+| 3 | 010, 020 (**aceitos**); 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -67,7 +67,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 008 Ordem e continuidade dos eventos | 2 | 016, 002 | `sonda_adr002`, `sonda_pooler` | 9 | 3 |
 | 015 Migrações expand/contract | 2 | 002, 001 | `sonda_adr015`, `sonda_adr002` | 12 | 6 |
 | 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
-| 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma | 8 | 6 |
+| 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
 | 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
 | 012 Canário em modo sombra | 3 | 004, 016 | nenhuma | 10 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | nenhuma | 10 | 8 |
@@ -209,13 +209,19 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 
 ### Rodada 3
 
-**ADR-010 · Adoção hospedada em Rails ou modo serviço**
+**ADR-010 · Adoção hospedada em Rails ou modo serviço** (aceito)
+- [ ] Evidência: nenhuma sonda e nada no protótipo (não há ponte com Rails). O ADR-003 registra que o modo
+  hospedado com o Active Record não foi exercitado, e nenhuma sonda mede a gem `sequel-activerecord_connection`. O
+  ADR passou a declarar isso numa seção "Verificação preliminar": a transação e o contexto de RLS compartilhados
+  são hipótese até os cinco testes do ADR-003 rodarem.
 - [ ] Limites: isolamento de tenant nas tabelas do Vetra no modo hospedado é transacional, condicionado;
   "nenhuma tabela com dois donos com escrita" e a consistência entre Rails e serviço são operacionais; o domínio
   Vetra não acessar models Rails fora das pontes é estrutural, com os limites do ADR-004.
-- [ ] Pode mudar a decisão: **o modo hospedado aceita escrita em tabelas do Rails, ou só leitura nas pontes?**
-  A posição inicial é só leitura; a decisão final depende de um caso real. Também: como a autenticação do Rails
-  vira o ator do contexto assinado (ADR-005).
+- [ ] Pode mudar a decisão: **eram duas**. Resolvidas no ADR: (1) o Vetra não escreve em tabelas do Rails (§4),
+  porque o grafo não enxerga os callbacks do Active Record e as etapas 6 e 7 do ADR-016 não valeriam; a escrita
+  por uma ponte volta por ADR novo, com um caso real e uma medição. (2) O ator e o tenant vêm da sessão
+  compartilhada do Rails, por um resolvedor que a aplicação declara, e nunca do corpo da requisição (§2); as
+  permissões que existem só no Rails já seguem o ADR-020, §8.
 - [ ] Adiável: menor versão do Rails, critérios de saída por domínio, convivência com migrações do Rails,
   gerador e deploy do modo independente.
 
@@ -318,6 +324,9 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-010: decisões sobre a escrita em tabelas do Rails (o Vetra não escreve) e o ator da sessão do Rails, nova
+  seção "Verificação preliminar" (modo hospedado não exercitado), uma alternativa rejeitada, duas garantias e os
+  ADRs 007, 016 e 020 em "Relacionados".
 - ADR-017: nova seção 6 (escala do campo e casas da moeda), três alternativas rejeitadas, duas garantias, os
   testes de aceitação 11 e 12 e o ADR-018 em "Relacionados".
 - ADR-007: nova seção 7 (a exposição não restringe o contrato), lista de dependentes (011 e 018), ADRs 005, 009 e

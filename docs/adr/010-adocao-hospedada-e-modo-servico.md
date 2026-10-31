@@ -1,6 +1,6 @@
 # ADR-010: Adoção hospedada em Rails ou modo serviço
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-002 (somente PostgreSQL), ADR-003 (Sequel e camada de repositórios)
 - Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-007 (comando e
