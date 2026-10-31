@@ -5,7 +5,7 @@ module Vetra
 
       def initialize(registry, manifest)
         @registry, @manifest = registry, manifest
-        @raw = registry.declarations
+        @raw = expand_implicit_junctions(registry.declarations)
         @entities = {}
         @nodes = {}
         @analysis = Analysis.new(manifest)
@@ -39,6 +39,74 @@ module Vetra
 
       def raw(kind)
         @raw.select { |entry| entry['kind'] == kind }
+      end
+
+      # Um many_to_many sem `through:` ganha uma entidade de junção gerada, com a forma que a aplicação declararia à
+      # mão, e a relação passa a apontar para ela: dali em diante vale o caminho da junção explícita. Sem `entity:`, o
+      # alvo é a entidade do mesmo domínio com o nome da relação no singular. A junção gerada é um nó comum da IR,
+      # com `generated_from` apontando o dono. Roda antes de @raw existir, então só usa variáveis locais.
+      def expand_implicit_junctions(declarations)
+        entities = declarations.select { |entry| entry['kind'] == 'entity' }
+        tenant_ref = @registry.application&.dig('tenant')
+        tenant_id = tenant_ref && entities.find { |item| item['id'] == tenant_ref || (!tenant_ref.include?('.') && item['id'].split('.').last == tenant_ref) }&.dig('id')
+        generated = []
+        expanded = declarations.map do |entry|
+          implicit = entry['kind'] == 'entity' && entry['relations'].any? { |relation| relation['kind'] == 'many_to_many' && (relation['target'].nil? || relation['through'].nil?) }
+          next entry unless implicit
+          entry = entry.merge('relations' => entry['relations'].map(&:dup))
+          entry['relations'].each do |relation|
+            next unless relation['kind'] == 'many_to_many'
+            relation['target'] ||= inferred_target(entry, relation, entities)
+            next if relation['through']
+            junction = junction_declaration(entry, relation, entities + generated, tenant_id)
+            generated << junction
+            relation['through'] = junction['id']
+          end
+          entry
+        end
+        expanded + generated
+      end
+
+      def inferred_target(entry, relation, entities)
+        id = "#{entry['domain']}.#{singular(relation['name'])}"
+        unless entities.any? { |item| item['id'] == id }
+          fail!('relation_target', "many_to_many :#{relation['name']} sem entity: exige a entidade #{id}; declare-a ou informe entity:.", entry)
+        end
+        id
+      end
+
+      def junction_declaration(owner, relation, entities, tenant_id)
+        target_id = qualify(relation['target'], owner['domain'])
+        target = entities.find { |item| item['id'] == target_id }
+        fail!('reference_missing', "Declare entity #{target_id} ou use referência qualificada ao domínio correto.", owner) unless target
+        if owner['id'] == target['id']
+          fail!('relation_through', "many_to_many :#{relation['name']} liga #{owner['id']} a ela mesma: auto-relações não são suportadas, pois a IR não registra qual coluna é qual; declare a junção e through:.", owner)
+        end
+        id = "#{owner['domain']}.#{owner['id'].split('.').last}_#{singular(relation['name'])}"
+        if entities.any? { |item| item['id'] == id }
+          fail!('relation_through', "A junção gerada #{id} colide com uma entidade declarada; use through: :#{id.split('.').last}.", owner)
+        end
+        scoped = [owner, target].map { |item| !tenant_id.nil? && item['id'] != tenant_id && item['tenant'] != false }
+        if scoped.uniq.size > 1
+          fail!('relation_through', "A junção gerada de #{owner['id']} para #{target['id']} exige entidades com o mesmo tratamento de tenant; declare a junção e through:.", owner)
+        end
+        shared = scoped.first
+        owner_name, target_name = owner['id'].split('.').last, target['id'].split('.').last
+        builder = DSL::Entity.new(@registry, @manifest, owner['domain'], Data.copy(owner['source']), options: {})
+        builder.tenant(false) unless shared
+        builder.belongs_to(owner_name, entity: owner['id'], same_tenant: shared)
+        builder.belongs_to(target_name, entity: target['id'], same_tenant: shared)
+        builder.index(*(shared ? ["#{tenant_id.split('.').last}_id"] : []), "#{owner_name}_id", "#{target_name}_id", unique: true)
+        { 'kind' => 'entity', 'id' => id, 'domain' => owner['domain'], 'source' => Data.copy(owner['source']),
+          'generated_from' => Data.reference('entity', owner['id']) }.merge(builder.attributes)
+      end
+
+      # Inverso mínimo de plural: "ies" depois de consoante vira "y"; um "s" final cai, exceto em "ss". Quando não
+      # acerta, o erro manda informar entity:.
+      def singular(name)
+        return "#{name[0...-3]}y" if name.match?(/[^aeiou]ies\z/)
+        return name[0...-1] if name.end_with?('s') && !name.end_with?('ss')
+        name
       end
 
       def fail!(code, message, entry)
@@ -139,6 +207,7 @@ module Vetra
           'history' => entry['history'], 'transitions' => Data.copy(entry['transitions'])
         )
         node['previous_ids'] = Array(options[:was]).map { |name| qualify(name.to_s, entry['domain']) } if options.key?(:was)
+        node['generated_from'] = Data.copy(entry['generated_from']) if entry['generated_from']
         @entities[entry['id']] = add(node)
       end
 
