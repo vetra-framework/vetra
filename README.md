@@ -44,6 +44,7 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 
 | Documento | Conteúdo |
 |---|---|
+| [Situação do projeto](docs/situacao-do-projeto.md) | O que está feito, pendente e incompleto, com checkboxes, atualizado a cada PR |
 | [Protótipo da fase 0](docs/fase-0.md) | Como executar, DSL implementado, testes e limites atuais |
 | [Diff arquitetural](docs/graph-diff.md) | Comparação de grafos/versões Git, contratos, permissões e relatório JSON |
 | [Vinculação de implementações](docs/graph-link.md) | Carregamento validado, parâmetros/capacidades e limites do registro Ruby |
