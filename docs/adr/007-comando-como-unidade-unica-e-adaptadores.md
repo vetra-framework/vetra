@@ -1,6 +1,6 @@
 # ADR-007: Comando como unidade única de operação e adaptadores de superfície
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação)
 - Dependem deste ADR (na data do aceite): 011 (MCP) e 018 (camada de UI)
