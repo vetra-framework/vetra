@@ -170,8 +170,8 @@ usa o contrato do comando.
    transação.
 4. Um webhook sem identificador de evento é recusado antes da etapa 1.
 5. Duas exposições de CLI com o mesmo nome falham na compilação.
-6. Uma rota `GET` para um comando e um `POST` para uma consulta falham na compilação (já cobertas no
-   protótipo).
+6. Uma rota `GET` para um comando e um `POST` para uma consulta falham na compilação (o protótipo implementa as
+   duas regras; os testes dele exercitam a rota `GET` para um comando).
 7. Um adaptador que tenta abrir transação ou pular a autorização é detectado pelo teste de contrato do
    adaptador.
 8. Um comando chamado por composição é reautorizado com o ator externo e não passa por adaptador.
