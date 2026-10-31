@@ -1,6 +1,6 @@
 # ADR-022: Resolução das questões em aberto do ADR-003
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-31
 - Resolve: ADR-003 (as seis questões em aberto)
 - Depende de: ADR-003 (Sequel e repositórios), ADR-001 (analisador do `call`), ADR-004 (Effect Boundary)

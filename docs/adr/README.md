@@ -2,8 +2,9 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Nenhum componente
-além do compilador da fase 0 foi implementado.
+componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
+(022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
+o 022 é o primeiro. Nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -30,6 +31,7 @@ além do compilador da fase 0 foi implementado.
 | [019](019-sinais-efemeros.md) | Sinais efêmeros autorizados pelo mesmo motor | aceito |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | aceito |
 | [021](021-campos-de-transicao.md) | Campos de transição | aceito |
+| [022](022-resolucao-das-questoes-do-adr-003.md) | Resolução das questões em aberto do ADR-003 | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita, mas os testes do compilador/runtime
@@ -69,11 +71,15 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
 4. Antes de implementar a persistência, tratar as questões em aberto dos ADRs 003, 005, 014 e 015, cada ADR por
-   um ADR de resolução (veja a [Convenção](#convenção)).
+   um ADR de resolução (veja a [Convenção](#convenção)). O 003 está tratado (ADR-022); faltam 005, 014 e 015.
 
 ## Questões em aberto resolvidas
 
-Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as questões que tratam. Ainda não há nenhum.
+Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as questões que tratam.
+
+| ADR de resolução | Resolve | Questões e tratamento |
+|---|---|---|
+| [022](022-resolucao-das-questoes-do-adr-003.md) | 003 | 1 poolers (medição); 2 `pg` sob o Falcon (medição); 3 registros (decidida e medição); 4 `uses :sql` (decidida); 5 atualização (valor inicial e adiada); 6 analisador (decidida) |
 
 ## Convenção
 

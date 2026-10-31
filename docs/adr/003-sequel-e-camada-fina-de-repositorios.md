@@ -5,6 +5,7 @@
 - Depende de: ADR-002 (somente PostgreSQL)
 - Relacionados: ADR-004 (capacidades), ADR-005 (RLS e contexto assinado), ADR-008 (conexão `LISTEN`), ADR-016
   (ciclo de vida da operação)
+- Questões resolvidas por: ADR-022
 
 ## Contexto
 
