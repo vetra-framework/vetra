@@ -4,9 +4,10 @@ O [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md) lista 11 testes de aceitação p
 cada um com a suíte atual e registra o que está coberto, o que está parcial e o que é lacuna. Ele não declara a
 fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 
-Medição de 2026-10-30, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136 testes e 1.007
-asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos três testes do
-critério 1: 183 testes e 1.240 asserções, sem falhas.
+Medição de 2026-10-30 e 2026-10-31, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136
+testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos
+três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
+testes e 1.256 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -105,9 +106,9 @@ Os três exemplos juntos recusam dez famílias de construto. Seis já constavam 
 só aparece no diagnóstico do compilador) e o `created_at` implícito. Uma é requisito de desenho que o `fase-0.md` só
 mostra por exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da
 documentação:** `realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do
-`fase-0.md`. As duas últimas falham com um `dsl_error` que repassa o `ArgumentError` do Ruby (`unknown keyword:
-:rate_limit` e `wrong number of arguments`), e não com um diagnóstico que nomeie o recurso, como o
-`unsupported_option` faz para as opções de campo.
+`fase-0.md`. As duas últimas falhavam com um `dsl_error` que repassava o `ArgumentError` do Ruby (`unknown keyword:
+:rate_limit` e `wrong number of arguments`), sem nomear o recurso. Isso foi corrigido: `can` e `currency` agora
+recusam opções desconhecidas com `unsupported_option`, como já faziam as opções de campo.
 
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
@@ -119,10 +120,8 @@ e as closures são privadas por desenho.
 
 ## O que continua em aberto
 
-- O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a construto,
-  e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.
-- `rate_limit:` e `rounding:` falham sem nomear o recurso. Trocar o `ArgumentError` por um diagnóstico dedicado é
-  uma mudança de código do compilador, que não foi feita aqui.
+- O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
+  construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.
 - Um caso do validador prova que a regra dispara sobre uma IR montada à mão, não que o DSL consegue alcançá-la.
   Para as regras que o normalizador impede de chegar ao validador, isso é o esperado: o validador existe para
   recusar uma IR que não veio do compilador.
