@@ -4,7 +4,9 @@
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-008 (ordem e continuidade dos eventos), ADR-002 (somente
   PostgreSQL)
-- Relacionados: ADR-004 (capacidades e Effect Boundary), ADR-007 (adaptadores), ADR-020 (entrega live)
+- Dependem deste ADR (na data do aceite): 009 (workflows)
+- Relacionados: ADR-004 (capacidades e Effect Boundary), ADR-005 (RLS e contexto assinado), ADR-007
+  (adaptadores), ADR-010 (modo serviço), ADR-013 (privacidade), ADR-020 (entrega live)
 
 ## Contexto
 
@@ -31,6 +33,9 @@ que isso.
    cada evento do intervalo, cria uma **entrega** por handler declarado em `on`: uma linha em
    `vetra.deliveries (event_seq, handler, state, attempts, run_after, leased_until, ...)`.
 3. Um worker **reserva** uma entrega, executa o handler e a **conclui**.
+
+O `event_id` é o identificador estável do evento, gravado na outbox ao lado de `seq` (a ordem); a entrega aponta
+para o evento por `event_seq`.
 
 O conjunto de handlers de um evento é o do grafo no momento em que o relay cria as entregas. Um handler novo
 não recebe eventos antigos; recuperar eventos passados é uma operação explícita, fora desta decisão.
@@ -59,11 +64,16 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
   vez" por "no máximo uma vez" e perderia efeitos em quedas: é rejeitada.
 - Um handler que escreve no banco age por comandos, que passam pelas oito etapas e têm a própria chave de
   idempotência derivada do evento (ADR-016).
+- O payload de um evento com campo pessoal traz esse campo cifrado pela DEK do titular (ADR-013, §6). O handler
+  o decifra pelo cache de DEKs, e a outbox não guarda dado pessoal em claro.
 
 ### 4. Falha, repetição e entrega morta
 
 - Falha retentável (timeout, erro 5xx do provedor): nova tentativa com espera crescente e variação aleatória
   (`run_after`). Falha definitiva (`fail!`, entrada inválida): vai direto a `dead`.
+- A indisponibilidade do KMS ao decifrar um campo pessoal é falha retentável. Uma DEK destruída (o titular foi
+  eliminado) é falha definitiva: a entrega vai direto a `dead`, porque repetir nunca teria sucesso e um efeito
+  sobre uma pessoa eliminada não deve acontecer.
 - Depois de um número máximo de tentativas (padrão proposto: 10), a entrega vai a `dead`. Uma entrega morta é
   visível em métricas e em `vetra doctor` e pode ser reprocessada por um comando explícito e auditado.
 - **Uma entrega com problema não bloqueia as outras.** Cada entrega é independente; não há fila FIFO por
@@ -91,6 +101,17 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
 - Métricas mínimas: atraso da entrega mais antiga pendente, tentativas por handler, entregas mortas e idade do
   `xmin`.
 
+### 8. O ator de um handler
+
+- Um handler **não age como o ator que causou o evento**. Ele age como um **ator de sistema do tenant do
+  evento**, identificado pelo handler. O contexto assinado (ADR-005) leva esse ator e o `tenant_id` do evento,
+  então o RLS enxerga só aquele tenant.
+- A autoridade desse ator é **exatamente a dos comandos que o handler declara em `calls`**. A lista é a que o
+  grafo conhece e que o diff arquitetural mostra para revisão; o handler não chama outro comando.
+- **Operar como o ator original** do evento exige a capacidade explícita e auditada do ADR-016, e ela não é
+  concedida por padrão.
+- A auditoria de um comando chamado por um handler registra o handler como origem e o `event_id` como causa.
+
 ## Alternativas rejeitadas
 
 - **Promessa de entrega exatamente uma vez:** não é alcançável com efeitos externos sem a cooperação do
@@ -103,6 +124,11 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
   tentativas, espera e entrega morta passa a ser por intervalo e não por evento, e uma falha isolada bloquearia
   o avanço do cursor.
 - **Fila externa obrigatória (Kafka, Redis Streams):** o núcleo funciona só com PostgreSQL (ADR-002).
+- **O handler agir como o ator original do evento:** o ator pode ter perdido a permissão entre o commit e a
+  entrega, e o handler acumularia o privilégio de quem o disparou. Exigir a capacidade explícita mantém o
+  privilégio visível.
+- **Um papel de sistema com poder amplo para todos os handlers:** um handler com erro alcançaria comandos que
+  não declarou.
 
 ## Consequências
 
@@ -113,6 +139,11 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
 - Há atraso entre o commit e o efeito: o relay só lê abaixo do `xmin`, e uma transação longa atrasa todos os
   eventos (ADR-008, §5).
 - Reprocessar uma entrega morta é um ato humano e auditado, não automático.
+- O caso comum de um handler (notificar, sincronizar) não precisa de capacidade nenhuma além dos `calls`; agir
+  como o usuário que originou o evento exige uma capacidade explícita.
+- Cada comando que um handler chama precisa de uma forma de autorizar o ator de sistema (veja as questões em
+  aberto).
+- Eventos com campo pessoal pagam a cifra e a decifra, e o handler depende da DEK em cache (ADR-013).
 
 ## Garantias e seus níveis
 
@@ -124,6 +155,8 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
 | O handler não repete o efeito deduplicado | Verificável por testes | Chave `(handler, event_id)` única |
 | O efeito externo ocorre uma vez só | Operacional | Só com chave de idempotência aceita pelo provedor; senão, pode duplicar |
 | Uma entrega com problema não bloqueia as demais | Verificável por testes | Entregas independentes |
+| Um handler age só pelos comandos que declara, no tenant do evento | Estrutural, com os limites do ADR-004 | `calls` do grafo e contexto assinado do tenant do evento (§8) |
+| A outbox não guarda dado pessoal em claro | Verificável por testes | Cifra por DEK dos campos pessoais do payload (ADR-013, §6) |
 
 ## Testes de aceitação
 
@@ -139,14 +172,21 @@ não recebe eventos antigos; recuperar eventos passados é uma operação explí
 8. Um handler adicionado depois não recebe eventos já relayados.
 9. A purga remove entregas concluídas após a retenção e preserva as mortas.
 10. Os testes rodam com os mesmos papéis de banco de produção, com PostgreSQL real.
+11. Um handler que tenta chamar um comando fora de `calls` é recusado no boot. Os comandos que ele chama
+    executam com o ator de sistema do handler e o `tenant_id` do evento, nunca com o ator original.
+12. A auditoria de um comando chamado por um handler registra o handler e o `event_id`.
+13. Com o KMS indisponível, a entrega de um evento com campo pessoal é repetida. Com a DEK do titular destruída,
+    ela vai a `dead` sem repetição.
 
 ## Questões em aberto
 
-- Padrões de tentativas máximas, espera e lease (10 tentativas e lease de 2 vezes o timeout são hipóteses).
-- Fan-out materializado por entrega ou cursor por handler: a escolha acima é a mais simples; a medição de
-  volume pode reabri-la.
+- Padrões de tentativas máximas, espera, lease e retenção (10 tentativas, lease de 2 vezes o timeout e 7 dias
+  são hipóteses).
+- Fan-out por cursor por handler. Não adotado: a entrega materializada por linha é a decisão desta versão (§1 e
+  as alternativas). Um cursor volta por ADR novo, com a medição de volume.
 - Partição da outbox e das entregas: por tempo, por tenant ou ambos (herdada do ADR-008).
-- Qual é o ator de um handler. A hipótese é um ator de sistema limitado ao tenant do evento; operar como o
-  ator original exige capacidade explícita (ADR-004, ADR-005).
+- Como a política `authorize` de um comando trata o ator de sistema de um handler: uma concessão pela
+  declaração `calls` ou um papel de sistema declarado. O nó `handler` da IR 0.1 não tem campo de papel, então o
+  segundo caminho exigiria uma nova MENOR (ADR-001).
 - Compatibilidade de versões de evento entre quem emite e quem consome durante um deploy.
 - Publicação de eventos públicos para fora do processo.
