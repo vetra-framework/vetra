@@ -1,6 +1,6 @@
 # ADR-021: Campos de transição
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-004 (capacidades e Effect Boundary)
 - Relacionados: ADR-005 (RLS e contexto assinado), ADR-007 (comando e adaptadores), ADR-018 (camada de UI)
