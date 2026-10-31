@@ -433,6 +433,8 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 ## Depois do aceite
 
 - Mudar de decisão gera um ADR novo que substitui o anterior.
+- Resolver uma questão em aberto de um ADR aceito, sem mudar a decisão, gera um ADR de resolução (índice,
+  "Convenção"). O ADR original só ganha a linha de cabeçalho que aponta para ele.
 - O índice (`README.md`) passa a registrar o novo status de cada ADR.
 - Antes de implementar a persistência, as questões em aberto dos ADRs 003, 005, 014 e 015 precisam estar
-  resolvidas (índice, "Próximo passo", item 4).
+  tratadas por ADRs de resolução (índice, "Próximo passo", item 4).

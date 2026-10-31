@@ -63,18 +63,48 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 ## Próximo passo
 
 1. **Os 21 ADRs estão aceitos.** As quatro rodadas da [lista de revisão](revisao-de-aceite.md) foram concluídas.
-   Um ADR aceito não é editado; uma mudança de decisão gera outro que o substitui. Ainda não há uma regra formal
-   para resolver as questões em aberto de um ADR já aceito.
+   Um ADR aceito não é editado; uma mudança de decisão gera outro que o substitui, e uma questão em aberto dele se
+   resolve por um ADR de resolução (veja a [Convenção](#convenção)).
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
-4. Antes de implementar a persistência, resolver as questões em aberto dos ADRs 003, 005, 014 e 015.
+4. Antes de implementar a persistência, tratar as questões em aberto dos ADRs 003, 005, 014 e 015, cada ADR por
+   um ADR de resolução (veja a [Convenção](#convenção)).
+
+## Questões em aberto resolvidas
+
+Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as questões que tratam. Ainda não há nenhum.
 
 ## Convenção
 
 - Um arquivo por decisão, nomeado `NNN-titulo-curto.md` (por exemplo, `016-ciclo-de-vida-da-operacao.md`).
 - Use o modelo abaixo.
 - Um ADR aceito não é editado; uma mudança de decisão gera um novo ADR que o substitui.
+- Uma questão em aberto de um ADR aceito se resolve por um **ADR de resolução**, como descrito a seguir.
+
+### Resolver uma questão em aberto de um ADR aceito
+
+Resolver uma questão **não muda a decisão** do ADR aceito; completa-a. Se a resposta mudasse o que o ADR decide,
+não seria resolução, e sim um ADR que o substitui. Como o ADR aceito não é editado, a resolução vive num ADR novo,
+com número próprio, no [modelo de resolução](#modelo-de-adr-de-resolução). Ele entra pelo caminho de qualquer ADR:
+um PR, e o aceite só vale quando quem revisa o integra.
+
+Cada questão tratada recebe um de cinco tratamentos:
+
+| Tratamento | O que o ADR de resolução traz |
+|---|---|
+| Decidida | A decisão, as alternativas rejeitadas e o efeito; os testes de aceitação, quando muda comportamento |
+| Medição | O que medir, em que ambiente, e **qual resultado decide o quê**: um critério de gate, não uma promessa solta |
+| Valor inicial | O valor (por exemplo, "10 tentativas"), o motivo e a medição que pode revisá-lo |
+| Já resolvida | O ADR e a seção que a decidiram |
+| Adiada | Por que não bloqueia e **o que a faz voltar** (um gatilho) |
+
+1. Uma questão está **tratada** quando tem um dos cinco tratamentos, com o conteúdo que ele pede. "Medição" e
+   "Valor inicial" contam como tratadas: têm critério e dono, mas não foram medidas. É nesse sentido que o índice
+   pede resolver as questões antes da persistência.
+2. O ADR original recebe **uma única linha** no cabeçalho, `- Questões resolvidas por: ADR-NNN`, e nada mais: a
+   decisão e a seção de questões ficam como foram aceitas. É da mesma natureza da linha `substituído por` do modelo.
+3. O índice registra a resolução na tabela "Questões em aberto resolvidas".
 
 ## Modelo
 
@@ -103,4 +133,34 @@ O que passa a valer, incluindo os custos e os limites.
 ## Garantia
 
 Nível (estrutural, transacional, verificável por testes, operacional ou experimental), mecanismo e testes.
+```
+
+## Modelo de ADR de resolução
+
+```markdown
+# ADR-NNN: Resolução das questões em aberto do ADR-MMM
+
+- Status: proposto | aceito
+- Data: AAAA-MM-DD
+- Resolve: ADR-MMM (as questões 1, 3 e 4)
+- Depende de: ADR-MMM e os ADRs que as respostas usam
+
+## Contexto
+
+Por que estas questões precisam de resposta agora: o que da implementação depende delas.
+
+## Questões
+
+### 1. A questão, como está no ADR original
+
+- Tratamento: decidida | medição | valor inicial | já resolvida | adiada
+- Resposta: o que o tratamento pede (tabela da Convenção).
+
+## Consequências
+
+O que passa a valer, incluindo os custos e os limites.
+
+## Garantia
+
+Nível, mecanismo e testes das questões decididas.
 ```
