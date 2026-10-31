@@ -7,7 +7,7 @@ fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 Medição de 2026-10-30 e 2026-10-31, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136
 testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos
 três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
-testes e 1.256 asserções, sem falhas.
+testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -107,8 +107,10 @@ só aparece no diagnóstico do compilador) e o `created_at` implícito. Uma é r
 mostra por exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da
 documentação:** `realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do
 `fase-0.md`. As duas últimas falhavam com um `dsl_error` que repassava o `ArgumentError` do Ruby (`unknown keyword:
-:rate_limit` e `wrong number of arguments`), sem nomear o recurso. Isso foi corrigido: `can` e `currency` agora
-recusam opções desconhecidas com `unsupported_option`, como já faziam as opções de campo.
+:rate_limit` e `wrong number of arguments`), sem nomear o recurso. Isso foi corrigido, primeiro em `can` e
+`currency` e depois em todo o DSL: uma palavra-chave desconhecida falha com `unsupported_option` e uma obrigatória
+ausente com `missing_option`, nomeando o método e apontando a linha da declaração (antes era sempre a linha 1 do
+arquivo).
 
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e

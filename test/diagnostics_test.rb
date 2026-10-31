@@ -99,6 +99,7 @@ class DiagnosticsTest < GraphTest
     'route_format' => ['blog', ->(root) { edit(root, 'app/domains/blog/publish_post.rb') { |text| text.sub('"POST /posts/:post_id/publish"', '"POST"') } }, true],
     'domain_required' => ['blog', ->(root) { edit(root, 'config/app.rb') { |text| "#{text}entity :ghost do\nend\n" } }, true],
     'unsupported_option' => ['blog', ->(root) { edit(root, 'app/domains/blog/post.rb') { |text| text.sub('max: 200', 'max: 200, ghost: 1') } }, true],
+    'missing_option' => ['blog', ->(root) { edit(root, 'app/domains/blog/post.rb') { |text| text.sub('  crud', "  many_to_many :tags\n  crud") } }, true],
     'unsafe_reason' => ['blog', ->(root) { edit(root, 'app/domains/blog/publish_post.rb') { |text| text.sub("  call do", "  unsafe_effect ' '\n  call do") } }, true],
     'domain_mismatch' => ['blog', ->(root) { edit(root, 'app/domains/blog/domain.rb') { |text| text.sub('domain :blog', 'domain :other') } }, true],
     'missing_implementation' => ['blog', ->(root) { edit(root, 'app/domains/blog/publish_post.rb') { |text| text.sub(/  call do.*?\n  end\n/m, '') } }, true],
@@ -133,6 +134,27 @@ class DiagnosticsTest < GraphTest
         assert_includes error.message, option
         diagnostic = error.diagnostics.find { |item| item.code == 'unsupported_option' }
         assert diagnostic.source['path'], "#{option} sem origem"
+        refute_includes error.diagnostics.map(&:code), 'dsl_error'
+      end
+    end
+  end
+
+  # Uma palavra-chave desconhecida ou ausente numa declaração nomeia a opção e o método e aponta a linha real da
+  # declaração, em vez de repassar o ArgumentError do Ruby na linha 1 do arquivo.
+  def test_keyword_errors_name_the_option_the_method_and_the_line
+    {
+      'unsupported_option' => ['post.rb', 'crud scope: :author', 'crud scope: :author, ui: :admin', 'ui', 'crud'],
+      'missing_option' => ['publish_post.rb', 'expose http: "POST /posts/:post_id/publish"', 'expose ui: { button: "Publicar" }', 'http', 'expose']
+    }.each do |code, (file, from, to, option, method)|
+      with_app('blog') do |root, compiler|
+        path = "app/domains/blog/#{file}"
+        edit(root, path) { |text| text.sub(from, to) }
+        line = File.readlines(File.join(root, path)).index { |content| content.include?(to) } + 1
+        error = assert_graph_error(code) { compiler.build }
+        diagnostic = error.diagnostics.find { |item| item.code == code }
+        assert_equal line, diagnostic.source['line'], "#{code}: linha da declaração"
+        assert_includes diagnostic.message, "em #{method}:"
+        assert_includes diagnostic.message, option
         refute_includes error.diagnostics.map(&:code), 'dsl_error'
       end
     end

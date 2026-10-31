@@ -81,11 +81,13 @@ nomes declarados. Os parâmetros são conferidos e o bloco é registrado separad
 o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora dela e é conferida em
 `graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
-Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI,
-MCP, workflows, consultas live, geração automática de junções muitos-para-muitos, `auth` e geração de usuários/vínculos, metadados de dependências por gem,
-SQL explícito, `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos
-materializados do ator além de `id`. As opções `rate_limit:` e `rounding:` falham com `unsupported_option`, que nomeia a opção. O schema 0.1 possui
-algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
+Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI, MCP,
+workflows, consultas live, geração automática de junções muitos-para-muitos, `auth` e geração de usuários/vínculos,
+metadados de dependências por gem, SQL explícito, `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e
+políticas baseadas em atributos materializados do ator além de `id`. Uma palavra-chave desconhecida em qualquer
+declaração falha com `unsupported_option`, e uma obrigatória ausente com `missing_option`; os dois nomeiam o método
+e apontam a linha da declaração. O schema 0.1 possui algumas dessas representações; conhecer sua forma não significa
+que este consumidor saiba compilá-las.
 
 O construtor não é um sandbox. As declarações são código de desenvolvimento confiável e devem ser
 determinísticas; chamadas explícitas a constantes Ruby podem escapar da API. A análise Prism do corpo de
@@ -227,7 +229,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 121 códigos de diagnóstico do compilador são disparados por algum teste.
+e registra o que foi fechado: os 122 códigos de diagnóstico do compilador são disparados por algum teste.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
 restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.

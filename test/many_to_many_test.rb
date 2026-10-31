@@ -66,7 +66,7 @@ class ManyToManyTest < GraphTest
   def test_through_is_required_and_must_name_a_declared_entity
     with_chat do |root, compiler|
       edit(root, 'app/domains/chat/room.rb') { |text| text.sub(', through: :room_membership', '') }
-      assert_graph_error('dsl_error') { compiler.build }
+      assert_graph_error('missing_option') { compiler.build }
     end
     with_chat do |root, compiler|
       edit(root, 'app/domains/chat/room.rb') { |text| text.sub('through: :room_membership', 'through: :missing') }
