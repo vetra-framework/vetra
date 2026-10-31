@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017), o 010, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e o 019 da rodada 4 foram aceitos; os outros 3 têm
-status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+017), o 010, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e os da rodada 4 (009 e 019) foram aceitos; os outros
+2 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -40,7 +40,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
 | 3 | 010, 012, 013, 014, 020, 021 (**aceitos**); 011, 018 | rodadas 1 e 2 |
-| 4 | 019 (**aceito**); 009 | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
+| 4 | 009, 019 (**aceitos**) | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
 
@@ -75,7 +75,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
 | 021 Campos de transição | 3 | 016, 004 | compilador da fase 0 (testes 4 em parte e 8) | 9 | 2 |
-| 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 10 | 6 |
+| 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 13 | 7 |
 | 019 Sinais efêmeros | 4 | 020, 008, 005, 013 | `sonda_adr019` | 13 | 6 |
 
 ## Por ADR
@@ -313,16 +313,21 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 
 ### Rodada 4
 
-**ADR-009 · Workflows duráveis por histórico de eventos e replay determinístico**
-- [ ] Evidência: `sonda_adr009` (14 itens, só biblioteca padrão). O bloqueio por `TracePoint` precisa de `:call`
-  e `:c_call`, custa cerca de 4 vezes e é uma lista de negação com furos (escaparam, entre outros, `Time.new`,
-  `Date.today`, `SecureRandom`, `Kernel#system` e `TCPSocket`).
+**ADR-009 · Workflows duráveis por histórico de eventos e replay determinístico** (aceito)
+- [ ] Evidência: `sonda_adr009` (14 itens, só biblioteca padrão; roda na CI no 17 e no 18). O motor da sonda usa
+  `Fiber.yield` e `fiber.resume`, sem `Fiber::Scheduler`, e verifica que o workflow linear completa com cada
+  efeito uma vez, que o replay depois de uma queda não repete o passo, que código alterado é detectado e que uma
+  Fiber suspensa não é serializável. O bloqueio por `TracePoint` precisa de `:call` e `:c_call`, custa cerca de 4
+  vezes e é uma lista de negação com furos (escaparam, entre outros, `Time.new`, `Date.today`, `SecureRandom`,
+  `Kernel#system` e `TCPSocket`). O motor de workflows não existe.
 - [ ] Limites: "os efeitos de um passo não se repetem após queda" é operacional; "o código não usa relógio,
   acaso, I/O ou threads" é estrutural, mas limitado; o bloqueio por `TracePoint` é rede de segurança de
   desenvolvimento, não garantia.
-- [ ] Pode mudar a decisão: **a viabilidade e o custo do escalonador de fibras determinístico completo**, que a
-  sonda não cobre, e **quem é o ator de um workflow** e como o tenant e o contexto assinado se aplicam a cada
-  passo (ADR-004 e ADR-005).
+- [ ] Pode mudar a decisão: **eram duas**. Resolvidas no ADR: (1) o escalonador de fibras não entra nesta versão:
+  o workflow linear suspende a Fiber a cada `ctx`, que é o que a sonda verifica, e só ramos concorrentes exigem o
+  escalonador, que voltam por ADR novo (§5). (2) O workflow age como um ator de sistema do tenant da execução,
+  com a autoridade dos comandos que declara, e o contexto assinado, que vale 30 s, é emitido a cada passo (§7).
+  A alternativa descartada para o ator foi agir como quem iniciou a execução, que dura dias.
 - [ ] Adiável: limite de tamanho do histórico, manutenção de versões antigas, sintaxe do DSL (o schema 0.1 não
   representa workflows), precisão dos temporizadores.
 
@@ -354,6 +359,11 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-009: decisões sobre o escalonador de fibras (fora desta versão) e o ator do workflow; o histórico do
+  workflow, um terceiro lugar onde dado pessoal persiste, passou a ter os campos pessoais cifrados pela DEK do
+  titular (ADR-013); o contrato de cancelamento, sinais e compensação, que a seção 2 citava sem definir, entrou
+  nas questões em aberto; três alternativas rejeitadas, duas garantias, os testes de aceitação 11 a 13 e os ADRs
+  005 e 013 em "Relacionados".
 - ADR-012: decisão sobre a leitura depois de escrita no repositório simulado; o instantâneo da sombra passou a
   ser o da abertura da transação de produção (`pg_export_snapshot`), com a amostra descartada se não for importada
   a tempo; a sombra passou a usar um contexto assinado novo (o da produção expira em 30 s e daria "nenhuma

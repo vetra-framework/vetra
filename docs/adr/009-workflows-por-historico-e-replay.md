@@ -1,6 +1,6 @@
 # ADR-009: Workflows duráveis por histórico de eventos e replay determinístico
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-004 (capacidades e Effect Boundary), ADR-014 (outbox)
 - Relacionados: ADR-001 (análise do código), ADR-005 (RLS e contexto assinado), ADR-007 (comando e
