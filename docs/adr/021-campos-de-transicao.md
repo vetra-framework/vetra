@@ -1,9 +1,9 @@
 # ADR-021: Campos de transição
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-004 (capacidades e Effect Boundary)
-- Relacionados: ADR-005 (RLS e contexto assinado), ADR-018 (camada de UI)
+- Relacionados: ADR-005 (RLS e contexto assinado), ADR-007 (comando e adaptadores), ADR-018 (camada de UI)
 
 ## Contexto
 
@@ -46,7 +46,7 @@ boolean   :approved, default: false, set_by: :approve_comment
    quando o valor atual **e** o novo valor são não protegidos. Sair de `won` também exige um comando.
 3. **Telas administrativas geradas** (`crud ui: :admin`) não exibem campos protegidos como editáveis; mostram
    como somente leitura. Os comandos aparecem como botões (`expose ui: { button: ... }`), só quando a
-   condição vale.
+   condição vale. A sintaxe de UI é proposta e pertence ao ADR-018; o protótipo a recusa.
 4. **Comandos genéricos.** Um comando declarado pelo desenvolvedor que **não** esteja na lista `set_by:` ou
    `guarded:` e que tente gravar o campo é recusado:
    - **no boot**, quando a análise estática vê a gravação literal (`update!(lead, status: "won")`);
@@ -68,15 +68,19 @@ entity :lead do
 end
 ```
 
-Nesse caso, o gerador cria um trigger `BEFORE UPDATE` que compara `OLD` e `NEW` e valida o comando corrente
-contra a lista permitida. O nome do comando vem do contexto assinado (a claim `cmd` do ADR-005), então
-SQL injetado não consegue se passar por outro comando. O custo é uma validação do token por linha alterada, e por isso
-é opcional: fica para entidades onde a regra de negócio é crítica (financeiro, estoque).
+Nesse caso, o gerador cria um trigger `BEFORE INSERT OR UPDATE` que valida o comando corrente contra a lista
+permitida. Na inserção, ele compara `NEW` com os campos e os valores protegidos, para que um `INSERT` direto não
+contorne a regra; na alteração, compara `OLD` e `NEW`. O nome do comando vem do contexto assinado (a claim `cmd`
+do ADR-005), então SQL injetado não consegue se passar por outro comando. Uma sessão sem contexto assinado válido
+é recusada, com a única exceção do papel `vetra_migrator` (veja as exceções abaixo). O custo é uma validação do
+token por linha alterada, e por isso é opcional: fica para entidades onde a regra de negócio é crítica
+(financeiro, estoque).
 
 ### Exceções controladas
 
-- **Seeds e migrações de dados** rodam como `vetra_migrator` (ADR-005) e podem gravar campos protegidos. O
-  histórico registra o ator como `system:migration`.
+- **Seeds e migrações de dados** rodam como `vetra_migrator` (ADR-005) e podem gravar campos protegidos, inclusive
+  com `enforce: :db`: o trigger reconhece esse papel e só ele. O histórico registra o ator como
+  `system:migration`.
 - **Importações em massa** devem usar um comando próprio que declara os campos em `set_by:`. Não há um "modo
   administrador" que desligue a proteção.
 
@@ -108,7 +112,7 @@ SQL injetado não consegue se passar por outro comando. O custo é uma validaç�
 |---|---|---|
 | O contrato gerado não aceita campos nem valores protegidos | Estrutural | Contrato derivado do grafo |
 | Um comando não autorizado não grava o campo protegido | Verificável por testes | Verificação na etapa 6, mais análise estática no boot |
-| O mesmo, contra SQL fora do repositório | Transacional, com `enforce: :db` | Trigger com o comando vindo do contexto assinado |
+| O mesmo, contra SQL fora do repositório (inserção e alteração) | Transacional, com `enforce: :db` | Trigger com o comando vindo do contexto assinado; só o `vetra_migrator` passa sem ele |
 | A transição sempre emite o evento do comando | Estrutural | Só o comando grava; `emits` é declarado nele |
 
 ## Testes de aceitação
@@ -123,6 +127,8 @@ SQL injetado não consegue se passar por outro comando. O custo é uma validaç�
    comandos só quando a condição vale.
 7. Com `enforce: :db`, um `UPDATE` direto fora do comando dono falha no trigger.
 8. Um valor protegido como `default:` é erro de boot.
+9. Com `enforce: :db`, um `INSERT` direto com valor ou campo protegido, fora do comando dono, falha no trigger, e
+   uma migração de dados rodada como `vetra_migrator` passa.
 
 ## Questões em aberto
 

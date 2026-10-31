@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017) e o 010, o 013, o 014 e o 020 da rodada 3 foram aceitos; os outros 6 têm status **proposto**. Esta lista
-organiza a revisão: em que ordem ler, o
+017) e o 010, o 013, o 014, o 020 e o 021 da rodada 3 foram aceitos; os outros 5 têm status **proposto**. Esta
+lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 013, 014, 020 (**aceitos**); 011, 012, 018, 021 | rodadas 1 e 2 |
+| 3 | 010, 013, 014, 020, 021 (**aceitos**); 011, 012, 018 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -74,7 +74,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
-| 021 Campos de transição | 3 | 016, 004 | nenhuma | 8 | 2 |
+| 021 Campos de transição | 3 | 016, 004 | compilador da fase 0 (testes 4 em parte e 8) | 9 | 2 |
 | 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 10 | 6 |
 | 019 Sinais efêmeros | 4 | 020, 008, 005 | `sonda_adr019` | 11 | 6 |
 
@@ -289,11 +289,18 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   campo pessoal; a decisão está na seção 10 do ADR. As demais questões são valores e hipóteses (por exemplo,
   passar para revisão por recurso com mais de 10 invalidações por minuto por tenant).
 
-**ADR-021 · Campos de transição**
+**ADR-021 · Campos de transição** (aceito)
+- [ ] Evidência: o compilador da fase 0 já representa `set_by`, `guarded` e `transitions enforce:`; o contrato do
+  CRUD gerado omite os campos e os valores protegidos (há teste); uma gravação literal de campo protegido por um
+  comando fora da lista é recusada no boot (`transition_owner`); um valor protegido como `default:` é recusado
+  (`guard_default`). A verificação na etapa 6, as telas, o trigger e o histórico dependem do runtime.
 - [ ] Limites: a proteção contra SQL fora do repositório só existe com `enforce: :db` (trigger com o comando
   vindo do contexto assinado).
-- [ ] Pode mudar a decisão: nenhuma. As duas questões (máquina de estados declarativa; `guarded:` para tipos
-  além de enum) ampliam o recurso.
+- [ ] Pode mudar a decisão: nenhuma, e a releitura integral confirmou isso: as duas questões (máquina de estados
+  declarativa; `guarded:` para tipos além de enum) ampliam o recurso. Achou, porém, três lacunas de texto, já
+  corrigidas: o trigger era só `BEFORE UPDATE` e um `INSERT` direto o contornava; o `vetra_migrator`, que o ADR
+  libera, seria bloqueado pelo trigger por não ter contexto assinado; e a sintaxe de UI da regra 3 pertence ao
+  ADR-018, ainda proposto.
 
 ### Rodada 4
 
@@ -334,6 +341,9 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-021: o trigger de reforço no banco passou a ser `BEFORE INSERT OR UPDATE` (um `INSERT` direto o
+  contornava); o trigger reconhece o `vetra_migrator`, e só ele; a sintaxe de UI é marcada como proposta (ADR-018);
+  teste de aceitação 9 e o ADR-007 em "Relacionados".
 - ADR-014: decisões sobre o ator de um handler e o fan-out por entrega; o ADR passou a refletir o ADR-013
   (campo pessoal cifrado no payload; KMS indisponível é retentável e DEK destruída vai a `dead`); o `event_id`
   é descrito ao lado de `seq` e `event_seq`; dependente (009) e os ADRs 005, 010 e 013 em "Relacionados".

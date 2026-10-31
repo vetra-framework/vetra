@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `7b9cea8` (PR #21).
+- **Atualizado em:** 2026-10-31, sobre a main `7e421a3` (PR #22).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 15 aceitos e 6 propostos, de 21 |
+| ADRs | 16 aceitos e 5 propostos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #16: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #21 integrados |
+| PRs | #1 a #22 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -63,7 +63,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Os 21 ADRs estão escritos
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
-- [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20), 013 (#21) e 014 (#22)
+- [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20), 013 (#21), 014 (#22) e 021 (#23)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
 - [x] ADR-004 decidiu o dado externo para comandos: sem capacidade de leitura externa nesta versão (#16)
@@ -77,6 +77,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   que cobre, com uma DEK própria da regra; os eventos da outbox passaram a ter os campos pessoais cifrados (#21)
 - [x] ADR-014 decidiu que o handler age como um ator de sistema do tenant do evento, com a autoridade dos
   comandos que declara em `calls`, e que o fan-out fica materializado por entrega (#22)
+- [x] ADR-021 foi relido por inteiro e corrigido sem decisão a tomar: o trigger de reforço no banco passou a
+  cobrir também o `INSERT`, e o `vetra_migrator` passou a ser reconhecido por ele (#23)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -103,6 +105,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **016** Ciclo de vida da operação (rodada 1, #12)
 - [x] **017** Tipo `money` (rodada 2, #19)
 - [x] **020** Entrega live incremental (rodada 3, #15)
+- [x] **021** Campos de transição (rodada 3, #23)
 
 **Propostos, com decisão de quem revisa**
 - [ ] **011** MCP com identidade delegada (rodada 3). O 007 já está aceito. Decisão: quem classifica os comandos
@@ -117,8 +120,6 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 **Propostos, a reler antes de propor o aceite**
 - [ ] **012** Canário em modo sombra (rodada 3). O 004 já está aceito. Decisão: como o repositório simulado
   representa leituras depois de escritas na mesma operação.
-- [ ] **021** Campos de transição (rodada 3). O 004 já está aceito. A lista de revisão não vê questão que mude a
-  decisão, mas essa classificação também era "nenhuma" no ADR-020 e escondia uma lacuna. Reler inteiro.
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
@@ -181,6 +182,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-020:** sem sonda; o que o sustenta são os 12 critérios, ainda sem implementação
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
+- [ ] **ADR-021:** o protótipo representa `set_by`, `guarded` e `transitions enforce:`, omite os campos e valores
+  protegidos do contrato do CRUD, recusa a gravação literal por um comando fora da lista (`transition_owner`) e o
+  valor protegido como `default:` (`guard_default`). A verificação na etapa 6, as telas administrativas, o trigger
+  e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018, ainda proposto
 - [ ] **ADR-014:** o protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor,
   mas o relay, as entregas, o lease e a reentrega não existem. Como a política `authorize` de um comando trata o
   ator de sistema de um handler é questão aberta; um papel de sistema exigiria uma nova MENOR da IR
@@ -212,6 +217,6 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Reler 009, 011, 012, 018, 019 e 021 por inteiro; redigir a recomendação onde houver decisão e propor o
-   aceite onde não houver lacuna
+1. [ ] Reler 009, 011, 012, 018 e 019 por inteiro; redigir a recomendação onde houver decisão e propor o aceite
+   onde não houver lacuna
 2. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta

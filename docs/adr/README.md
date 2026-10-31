@@ -2,9 +2,9 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos**. Quinze estão **aceitos** (001, 002, 003, 004, 005, 006,
-007, 008, 010, 013, 014, 015, 016, 017 e 020) e os outros 6 continuam **propostos**. Nenhum componente além do
-compilador da fase 0 foi implementado.
+componente correspondente. **Os 21 ADRs estão escritos**. Dezesseis estão **aceitos** (001, 002, 003, 004, 005,
+006, 007, 008, 010, 013, 014, 015, 016, 017, 020 e 021) e os outros 5 continuam **propostos**. Nenhum componente
+além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -30,7 +30,7 @@ compilador da fase 0 foi implementado.
 | [018](018-camada-de-ui-em-modulos.md) | Camada de UI em módulos fora do núcleo, com ejeção em três níveis | proposto |
 | [019](019-sinais-efemeros.md) | Sinais efêmeros autorizados pelo mesmo motor | proposto |
 | [020](020-entrega-live-incremental.md) | Entrega live incremental | aceito |
-| [021](021-campos-de-transicao.md) | Campos de transição | proposto |
+| [021](021-campos-de-transicao.md) | Campos de transição | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita, mas os testes do compilador/runtime
@@ -65,7 +65,7 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 
 1. **Revisar e aceitar** os ADRs restantes. A rodada 1 da [lista de revisão](revisao-de-aceite.md) (016, 001
    e 002) foi aceita, assim como a rodada 2 inteira (003, 004, 005, 006, 007, 008, 015 e 017) e o 010, o 013, o
-   014 e o 020 da rodada 3. Faltam 011, 012, 018 e 021 da rodada 3 e a rodada 4 (009 e 019). A lista traz a
+   014, o 020 e o 021 da rodada 3. Faltam 011, 012 e 018 da rodada 3 e a rodada 4 (009 e 019). A lista traz a
    ordem, os critérios e o que conferir em cada um. Um ADR aceito não é editado; uma mudança de decisão gera
    outro que o substitui.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
