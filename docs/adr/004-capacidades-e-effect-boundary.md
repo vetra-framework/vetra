@@ -3,7 +3,9 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação)
-- Relacionados: ADR-005 (RLS e contexto assinado), ADR-012 (modo sombra), ADR-013 (privacidade)
+- Dependem deste ADR (na data do aceite): 009 (workflows), 012 (canário em modo sombra) e 021 (campos de
+  transição)
+- Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-013 (privacidade)
 
 ## Contexto
 
@@ -124,6 +126,25 @@ Ter a capacidade não é ter permissão. `uses :leads` entrega o repositório; q
 escopo, é decidido pelas políticas e pelo RLS. A declaração `authorize` do comando continua obrigatória e é
 conferida na etapa 3 do ADR-016.
 
+### 7. Dado externo para um comando
+
+Nesta versão **não existe capacidade de leitura externa para comandos**. A regra do §2 vale sem exceção: um
+comando não chama nada fora do banco, nem para ler. Quando uma operação precisa de um dado externo (uma cotação,
+um CEP), os caminhos são os que a arquitetura já oferece (handler depois do commit, ADR-016; workflow durável):
+
+- um **handler** (que pode usar capacidade externa) busca o dado depois do commit e o grava por outro comando;
+- um **workflow** (ADR-009) busca o dado numa atividade e só então chama o comando, com o dado na entrada.
+
+Um tipo de capacidade de "leitura externa pré-transação" (`phase: :before`) fica **para um ADR novo, motivado
+por um caso real** do módulo de referência. Ele altera o ciclo de vida do ADR-016, que não é editado depois de
+aceito, e por isso não cabe neste ADR. A proposta futura terá de resolver:
+
+- o valor lido faz parte do registro da operação, para que a repetição após deadlock, o replay de workflow
+  (ADR-009) e o modo sombra (ADR-012) usem o mesmo valor, em vez de ler de novo;
+- hosts e timeout declarados, como em qualquer capacidade externa (§2);
+- leitura **sem efeito**: uma consulta que cobra, reserva ou altera estado no provedor é efeito, não leitura, e
+  fica fora do tipo.
+
 ## Alternativas rejeitadas
 
 - **Acesso global** às entidades e serviços (constantes e `default_scope` à la Rails): torna o escopo uma
@@ -135,8 +156,11 @@ conferida na etapa 3 do ADR-016.
   experimentais e quebram extensões nativas. O núcleo não pode depender deles.
 - **Interceptar `Kernel`, `Net::HTTP` e `Time` globalmente em runtime** (monkey patch): é frágil, afeta o
   código das gems e recria o problema de metaprogramação em runtime que o Vetra quer evitar.
-- **Permitir efeitos externos em comandos**: contradiz o ADR-016 e impede repetição segura. Ver questão em
-  aberto abaixo.
+- **Permitir efeitos externos em comandos**: contradiz o ADR-016 e impede repetição segura.
+- **Capacidade de leitura externa pré-transação já nesta versão** (`phase: :before`, a hipótese que a proposta
+  deixou em aberto): nenhum exemplo do módulo de referência precisa dela, e ela acrescentaria uma fase ao ciclo
+  do ADR-016, com efeitos na repetição, no workflow e no modo sombra que um caso real deve guiar. Adotá-la
+  depois, por ADR novo, não contradiz a regra deste ADR.
 
 ## Consequências
 
@@ -149,6 +173,8 @@ conferida na etapa 3 do ADR-016.
 - Gems sem classificação ou que fazem I/O próprio ficam visíveis como fora da garantia, o que pode incomodar
   num ecossistema acostumado a "colocar a gem e usar".
 - A análise estática é mais um custo de boot, coberto pelo cache da IR do grafo.
+- Um comando que precisa de um dado externo exige um handler ou um workflow, ou seja, mais passos para o
+  desenvolvedor, até que um caso real justifique a leitura externa pré-transação (§7).
 
 ## Garantias e seus níveis
 
@@ -174,10 +200,8 @@ conferida na etapa 3 do ADR-016.
 
 ## Questões em aberto
 
-- **Leitura externa em comandos.** Um comando que precisa de um dado externo (cotação, CEP) hoje não pode
-  chamá-lo. A saída atual é um handler que preenche o dado depois, ou um workflow. Vale um tipo de capacidade
-  "leitura externa pré-transação" (`phase: :before`), chamada antes da etapa 4 e sem efeito? Decidir com um
-  caso real do módulo de referência.
+- **Leitura externa pré-transação.** Não adotada nesta versão (§7). Volta por ADR novo, com um caso real do
+  módulo de referência.
 - **Granularidade da classificação de dependências.** Por gem, por constante ou por namespace.
 - **Formato final do `effect`** e quem escreve os adaptadores (framework ou aplicação).
 - **Interação com o modo sombra**: ADR-012 define como o simulador substitui cada tipo de capacidade.
