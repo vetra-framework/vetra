@@ -1,6 +1,6 @@
 # ADR-012: Canário em modo sombra com capacidades simuladas
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-004 (capacidades e Effect Boundary), ADR-016 (ciclo de vida da operação)
 - Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-007 (adaptadores),

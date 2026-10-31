@@ -2,8 +2,8 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos**. Dezessete estão **aceitos** (001, 002, 003, 004, 005,
-006, 007, 008, 010, 013, 014, 015, 016, 017, 019, 020 e 021) e os outros 4 continuam **propostos**. Nenhum
+componente correspondente. **Os 21 ADRs estão escritos**. Dezoito estão **aceitos** (001, 002, 003, 004, 005,
+006, 007, 008, 010, 012, 013, 014, 015, 016, 017, 019, 020 e 021) e os outros 3 continuam **propostos**. Nenhum
 componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
@@ -21,7 +21,7 @@ componente além do compilador da fase 0 foi implementado.
 | [009](009-workflows-por-historico-e-replay.md) | Workflows duráveis por histórico de eventos e replay determinístico | proposto |
 | [010](010-adocao-hospedada-e-modo-servico.md) | Adoção hospedada em Rails ou modo serviço | aceito |
 | [011](011-mcp-com-identidade-delegada.md) | MCP opt-in com identidade delegada, aprovação para sensíveis e limite de taxa | proposto |
-| [012](012-canario-em-modo-sombra.md) | Canário em modo sombra com capacidades simuladas | proposto |
+| [012](012-canario-em-modo-sombra.md) | Canário em modo sombra com capacidades simuladas | aceito |
 | [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | aceito |
 | [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | aceito |
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | aceito |
@@ -64,8 +64,8 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 ## Próximo passo
 
 1. **Revisar e aceitar** os ADRs restantes. A rodada 1 da [lista de revisão](revisao-de-aceite.md) (016, 001
-   e 002) foi aceita, assim como a rodada 2 inteira (003, 004, 005, 006, 007, 008, 015 e 017) e o 010, o 013, o
-   014, o 020 e o 021 da rodada 3, e o 019 da rodada 4. Faltam 011, 012 e 018 da rodada 3 e o 009 da rodada 4. A
+   e 002) foi aceita, assim como a rodada 2 inteira (003, 004, 005, 006, 007, 008, 015 e 017) e o 010, o 012, o
+   013, o 014, o 020 e o 021 da rodada 3, e o 019 da rodada 4. Faltam 011 e 018 da rodada 3 e o 009 da rodada 4. A
    lista traz a ordem, os critérios e o que conferir em cada um. Um ADR aceito não é editado; uma mudança de
    decisão gera outro que o substitui.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
