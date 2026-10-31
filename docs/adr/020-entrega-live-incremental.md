@@ -1,10 +1,11 @@
 # ADR-020: Entrega live incremental
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-008 (ordem e continuidade dos eventos), ADR-016 (ciclo
-  de vida da operação)
-- Relacionados: ADR-018 (camada de UI), ADR-019 (sinais efêmeros)
+  de vida da operação), ADR-001 (classificação `privacy` da IR)
+- Dependem deste ADR (na data do aceite): 019 (sinais efêmeros)
+- Relacionados: ADR-013 (privacidade), ADR-018 (camada de UI)
 
 ## Contexto
 
@@ -96,7 +97,9 @@ O motor escolhe, por consulta:
 | **Reconsulta completa** | Agregações, `join`s que mudam o conjunto, mudança de filtro, ordenação ou visibilidade, perda de sincronia | Executa a consulta inteira para o grupo e substitui o trecho |
 
 - A linha alterada entra ou sai do conjunto avaliando o filtro da consulta contra `OLD` e `NEW` (o evento de
-  mudança carrega os dois); a posição vem da ordenação.
+  mudança carrega os dois, só dos campos não pessoais; §10); a posição vem da ordenação. Um filtro ou uma
+  ordenação sobre campo pessoal ou sensível não pode ser avaliado sobre o evento, e a consulta usa a reconsulta
+  parcial ou completa.
 - Janelas com limite (`last(100)`) são mantidas pelo motor: ao anexar uma linha além do limite, remove-se a
   mais antiga do trecho.
 - Quais formas de consulta aceitam delta direto é uma **medição**; a regra acima é o ponto de partida
@@ -135,6 +138,22 @@ Uma mudança no provedor de identidade não dispara trigger. Duas regras:
 Presença e "digitando" não passam por este caminho nem entram no histórico. Seguem o ADR-019, com a mesma
 autorização das consultas live.
 
+### 10. Evento de mudança de linha
+
+O evento de mudança que o ADR-008 (§3) cita é produzido por um **trigger de linha gerado** em cada entidade que
+entra em consulta `live`, na mesma transação da mudança e com o `xid8` dela. Como é trigger, até um `UPDATE`
+direto em SQL atualiza as telas (teste 8 do ADR-008).
+
+- O evento carrega a entidade, o identificador, o tenant, o tipo (inserção, alteração ou remoção), a versão
+  `_v` e `OLD` e `NEW` **somente dos campos que o grafo não classifica como pessoais nem sensíveis** (`privacy`
+  da IR, ADR-001). Campo pessoal ou sensível nunca entra no evento. Assim a outbox não passa a guardar dado
+  pessoal fora da proteção por titular que o histórico e a auditoria têm (ADR-016, etapa 7).
+- Para renderizar o trecho, os campos pessoais são **relidos** pelo caminho de leitura do ADR-016, uma vez por
+  grupo (§4) e com o contexto assinado de um assinante do grupo. Todos os assinantes de um grupo têm o mesmo
+  escopo e os mesmos campos visíveis, pela chave estática.
+- O trigger é gerado a partir do grafo: a lista de campos do evento sai da classificação `privacy` de cada
+  campo, e uma mudança nessa classificação já passa pela revisão do diff arquitetural.
+
 ## Alternativas rejeitadas
 
 - **Reconsulta por assinante:** 1.000 consultas por mensagem numa sala com 1.000 telas.
@@ -147,6 +166,10 @@ autorização das consultas live.
   milissegundos.
 - **Ractor no caminho do filtro:** o `can?` em memória é rápido e o custo de copiar objetos entre Ractors
   superaria o ganho.
+- **Evento de mudança com `OLD` e `NEW` completos:** copia campos pessoais e sensíveis para a outbox, fora da
+  proteção por titular do histórico e da auditoria, e a eliminação de um titular teria de alcançá-la.
+- **Evento gerado só pelo motor, a partir das escritas do comando:** um `UPDATE` direto em SQL não atualizaria as
+  telas, o que contradiz o teste 8 do ADR-008.
 
 ## Consequências
 
@@ -159,6 +182,9 @@ autorização das consultas live.
 - A revisão por tenant invalida todas as assinaturas do tenant a cada mudança de permissão. Em tenants com
   muita rotação de permissões, isso gera revalidações em massa.
 - Triggers em tabelas de permissão e uma tabela de revisões entram no esquema gerado.
+- Um trigger de linha por entidade live grava um evento por linha alterada, inclusive em escritas em lote
+  (preenchimentos de migração, importações), o que aumenta o volume da outbox (ADR-008).
+- Os campos pessoais de um trecho são relidos a cada mudança, uma vez por grupo, em vez de viajarem no evento.
 - O lado servidor do trecho live é novo, enquanto Hotwire e Action Cable têm anos de produção. O ADR-018
   reduz o risco usando o Turbo como cliente, mas o servidor precisa passar pelo gate G4 antes de produção.
 
@@ -171,6 +197,8 @@ autorização das consultas live.
 | Tenants nunca compartilham grupo de renderização | Estrutural | Tenant na chave estática do grupo |
 | No máximo uma renderização por combinação de predicados | Verificável por testes | Partição por evento |
 | Reconexão recompõe o estado autorizado | Verificável por testes | Checkpoint, versão `_v` e ressincronização (ADR-008) |
+| O evento de mudança não carrega campo pessoal nem sensível | Estrutural | Trigger gerado a partir da classificação `privacy` do grafo |
+| Um `UPDATE` direto em SQL atualiza as assinaturas afetadas | Verificável por testes | Trigger de linha gerado (§10) |
 | Dados já entregues não são recolhidos | **Fora da garantia** | Limite documentado |
 
 ## Critérios de aceitação (gate G4)
@@ -186,12 +214,19 @@ autorização das consultas live.
 9. A presença continua correta quando um de vários dispositivos desconecta (ADR-019).
 10. Uma tela ejetada continua usando os mesmos comandos e regras de autorização (ADR-018).
 11. Execução correta com vários processos e falhas simuladas, usando PostgreSQL real e os papéis de produção.
+12. (Deste ADR, além do gate G4.) Um `UPDATE` direto em SQL atualiza as assinaturas afetadas, e o evento de
+    mudança gravado na outbox não contém campo pessoal nem sensível.
 
 ## Questões em aberto
 
 - Quando passar da revisão por tenant para a revisão por recurso: critério proposto, mais de 10 invalidações
   por minuto por tenant em produção de referência (medir antes de decidir).
-- Intervalo do modo `balanced` e idade máxima da assinatura (5 s e 15 min são hipóteses).
+- Intervalo do modo `balanced` (5 s), idade máxima da assinatura (15 min) e prazo de confirmação da revisão no
+  `strict` (2 s): todos são hipóteses.
 - Formas de consulta que aceitam delta direto e quais caem em reconsulta parcial ou completa.
 - Volume em que o `NOTIFY` passa a atrasar commits (ADR-008 e matriz de carga).
 - Limite de assinaturas por conexão e de fila por cliente.
+- Como o trigger de instrução da revisão (§2) obtém o tenant: do contexto assinado ou de uma tabela de transição.
+  As escritas sem contexto de tenant, como o preenchimento do `vetra_migrator`, precisam da segunda.
+- Custo de reler os campos pessoais por grupo (§10) e volume de eventos de escritas em lote; medir na matriz de
+  carga do gate G4.

@@ -1,7 +1,7 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002) e cinco da rodada 2 (003, 005, 006, 008 e 015) foram
-aceitos; os outros 13 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), cinco da rodada 2 (003, 005, 006, 008 e 015) e o 020
+da rodada 3 foram aceitos; os outros 12 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -38,7 +38,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 005, 006, 008, 015 (**aceitos**); 004, 007, 017 (esperam uma decisão) | só da rodada 1 |
-| 3 | 010, 011, 012, 013, 014, 018, 020, 021 | rodadas 1 e 2 |
+| 3 | 020 (**aceito**); 010, 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -72,7 +72,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | nenhuma | 10 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 10 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
-| 020 Entrega live incremental | 3 | 005, 008, 016 | nenhuma | 11 (gate G4) | 5 |
+| 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
 | 021 Campos de transição | 3 | 016, 004 | nenhuma | 8 | 2 |
 | 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 10 | 6 |
 | 019 Sinais efêmeros | 4 | 020, 008, 005 | `sonda_adr019` | 11 | 6 |
@@ -244,9 +244,13 @@ quem revisa.
 **ADR-020 · Entrega live incremental**
 - [ ] Limites: a revogação no modo `balanced` vale em até um intervalo (operacional); dados já entregues não são
   recolhidos (fora da garantia).
-- [ ] Os 11 critérios do gate G4 dependem de implementação; o 8 e o 9 vêm do ADR-019 e o 10, do ADR-018.
-- [ ] Pode mudar a decisão: nenhuma. As cinco questões são valores e hipóteses (por exemplo, passar para revisão
-  por recurso com mais de 10 invalidações por minuto por tenant).
+- [ ] Os 11 critérios do gate G4 dependem de implementação; o 8 e o 9 vêm do ADR-019 e o 10, do ADR-018. O 12
+  é deste ADR.
+- [ ] Pode mudar a decisão: **era** o evento de mudança de linha (quem o produz e o que carrega). A leitura
+  integral mostrou que nenhum ADR o definia: o ADR-008 cita `(entidade, id, versão)`, o ADR-020 pedia `OLD` e `NEW`
+  completos e o ADR-016 só define os eventos dos comandos. Quem revisa escolheu o trigger de linha gerado, sem
+  campo pessoal; a decisão está na seção 10 do ADR. As demais questões são valores e hipóteses (por exemplo,
+  passar para revisão por recurso com mais de 10 invalidações por minuto por tenant).
 
 **ADR-021 · Campos de transição**
 - [ ] Limites: a proteção contra SQL fora do repositório só existe com `enforce: :db` (trigger com o comando
@@ -293,6 +297,9 @@ quem revisa.
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-020: nova seção 10 (evento de mudança de linha por trigger gerado, sem campo pessoal), cabeçalho com o ADR-001
+  e a lista de dependentes (019), e o prazo de 2 s do modo `strict` entre as hipóteses. O ADR-008 aceito não foi
+  editado: a seção 10 estende o evento que ele cita.
 
 ## Depois do aceite
 
