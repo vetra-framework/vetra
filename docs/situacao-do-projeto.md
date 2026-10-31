@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `b70b7f0` (PR #19).
+- **Atualizado em:** 2026-10-31, sobre a main `d907b6a` (PR #20).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 13 aceitos e 8 propostos, de 21 |
+| ADRs | 14 aceitos e 7 propostos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #16: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #19 integrados |
+| PRs | #1 a #20 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -63,7 +63,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Os 21 ADRs estão escritos
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
-- [x] Rodada 3 aceita em parte: 020 (#15) e 010 (#20)
+- [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20) e 013 (#21)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
 - [x] ADR-004 decidiu o dado externo para comandos: sem capacidade de leitura externa nesta versão (#16)
@@ -73,6 +73,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   a moeda; com `scale` maior é de precisão estendida; `scale` menor que o expoente é erro de compilação (#19)
 - [x] ADR-010 decidiu que o Vetra não escreve em tabelas do Rails e que o ator vem da sessão do Rails, por um
   resolvedor declarado pela aplicação (#20)
+- [x] ADR-013 decidiu que o titular do dado pessoal é declarado, nunca inferido, e que a retenção legal adia só o
+  que cobre, com uma DEK própria da regra; os eventos da outbox passaram a ter os campos pessoais cifrados (#21)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -93,27 +95,25 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **007** Comando e adaptadores (rodada 2, #18)
 - [x] **008** Ordem e continuidade dos eventos (rodada 2, #14)
 - [x] **010** Adoção hospedada e modo serviço (rodada 3, #20)
+- [x] **013** Privacidade, auditoria e histórico (rodada 3, #21)
 - [x] **015** Migrações expand/contract (rodada 2, #14)
 - [x] **016** Ciclo de vida da operação (rodada 1, #12)
 - [x] **017** Tipo `money` (rodada 2, #19)
 - [x] **020** Entrega live incremental (rodada 3, #15)
 
 **Propostos, com decisão de quem revisa**
-- [ ] **013** Privacidade, auditoria e histórico (rodada 3). Decisão: como se identifica o titular de um campo
-  pessoal; como o controlador declara retenção obrigatória por exceção legal e como isso convive com a
-  eliminação.
 - [ ] **014** Outbox (rodada 3). Decisão: qual é o ator de um handler (hipótese: ator de sistema limitado ao tenant
   do evento); fan-out por entrega ou cursor por handler.
 - [ ] **011** MCP com identidade delegada (rodada 3). O 007 já está aceito. Decisão: quem classifica os comandos
   como sensíveis; formato da delegação, que estende o contexto assinado `v1` do ADR-005.
 - [ ] **018** Camada de UI em módulos (rodada 3). O 007 já está aceito. Decisão: como o gerador versiona os
   templates ejetados e detecta que o contrato mudou.
+- [ ] **019** Sinais efêmeros (rodada 4). O 020 e o 013 já estão aceitos. Decisão: o estado de presença é dado
+  pessoal, à luz do ADR-013?
 
 **Propostos, esperando outro ADR**
 - [ ] **009** Workflows por histórico e replay (rodada 4). Depende do 014. Decisão: viabilidade e custo do escalonador
   de fibras determinístico; quem é o ator de um workflow.
-- [ ] **019** Sinais efêmeros (rodada 4). Depende do 020, já aceito. Decisão: presença é dado pessoal? Depende do
-  013.
 
 **Propostos, a reler antes de propor o aceite**
 - [ ] **012** Canário em modo sombra (rodada 3). O 004 já está aceito. Decisão: como o repositório simulado
@@ -157,6 +157,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Consultas `live` e `realtime`
 - [ ] `rate_limit:` em `can` e `rounding:` em `currency`
 - [ ] Moeda por tenant e a conferência do `scale` de `money` contra o expoente da moeda
+- [ ] O titular (`subject`) e a retenção (`retention`) de dado pessoal
 - [ ] Consulta sem `returns` e sem `authorize`: os exemplos da proposta as omitem, e o compilador exige as duas
 - [ ] SQL explícito e metadados de dependência por gem
 - [ ] Políticas por atributo do ator além de `id`
@@ -169,6 +170,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Execução das primitivas CRUD e dos comandos (hoje são descritores reconhecidos, sem executor)
 - [ ] Persistência e o Vetra Data
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
+- [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Servidor de produção e cache de compilação
 - [ ] RLS, entrega de eventos e consultas live em execução. As garantias dos ADRs aceitos valem como decisão, não
   como código
@@ -180,6 +182,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-020:** sem sonda; o que o sustenta são os 12 critérios, ainda sem implementação
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
+- [ ] **ADR-013:** o protótipo cobre só a classificação `privacy`, a validação do payload dos eventos e o diff de
+  privacidade (teste de aceitação 2). Nada do envelope, do KMS, do histórico ou da auditoria existe. Declarar o
+  titular e a retenção exige uma nova MENOR da IR, porque `privacy` é fechado
 - [ ] **ADR-010:** o modo hospedado com o Active Record não foi exercitado, e nenhuma sonda mede a gem
   `sequel-activerecord_connection`. A transação e o contexto de RLS compartilhados e os cinco testes do ADR-003 são
   hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
@@ -205,8 +210,8 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] ADRs 013 e 014: redigir as recomendações
-2. [ ] Reler 011, 012, 018 e 021 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde
-   não houver lacuna
-3. [ ] Com o 014 aceito, tratar o 009; com o 013, o 019
+1. [ ] ADR-014: redigir a recomendação
+2. [ ] Reler 011, 012, 018, 019 e 021 por inteiro; redigir a recomendação onde houver decisão e propor o aceite
+   onde não houver lacuna
+3. [ ] Com o 014 aceito, tratar o 009
 4. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta

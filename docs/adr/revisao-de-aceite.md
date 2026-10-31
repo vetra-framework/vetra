@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017) e o 010 e o 020 da rodada 3 foram aceitos; os outros 8 têm status **proposto**. Esta lista organiza a
-revisão: em que ordem ler, o
+017) e o 010, o 013 e o 020 da rodada 3 foram aceitos; os outros 7 têm status **proposto**. Esta lista organiza
+a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 020 (**aceitos**); 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
+| 3 | 010, 013, 020 (**aceitos**); 011, 012, 014, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -70,7 +70,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
 | 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
 | 012 Canário em modo sombra | 3 | 004, 016 | nenhuma | 10 | 6 |
-| 013 Privacidade, auditoria e histórico | 3 | 016, 005 | nenhuma | 10 | 8 |
+| 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 10 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
@@ -241,12 +241,18 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: formato do simulador, tolerâncias, orçamento e amostragem, `vacuum`, ordem entre requisições
   espelhadas.
 
-**ADR-013 · Privacidade, auditoria e histórico, com criptografia por envelope**
+**ADR-013 · Privacidade, auditoria e histórico, com criptografia por envelope** (aceito)
+- [ ] Evidência: o compilador da fase 0 representa a classificação `privacy`, recusa um payload de evento que
+  altere a privacidade do campo que projeta e sinaliza a mudança de privacidade no `graph:diff` (teste de
+  aceitação 2). Nada do envelope, do KMS, do histórico ou da auditoria existe; o resto depende do runtime.
 - [ ] Limites: eliminar o titular torna o histórico e a auditoria ilegíveis (operacional); a eliminação alcança
   os backups só de forma limitada; conformidade com a LGPD está fora da garantia.
-- [ ] Pode mudar a decisão: **como se identifica o titular de um campo pessoal** (a chave de dados é por
-  titular) e **como o controlador declara retenção obrigatória por exceção legal** e como isso convive com a
-  eliminação pedida.
+- [ ] Pode mudar a decisão: **eram duas**. Resolvidas no ADR: (1) o titular é declarado, nunca inferido
+  (`subject :self` ou `subject :relacao`, com sobrescrita por campo), e um campo pessoal sem titular é erro de
+  compilação; a IR 0.1 não tem onde registrá-lo e exige uma nova MENOR. (2) A retenção obrigatória é declarada
+  pelo controlador na entidade e adia só o que cobre: o dado sob retenção usa uma DEK própria da regra, e o resto
+  é eliminado na hora. As alternativas descartadas foram inferir o titular, usar o ator como titular, uma DEK por
+  linha, e adiar a eliminação do titular inteiro.
 - [ ] Adiável: armazenamento de chaves, histórico por campos, formato e compactação, integridade da auditoria,
   algoritmo e formato do envelope, classificações além de `personal` e `sensitive`.
 
@@ -324,6 +330,10 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-013: decisões sobre o titular do dado pessoal e a retenção legal; o ADR citava o ADR-005 para a auditoria
+  somente de inclusão, mas o ADR-005 só lista privilégios das tabelas da aplicação, então a concessão passou a ser
+  fixada no ADR-013; os eventos da outbox passaram a ter os campos pessoais cifrados pela DEK do titular; seis
+  alternativas rejeitadas, três garantias e os testes de aceitação 11 a 13.
 - ADR-010: decisões sobre a escrita em tabelas do Rails (o Vetra não escreve) e o ator da sessão do Rails, nova
   seção "Verificação preliminar" (modo hospedado não exercitado), uma alternativa rejeitada, duas garantias e os
   ADRs 007, 016 e 020 em "Relacionados".
