@@ -3,7 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-002 (somente PostgreSQL), ADR-001 (Grafo da Aplicação e IR)
-- Relacionados: ADR-005 (papéis do banco e políticas RLS), ADR-016 (ciclo de vida da operação)
+- Relacionados: ADR-005 (papéis do banco e políticas RLS), ADR-008 (o `xmin` e a entrega de eventos), ADR-016
+  (ciclo de vida da operação)
 
 ## Contexto
 
@@ -80,7 +81,7 @@ medições, e com o `CHECK` validado, 1 ms); o que importa é a **diferença ent
 pelo que o servidor registra, se a operação **varre** a tabela (contador de varreduras sequenciais), e não pelo
 relógio: o tempo oscila com checkpoint, autovacuum e a carga da máquina, e a sonda o mostra só como indício.
 O contador deu 1 varredura sem o `CHECK` validado e 0 com ele, e 0 em `ADD FOREIGN KEY ... NOT VALID` contra 1
-em `VALIDATE CONSTRAINT`, nas três versões da matriz do ADR-002.
+em `VALIDATE CONSTRAINT`, nas três versões medidas (a matriz do ADR-002 é 17 e 18; a 16 entra como referência).
 
 Observação importante: `ADD FOREIGN KEY ... NOT VALID` **não reduz o nível de lock**; reduz a **duração**,
 porque a varredura vai para o `VALIDATE CONSTRAINT`, que não bloqueia escritas.

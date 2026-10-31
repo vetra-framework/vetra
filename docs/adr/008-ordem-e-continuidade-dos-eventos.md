@@ -3,7 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-002 (somente PostgreSQL)
-- Dependem deste ADR: ADR-014 (outbox com entrega pelo menos uma vez), ADR-020 (entrega live incremental)
+- Dependem deste ADR (na data do aceite): 014 (outbox com entrega pelo menos uma vez), 019 (sinais efêmeros) e
+  020 (entrega live incremental)
 
 ## Contexto
 
@@ -143,8 +144,23 @@ inclusive de outros tenants.
 8. Um `UPDATE` direto no SQL também incrementa `_v` e gera o evento de mudança.
 9. Uma transação com escrita que excede `transaction_timeout` é encerrada e libera o `xmin`.
 
+## Verificação preliminar
+
+Conferido num servidor real, por sondas versionadas:
+
+- `script/sonda_adr002.rb`: o tipo `xid8` e o `pg_snapshot_xmin`; uma escrita aberta **prende** o `xmin` e uma
+  leitura não atribui `xid` (§2 e §5). Roda na CI no PostgreSQL 17 e no 18.
+- `script/sonda_pooler.rb` (PgBouncer 1.26.1, manual): o `LISTEN` atrás de um pooler em modo de transação não
+  chega ao ouvinte (§1).
+- `script/sonda_adr019.rb`: o payload do `NOTIFY` aceita 7.999 bytes e recusa 8.000 (contexto).
+
+**Ainda sem sonda versionada:** a regra de leitura por intervalo (§2, testes 1 e 2), a versão por linha com o
+trigger `_v` (§3, testes 4 e 8) e a ressincronização (§4, testes 5 a 7). Aceitar esta decisão não as dá como
+medidas; elas dependem dos testes de aceitação acima, que usam um PostgreSQL real.
+
 ## Questões em aberto
 
 - Volume de eventos por segundo em que o `NOTIFY` passa a aumentar a latência de commit (matriz de carga).
-- Intervalo da leitura periódica (1 s é hipótese) e retenção do live (10 minutos é hipótese).
+- Intervalo da leitura periódica (1 s), retenção do live (10 minutos) e tempos limite de transação (30 s) e de
+  ociosidade (10 s): todos são hipóteses.
 - Partição da outbox: por tempo, por tenant ou ambos.

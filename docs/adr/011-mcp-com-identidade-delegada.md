@@ -47,8 +47,8 @@ confiável, sempre validados pelo contrato. Há limite de taxa e auditoria compl
   usuário e as da delegação, avaliada pelo mesmo motor (ADR-016, etapa 3 e etapa 6). Um agente nunca tem mais
   poder que quem o delegou.
 - O contexto assinado da operação (ADR-005) passa a carregar a identidade do agente e a delegação, além do
-  ator. O formato atual do contexto não os tem; o ADR-005, ainda proposto, deve acrescentá-los (veja as questões
-  em aberto).
+  ator. O formato `v1` do contexto (ADR-005, aceito) não os tem; este ADR os acrescenta como extensão do formato,
+  sem alterar o que o ADR-005 decidiu (veja as questões em aberto).
 - A delegação tem **validade curta** e é **revogável**. Ela é uma tabela de permissão no sentido do
   ADR-020: sua mudança incrementa a revisão de autorização do tenant, então uma revogação suspende o agente em
   andamento do mesmo modo que uma revogação de acesso suspende uma assinatura.

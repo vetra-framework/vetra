@@ -3,7 +3,8 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-001 (Grafo da Aplicação e IR)
-- Relacionados: ADR-004 (capacidades e Effect Boundary), ADR-005 (RLS), ADR-010 (adoção e modo serviço)
+- Relacionados: ADR-004 (capacidades e Effect Boundary), ADR-005 (RLS), ADR-010 (adoção e modo serviço), ADR-014
+  (outbox)
 
 ## Contexto
 
