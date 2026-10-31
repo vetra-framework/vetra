@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017) e o 010, o 013 e o 020 da rodada 3 foram aceitos; os outros 7 têm status **proposto**. Esta lista organiza
-a revisão: em que ordem ler, o
+017) e o 010, o 013, o 014 e o 020 da rodada 3 foram aceitos; os outros 6 têm status **proposto**. Esta lista
+organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 013, 020 (**aceitos**); 011, 012, 014, 018, 021 | rodadas 1 e 2 |
+| 3 | 010, 013, 014, 020 (**aceitos**); 011, 012, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -71,7 +71,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
 | 012 Canário em modo sombra | 3 | 004, 016 | nenhuma | 10 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
-| 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 10 | 6 |
+| 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
 | 021 Campos de transição | 3 | 016, 004 | nenhuma | 8 | 2 |
@@ -256,13 +256,17 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: armazenamento de chaves, histórico por campos, formato e compactação, integridade da auditoria,
   algoritmo e formato do envelope, classificações além de `personal` e `sensitive`.
 
-**ADR-014 · Outbox com entrega pelo menos uma vez**
+**ADR-014 · Outbox com entrega pelo menos uma vez** (aceito)
 - [ ] Evidência: `sonda_adr002` (um `FOR UPDATE` atribui `xid`). A referência à sonda foi acrescentada ao texto.
+  O protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor. O relay, as
+  entregas, o lease e a reentrega não existem.
 - [ ] Limites: "cada evento chega pelo menos uma vez a cada handler" e "o efeito externo ocorre uma vez só" são
   operacionais.
-- [ ] Pode mudar a decisão: **qual é o ator de um handler.** A hipótese é um ator de sistema limitado ao tenant do
-  evento; operar como o ator original exige capacidade explícita. Também: fan-out materializado por entrega ou
-  cursor por handler (o ADR diz que a medição de volume pode reabrir a escolha).
+- [ ] Pode mudar a decisão: **eram duas**. Resolvidas no ADR: (1) o handler age como um ator de sistema do tenant
+  do evento, com a autoridade dos comandos que declara em `calls`; agir como o ator original exige a capacidade
+  explícita e auditada do ADR-016 (§8). Não precisa de campo novo na IR. (2) O fan-out fica materializado por
+  linha de entrega, como o texto já decidia; o cursor por handler volta por ADR novo, com medição. A alternativa
+  descartada para o ator foi agir como o ator original, e um papel de sistema amplo.
 - [ ] Adiável: tentativas máximas, espera e lease (hipóteses), partição, compatibilidade de versões de evento,
   publicação de eventos públicos. O índice pede resolver as questões deste ADR antes da persistência.
 
@@ -330,6 +334,9 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-014: decisões sobre o ator de um handler e o fan-out por entrega; o ADR passou a refletir o ADR-013
+  (campo pessoal cifrado no payload; KMS indisponível é retentável e DEK destruída vai a `dead`); o `event_id`
+  é descrito ao lado de `seq` e `event_seq`; dependente (009) e os ADRs 005, 010 e 013 em "Relacionados".
 - ADR-013: decisões sobre o titular do dado pessoal e a retenção legal; o ADR citava o ADR-005 para a auditoria
   somente de inclusão, mas o ADR-005 só lista privilégios das tabelas da aplicação, então a concessão passou a ser
   fixada no ADR-013; os eventos da outbox passaram a ter os campos pessoais cifrados pela DEK do titular; seis

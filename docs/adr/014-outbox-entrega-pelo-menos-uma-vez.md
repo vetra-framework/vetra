@@ -1,6 +1,6 @@
 # ADR-014: Outbox com entrega pelo menos uma vez
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-008 (ordem e continuidade dos eventos), ADR-002 (somente
   PostgreSQL)
