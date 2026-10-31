@@ -30,7 +30,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto, exceto o que depende de uma evolução | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`. Leitura anterior e conversão só podem ser testadas quando existir a primeira evolução do formato. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão diferente (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
-| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). No blog da proposta, 5 de 14 construtos ainda são recusados pelo DSL. Mini CRM e chat não foram conferidos construto a construto. |
+| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). Conferidos construto a construto contra a proposta: no blog, 5 de 14 recusados; no mini CRM, 4 de 6; no chat, 7 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
@@ -60,13 +60,14 @@ quatro que dependem do ambiente têm teste próprio.
 
 ## Conferência item a item dos critérios 1, 7 e 10
 
-Feita em 2026-10-30 com sondas avulsas, fora do repositório, e sem criar testes.
+Feita em 2026-10-30 e 2026-10-31 com sondas avulsas, fora do repositório, e sem criar testes.
 
-**Critério 1.** O schema declara `$schema` do Draft 2020-12 e é válido nesse metaschema
-(`JSONSchemer.valid_schema?`). Remover uma propriedade obrigatória (`fields` de uma entidade, `app` da raiz,
-`authorize` de um comando) produz `schema`. Um `money` com `amount` numérico produz `schema`, e o mesmo valor como
-string (`"12.00"`) é aceito. Um operador desconhecido produz `schema`. Os três primeiros ganharam teste em `validator_test.rb`, e cada um falha se o schema for enfraquecido (verificado
-em cópias descartáveis: sem `app` obrigatório, `amount` livre e schema inválido). A lacuna era de teste, não de código. O `delete("required")` de `validator_test` testa uma regra semântica de campo,
+**Critério 1.** O schema declara `$schema` do Draft 2020-12 e é válido nesse metaschema (`JSONSchemer.valid_schema?`).
+Remover uma propriedade obrigatória (`fields` de uma entidade, `app` da raiz, `authorize` de um comando) produz
+`schema`. Um `money` com `amount` numérico produz `schema`, e o mesmo valor como string (`"12.00"`) é aceito. Um
+operador desconhecido produz `schema`. Os três primeiros ganharam teste em `validator_test.rb`, e cada um falha se o
+schema for enfraquecido (verificado em cópias descartáveis: sem `app` obrigatório, `amount` livre e schema inválido).
+A lacuna era de teste, não de código. O `delete("required")` de `validator_test` testa uma regra semântica de campo,
 não uma propriedade obrigatória do schema.
 
 **Critério 7.** O `docs/ir/README.md` declara que os exemplos documentais são recortes didáticos, então a diferença
@@ -82,6 +83,32 @@ construto foi aplicado sozinho sobre `examples/blog`:
   como não implementada), `ui:` em `crud` e em `expose`, `rate_limit:` em `can` e uma consulta sem `returns` nem
   `authorize`. Todos falham de forma audível, como o `fase-0.md` promete.
 
+No mini CRM, a base foi `examples/mini_crm_revendas`, que reproduz o exemplo da proposta. Cada diferença entre a
+proposta e o repositório foi aplicada sozinha:
+
+- **Aceitos (2):** os papéis exatamente como na proposta (sem as leituras de `dealer`, `company`, `user` e
+  `membership` que o repositório acrescenta) e o `lead` sem `transitions enforce: :db`.
+- **Recusados (4):** `currency "BRL", rounding: :half_up`, `auth :token, memberships: :dealer`, o `dealer` sem
+  `has_many :memberships` (o escopo por vínculo exige o inverso explícito, `scope_inverse`) e o `win_lead` sem
+  `returns :lead`.
+
+No chat, a base foi `examples/chat`:
+
+- **Aceitos (2):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }` e o comando
+  `add_member_by_email` com `authorize :add_member` e `input :email, :email`. O compilador os aceita, mas o
+  repositório não tem os comandos `add_member` e `remove_member`, que o `fase-0.md` lista como inexistentes.
+- **Recusados (7):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse`, `many_to_many` sem
+  `through:`, `index :room_id, :created_at`, uma consulta sem `returns` nem `authorize` e `live true`.
+
+Os três exemplos juntos recusam dez famílias de construto. Seis já constavam no `fase-0.md` como não implementadas:
+`auth`, `ui`, `live true`, junção implícita de `many_to_many`, `returns` explícito (a obrigatoriedade de `authorize`
+só aparece no diagnóstico do compilador) e o `created_at` implícito. Uma é requisito de desenho que o `fase-0.md` só
+mostra por exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da
+documentação:** `realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do
+`fase-0.md`. As duas últimas falham com um `dsl_error` que repassa o `ArgumentError` do Ruby (`unknown keyword:
+:rate_limit` e `wrong number of arguments`), e não com um diagnóstico que nomeie o recurso, como o
+`unsupported_option` faz para as opções de campo.
+
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
 `arguments`. Não guarda o digest da implementação, que fica na IR. Editar o texto do corpo de um `call` mudou o
@@ -92,8 +119,10 @@ e as closures são privadas por desenho.
 
 ## O que continua em aberto
 
-- O critério 1 está fechado. O 7 segue parcial por desenho: o DSL ainda recusa 5 construtos do blog da proposta, e
-  mini CRM e chat não foram conferidos construto a construto. O 10 mantém a limitação do `binding` descrita acima.
+- O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a construto,
+  e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.
+- `rate_limit:` e `rounding:` falham sem nomear o recurso. Trocar o `ArgumentError` por um diagnóstico dedicado é
+  uma mudança de código do compilador, que não foi feita aqui.
 - Um caso do validador prova que a regra dispara sobre uma IR montada à mão, não que o DSL consegue alcançá-la.
   Para as regras que o normalizador impede de chegar ao validador, isso é o esperado: o validador existe para
   recusar uma IR que não veio do compilador.
