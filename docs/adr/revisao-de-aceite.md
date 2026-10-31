@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017), o 010, o 013, o 014, o 020 e o 021 da rodada 3 e o 019 da rodada 4 foram aceitos; os outros 4 têm status
-**proposto**. Esta lista organiza a revisão: em que ordem ler, o
+017), o 010, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e o 019 da rodada 4 foram aceitos; os outros 3 têm
+status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 013, 014, 020, 021 (**aceitos**); 011, 012, 018 | rodadas 1 e 2 |
+| 3 | 010, 012, 013, 014, 020, 021 (**aceitos**); 011, 018 | rodadas 1 e 2 |
 | 4 | 019 (**aceito**); 009 | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -69,7 +69,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
 | 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
-| 012 Canário em modo sombra | 3 | 004, 016 | nenhuma | 10 | 6 |
+| 012 Canário em modo sombra | 3 | 004, 016 | `sonda_adr002` (`xid`); o campo `simulation` na IR | 13 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma | 10 | 6 |
@@ -233,11 +233,20 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: autenticação do agente e transporte, canal de aprovação humana, validade e limite de taxa,
   leituras como ferramentas e exfiltração, conjunto de testes adversariais.
 
-**ADR-012 · Canário em modo sombra com capacidades simuladas**
+**ADR-012 · Canário em modo sombra com capacidades simuladas** (aceito)
+- [ ] Evidência: `sonda_adr002` (um `SELECT` simples não atribui `xid`, o `FOR UPDATE` atribui) e o campo
+  `simulation` das capacidades na IR 0.1. O simulador, o repositório simulado e o cálculo de elegibilidade não
+  existem. O comportamento do instantâneo exportado foi conferido à mão no PostgreSQL 16.15, sem sonda
+  versionada, e o ADR o declara numa seção "Verificação preliminar".
 - [ ] Limites: "a sombra não produz efeito externo" é estrutural com o limite do ADR-004; código fora do Effect
   Boundary está fora da garantia; "a cópia do tráfego não afeta a produção" é operacional.
-- [ ] Pode mudar a decisão: **como o repositório simulado representa leituras depois de escritas dentro da mesma
-  operação.** Define a fidelidade da comparação.
+- [ ] Pode mudar a decisão: **era como o repositório simulado representa leituras depois de escritas dentro da
+  mesma operação.** Resolvida no §3: uma camada de escritas sobre o instantâneo, com leitura por id e consulta de
+  uma entidade resolvidas em memória; o que o avaliador não resolve torna a amostra incomparável, descartada e
+  contada. A releitura achou também que o instantâneo da sombra não tinha momento definido (aberto depois do
+  commit da produção, a sombra veria o estado já alterado) e que o contexto da produção expira em 30 s; ambos
+  foram corrigidos no ADR. As alternativas descartadas foram ignorar a leitura depois da escrita e tornar
+  inelegível toda operação que lê depois de escrever.
 - [ ] Adiável: formato do simulador, tolerâncias, orçamento e amostragem, `vacuum`, ordem entre requisições
   espelhadas.
 
@@ -345,6 +354,11 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-012: decisão sobre a leitura depois de escrita no repositório simulado; o instantâneo da sombra passou a
+  ser o da abertura da transação de produção (`pg_export_snapshot`), com a amostra descartada se não for importada
+  a tempo; a sombra passou a usar um contexto assinado novo (o da produção expira em 30 s e daria "nenhuma
+  linha" sem erro); seção "Verificação preliminar", quatro alternativas rejeitadas, duas garantias, os testes de
+  aceitação 11 a 13 e os ADRs 005, 008, 014 e 020 em "Relacionados".
 - ADR-019: decisão de que a presença é dado pessoal; a tabela de presença passou a declarar o `FORCE ROW LEVEL
   SECURITY` que o ADR-005 exige de toda tabela com tenant; o ADR-013 passou de "Relacionados" a "Depende de";
   duas alternativas rejeitadas, uma garantia e os testes de aceitação 12 e 13.

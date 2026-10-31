@@ -1,9 +1,10 @@
 # ADR-012: Canário em modo sombra com capacidades simuladas
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-004 (capacidades e Effect Boundary), ADR-016 (ciclo de vida da operação)
-- Relacionados: ADR-006 (isolamento de domínios), ADR-007 (adaptadores), ADR-013 (dado pessoal)
+- Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-007 (adaptadores),
+  ADR-008 (ordem dos eventos e `xmin`), ADR-013 (dado pessoal), ADR-014 (outbox), ADR-020 (entrega live)
 
 **Esta decisão pertence à fase 4 do roadmap.** Ela só é implementada depois da fundação, do tempo real e dos
 processos duráveis. O ADR existe agora para que a fundação não tome decisões que a impeçam (as capacidades
@@ -50,10 +51,22 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
 
 ### 3. Escritas num repositório simulado, nunca numa transação revertida
 
-- As leituras da versão sombra vêm de um **instantâneo consistente de leitura** do banco, aberto como somente
-  leitura e curto (por requisição).
+- As leituras da versão sombra vêm do **instantâneo do início da operação de produção**, numa transação
+  `REPEATABLE READ READ ONLY` curta (por requisição). Quando a requisição é amostrada, a transação de produção
+  exporta o seu instantâneo (`pg_export_snapshot()`) logo na abertura (etapa 4 do ADR-016), antes de escrever, e a
+  sombra o importa com `SET TRANSACTION SNAPSHOT`. Assim a sombra parte do estado em que a produção começou, e não
+  do que a produção acabou de gravar.
+- O instantâneo exportado só vale **enquanto a transação de produção está aberta**. Se a sombra não o importa a
+  tempo, **a amostra é descartada e contada**; ela nunca lê o estado posterior, porque as respostas divergiriam
+  por esse motivo e não pela versão.
 - As escritas vão para um **repositório simulado** sobre esse instantâneo: uma camada em memória, descartada
   ao fim.
+- **Leitura depois de escrita na mesma operação.** A camada guarda as escritas por (entidade, identificador).
+  Uma leitura por identificador devolve a linha da camada, se houver. Uma consulta sobre uma só entidade, com
+  filtro, ordenação e limite (a forma do delta direto, ADR-020, §5), aplica a camada ao resultado do instantâneo
+  com os avaliadores em memória. Uma leitura que esses avaliadores não resolvem (agregação, junção) depois de uma
+  escrita da mesma operação torna a **amostra incomparável**: ela é descartada e contada no relatório, nunca
+  adivinhada.
 - **Não se usa uma transação que depois é revertida.** Uma transação com escrita segura **locks** das linhas e
   tem um `xid`, o que atrasa quem escreve na produção e prende o `xmin` (ADR-008, §5). O ADR-014 mediu que um
   `FOR UPDATE` já atribui `xid` no PostgreSQL. Reverter no fim não desfaz o dano feito durante a execução.
@@ -74,8 +87,9 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
 - A execução sombra roda **de forma assíncrona**, com timeout e orçamento próprios, em processo ou pool
   separados, para não competir com a produção por CPU e conexões.
 - Falha ou lentidão da sombra não afeta a requisição original.
-- A sombra usa o mesmo ator e o mesmo contexto assinado da requisição original e continua sob o RLS (ADR-005);
-  não ganha privilégio.
+- A sombra usa o mesmo ator e o mesmo tenant da requisição original, com um **contexto assinado novo**, emitido
+  para a execução sombra: o da produção vale 30 s por padrão (ADR-005), e um token expirado faz a sombra ler
+  "nenhuma linha" sem erro. Ela continua sob o RLS e não ganha privilégio.
 
 ## Alternativas rejeitadas
 
@@ -85,6 +99,12 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
 - **Só testes em pré-produção:** não reproduzem a variedade das entradas reais.
 - **Comparar apenas métricas (latência, erros):** não detecta uma resposta diferente.
 - **Tornar tudo elegível por padrão:** esconderia as operações com efeito real, que são justamente as perigosas.
+- **Abrir o instantâneo quando a sombra começa a rodar**, depois do commit da produção: a sombra veria o estado
+  que a produção acabou de gravar, e as respostas divergiriam por isso (seção 3).
+- **Ignorar a leitura depois de uma escrita**, devolvendo o estado do instantâneo: a resposta divergiria por
+  causa da simulação, não da versão.
+- **Tornar inelegível toda operação que lê depois de escrever:** excluiria a maioria dos comandos.
+- **Reusar o contexto assinado da produção:** ele expira em 30 s e faz a sombra ler "nenhuma linha" sem erro.
 
 ## Consequências
 
@@ -93,6 +113,11 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
   declaram `simulation`) e dependem de o `call` respeitar o Effect Boundary.
 - Operações com `unsafe_effect` ou com capacidade `none` ficam fora, e o relatório de elegibilidade as mostra.
 - Custo de CPU e de conexões: a sombra executa a operação duas vezes. O orçamento e a amostragem controlam isso.
+- Parte das amostras é descartada: quando o instantâneo não é importado antes do commit da produção, ou quando a
+  sombra lê, depois de escrever, algo que os avaliadores em memória não resolvem. A fração de amostras úteis é uma
+  métrica do relatório.
+- A transação de produção amostrada passa a exportar o seu instantâneo na abertura, um custo pequeno e só nas
+  requisições amostradas.
 - Código que faz I/O fora do Effect Boundary escapa da simulação e pode produzir efeito real (limite do
   ADR-004).
 
@@ -103,6 +128,8 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
 | A sombra não produz efeito externo | Estrutural, com o limite do ADR-004 | Só capacidades simuladas; operações com `simulation: none` ou `unsafe_effect` são inelegíveis |
 | A sombra não segura locks nem `xmin` da produção | Verificável por testes | Instantâneo de leitura e repositório simulado, sem transação de escrita |
 | As respostas são comparáveis | Verificável por testes | Relógio, UUID e timestamps fixados por semente |
+| A sombra parte do estado que a produção viu | Verificável por testes | Instantâneo exportado na abertura da transação de produção; amostra descartada se não for importado a tempo |
+| Uma leitura depois de escrita não é adivinhada | Verificável por testes | Camada de escritas sobre o instantâneo; amostra incomparável quando o avaliador não resolve |
 | Código fora do Effect Boundary | **Fora da garantia** | Não é simulável |
 | A cópia do tráfego não afeta a produção | Operacional | Execução assíncrona com orçamento próprio |
 
@@ -121,13 +148,31 @@ Para que as respostas sejam comparáveis, tudo o que muda a cada execução vem 
 8. A resposta da sombra nunca chega ao cliente.
 9. A sombra roda sob o mesmo RLS e o mesmo ator, e não lê dados de outro tenant.
 10. Dado pessoal não aparece em claro no relatório de divergências.
+11. A sombra de um comando que escreve parte do estado anterior à escrita da produção, e uma amostra cujo
+    instantâneo expirou é descartada e contada, nunca lida do estado posterior.
+12. Dentro de uma operação sombra, uma leitura por identificador depois de uma escrita devolve a linha escrita,
+    e uma agregação depois de uma escrita torna a amostra incomparável.
+13. A sombra usa um contexto assinado novo: com a requisição original mais velha que a validade do contexto, ela
+    ainda lê as linhas do tenant.
+
+## Verificação preliminar
+
+Medido por sonda versionada: um `SELECT` simples não atribui `xid` e o `FOR UPDATE` atribui
+(`script/sonda_adr002.rb`), a base da seção 3. Conferido à mão, **sem sonda versionada**, no PostgreSQL 16.15: o
+instantâneo exportado pela transação de produção antes de escrever é importável por uma transação
+`REPEATABLE READ READ ONLY` enquanto a produção está aberta; essa transação continua vendo o estado anterior
+depois do commit da produção e não recebe `xid`; uma transação aberta depois do commit vê o estado novo; e
+importar depois que a produção terminou falha com `invalid snapshot identifier`.
+
+Não existem o simulador, o repositório simulado nem o cálculo de elegibilidade. O grafo só traz o campo
+`simulation` das capacidades (IR 0.1).
 
 ## Questões em aberto
 
 - O formato do simulador e da semente, e como ele é compartilhado com os testes por simulação determinística
   (pilar 8).
-- Como o repositório simulado representa leituras depois de escritas dentro da mesma operação (uma leitura de
-  algo que a própria sombra acabou de escrever).
+- Se a produção espera a importação do instantâneo, por poucos milissegundos e só nas requisições amostradas,
+  para aumentar a fração de amostras úteis. Troca latência de produção por cobertura; medir na matriz de carga.
 - As regras de tolerância da comparação e quem as declara.
 - Orçamento e amostragem padrão, e como a sombra se limita sob carga.
 - Como o instantâneo de leitura convive com a limpeza do banco (`vacuum`) quando a sombra é frequente.
