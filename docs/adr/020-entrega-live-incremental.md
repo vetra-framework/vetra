@@ -1,6 +1,6 @@
 # ADR-020: Entrega live incremental
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-008 (ordem e continuidade dos eventos), ADR-016 (ciclo
   de vida da operação), ADR-001 (classificação `privacy` da IR)
