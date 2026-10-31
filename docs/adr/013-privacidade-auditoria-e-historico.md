@@ -1,6 +1,6 @@
 # ADR-013: Privacy, Audit e History separados, com criptografia por envelope
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-005 (RLS e contexto assinado)
 - Relacionados: ADR-001 (classificação de dados na IR), ADR-014 (outbox), ADR-017 (formato canônico de valores),
