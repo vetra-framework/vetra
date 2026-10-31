@@ -50,7 +50,7 @@ transacionais continuam pendentes.
 Alguns ADRs se apoiam em comportamentos de bibliotecas e do PostgreSQL. Em vez de afirmá-los de memória,
 cada um tem uma sonda em `script/`, fora da suíte do compilador, que o confere e pode ser repetida em outra
 versão. Todas passaram em Ruby 4.0.9. As que usam banco passaram no PostgreSQL 16.15, 17.11 e 18.6, e a CI as roda no 17
-e no 18 (job `postgres`).
+e no 18 (job `postgres`). A `sonda_adr011` é posterior a essa rodada: passou no 16.15, e a CI a repete no 17 e no 18.
 
 | Sonda | ADR | O que confere |
 |---|---|---|
@@ -58,6 +58,7 @@ e no 18 (job `postgres`).
 | `script/sonda_adr003.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md) | Parametrização, contexto por `set_config`, savepoints, travas, fibras e agendador |
 | `script/sonda_adr006.rb` | [006](006-isolamento-de-dominios-em-tres-niveis.md) | O que o `Ruby::Box` isola e não isola, e gems nativas dentro dele |
 | `script/sonda_adr009.rb` | [009](009-workflows-por-historico-e-replay.md) | Replay em Fiber e os limites do bloqueio por `TracePoint` (só biblioteca padrão) |
+| `script/sonda_adr011.rb` | [011](011-mcp-com-identidade-delegada.md) | O `FOR SHARE` da revogação da delegação: leituras compartilhadas não se esperam, o `UPDATE` da revogação espera a operação em andamento e vale depois dela, e uma operação que começa ou espera depois da revogação não obtém a linha |
 | `script/sonda_adr015.rb` | [015](015-migracoes-expand-contract.md) | Nível de lock e custo de cada DDL, e a fila de locks |
 | `script/sonda_adr019.rb` | [019](019-sinais-efemeros.md) | Limites do `NOTIFY` e o volume de WAL de tabelas `UNLOGGED` |
 | `script/sonda_pooler.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md), [005](005-rls-e-contexto-assinado.md), [008](008-ordem-e-continuidade-dos-eventos.md) | O que um pooler em modo de transação faz com contexto, statements nomeados e `LISTEN` (precisa de um PgBouncer à parte) |
