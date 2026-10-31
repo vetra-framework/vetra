@@ -5,7 +5,8 @@ cada um com a suíte atual e registra o que está coberto, o que está parcial e
 fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 
 Medição de 2026-10-30, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136 testes e 1.007
-asserções, sem falhas. Depois: 180 testes e 1.217 asserções, sem falhas.
+asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos três testes do
+critério 1: 183 testes e 1.240 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -23,7 +24,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
-| 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto, com 3 lacunas de teste | Cobertos: exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`); versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido e número de ponto flutuante. **Sem teste, com comportamento correto (conferido):** propriedade obrigatória ausente, decimal ou `money` com valor numérico e validade do próprio schema no metaschema do Draft 2020-12. Detalhes na seção abaixo. |
+| 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
 | 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte agora emite os 121. Cada caso confere o código, o ponteiro JSON e, quando a regra aponta um nó, a origem. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
@@ -32,7 +33,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). No blog da proposta, 5 de 14 construtos ainda são recusados pelo DSL. Mini CRM e chat não foram conferidos construto a construto. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. |
-| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
+| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
 | 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Parcial | `Ractor.make_shareable` é conferido nos documentos e na vinculação (`compiler_test`, `link_test`). O compartilhamento entre Ractors é opcional no ADR-001 e não existe como extensão; o núcleo roda sem ele. |
 
 ## Os 43 códigos que antes não eram emitidos
@@ -64,8 +65,8 @@ Feita em 2026-10-30 com sondas avulsas, fora do repositório, e sem criar testes
 **Critério 1.** O schema declara `$schema` do Draft 2020-12 e é válido nesse metaschema
 (`JSONSchemer.valid_schema?`). Remover uma propriedade obrigatória (`fields` de uma entidade, `app` da raiz,
 `authorize` de um comando) produz `schema`. Um `money` com `amount` numérico produz `schema`, e o mesmo valor como
-string (`"12.00"`) é aceito. Um operador desconhecido produz `schema`. Nenhum dos três primeiros tem teste. A
-lacuna é de teste, não de código. O `delete("required")` de `validator_test` testa uma regra semântica de campo,
+string (`"12.00"`) é aceito. Um operador desconhecido produz `schema`. Os três primeiros ganharam teste em `validator_test.rb`, e cada um falha se o schema for enfraquecido (verificado
+em cópias descartáveis: sem `app` obrigatório, `amount` livre e schema inválido). A lacuna era de teste, não de código. O `delete("required")` de `validator_test` testa uma regra semântica de campo,
 não uma propriedade obrigatória do schema.
 
 **Critério 7.** O `docs/ir/README.md` declara que os exemplos documentais são recortes didáticos, então a diferença
@@ -86,11 +87,13 @@ construto foi aplicado sozinho sobre `examples/blog`:
 `arguments`. Não guarda o digest da implementação, que fica na IR. Editar o texto do corpo de um `call` mudou o
 documento e deixou o `binding` idêntico. A troca do código não é verificável pela API pública, porque as closures
 são privadas e nenhum `call` é executado. Afirmar essa troca exigiria expor o digest da implementação no
-`binding`, o que é uma decisão de projeto.
+`binding`, o que é uma decisão de projeto. A decisão foi **manter a limitação**: o digest já está na IR da unidade
+e as closures são privadas por desenho.
 
 ## O que continua em aberto
 
-- As lacunas dos critérios 1, 7 e 10 estão detalhadas na seção anterior.
+- O critério 1 está fechado. O 7 segue parcial por desenho: o DSL ainda recusa 5 construtos do blog da proposta, e
+  mini CRM e chat não foram conferidos construto a construto. O 10 mantém a limitação do `binding` descrita acima.
 - Um caso do validador prova que a regra dispara sobre uma IR montada à mão, não que o DSL consegue alcançá-la.
   Para as regras que o normalizador impede de chegar ao validador, isso é o esperado: o validador existe para
   recusar uma IR que não veio do compilador.

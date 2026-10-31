@@ -87,6 +87,50 @@ class ValidatorTest < GraphTest
     assert_graph_error('field_default') { validate }
   end
 
+  def fresh_document
+    Vetra::Graph::Canonical.parse(File.read(File.join(PROJECT, 'docs/ir/exemplos/mini-crm.v0.1.json')))
+  end
+
+  # ADR-001, critério 1: a falta de uma propriedade obrigatória falha estruturalmente, no envelope e nos nós.
+  def test_missing_required_properties_fail_structurally
+    {
+      'fields da entidade' => ->(document) { node(document, 'entity', 'crm.lead').delete('fields') },
+      'app na raiz' => ->(document) { document.delete('app') },
+      'authorize do comando' => ->(document) { node(document, 'command', 'crm.win_lead').delete('authorize') }
+    }.each do |label, remove|
+      @document = fresh_document
+      remove.call(@document)
+      error = assert_raises(Vetra::Graph::Error, label) { validate }
+      assert_includes error.diagnostics.map(&:code), 'schema', label
+    end
+  end
+
+  # ADR-001, critério 1: decimal e money só aceitam o valor como string. Um número JSON falha estruturalmente
+  # (inteiro) ou já na camada canônica (ponto flutuante), e o mesmo valor em string é aceito.
+  def test_decimal_and_money_literals_must_not_be_json_numbers
+    field = lead['fields'].find { |item| item['name'] == 'valor' }
+    field['default'] = { 'kind' => 'literal', 'value' => { 'amount' => 12, 'currency' => 'BRL' } }
+    assert_graph_error('schema') { validate }
+    field['default']['value']['amount'] = '12.00'
+    assert validate
+    field['type'] = { 'name' => 'decimal', 'precision' => 12, 'scale' => 2 }
+    field['default'] = { 'kind' => 'literal', 'value' => 12 }
+    assert_graph_error('schema') { validate }
+    field['default']['value'] = 12.5
+    assert_graph_error('invalid_data') { validate }
+    field['default']['value'] = '12.00'
+    assert validate
+  end
+
+  # ADR-001, critério 1: o schema da IR é um documento válido no Draft 2020-12. A segunda verificação mostra que o
+  # metaschema recusa de fato um schema inválido, senão a primeira passaria sem testar nada.
+  def test_schema_is_a_valid_draft_2020_12_document
+    schema = JSON.parse(File.read(Vetra::Graph::Schema::PATH, encoding: Encoding::UTF_8))
+    assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
+    assert JSONSchemer.valid_schema?(schema)
+    refute JSONSchemer.valid_schema?(schema.merge('type' => 'nonexistent_type')), 'o metaschema deveria recusar'
+  end
+
   def test_field_presence_is_independent_of_nullability
     field = lead['fields'].find { |item| item['name'] == 'email' }
     field['required'] = true
