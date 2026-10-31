@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `c1c03dc` (PR #32).
+- **Atualizado em:** 2026-10-31, sobre a main `2414370` (PR #33).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -13,10 +13,10 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025) |
-| Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
+| Testes do compilador | 194 testes e 1.355 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #32: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #32 integrados |
+| CI da main | Verde no PR #33: `test` e sondas no PostgreSQL 17 e 18 |
+| PRs | #1 a #33 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -133,6 +133,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   um `enum` é `text` com `CHECK`, não o tipo nativo (#33)
 - [x] As questões em aberto dos ADRs 003, 005, 014 e 015, que o índice pedia tratar antes da persistência, estão
   tratadas (ADR-022 a 025) (#33)
+- [x] O compilador passou a aplicar duas decisões já aceitas (primeiro código depois dos ADRs de resolução): o
+  analisador recusa `Sequel`, `ActiveRecord` e `PG` num `call` como efeito direto, liberável por `unsafe_effect`
+  (ADR-022, §6), e o `graph:diff` trata a lista `calls` de um handler como `permissions` (ADR-024, §4). Três
+  testes novos (#34)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -293,8 +297,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   existe (veja os itens ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
-  analisador do compilador ainda aceita `Sequel.connect`, `ActiveRecord::Base.connection` e `PG.connect` num
-  `call`, e a ampliação decidida no ADR-022 não foi implementada
+  analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
+  interpolação em `uses :sql` espera a capacidade `uses :sql`, que não existe
 - [ ] **ADR-023:** o custo do contexto assinado foi medido só num protótipo descartável, no PostgreSQL 16.15, com um
   cliente e sem `WITH CHECK`, comparação em tempo constante, concorrência nem pooler; o gate da fase 1 (0,5 ms por
   instrução e 25% da latência do comando, hipóteses) está por medir no 17 e no 18. O gerador de políticas não
@@ -303,9 +307,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
   concorrente nem `VACUUM`; o gate na matriz do G4 está por medir. Nada foi implementado: a outbox e as entregas
   particionadas, `vetra.dead_deliveries`, a claim `system_actor`, a função `is_system_actor()` e a condição nas
-  políticas de escopo não existem. O `graph:diff` ainda classifica `handler` como `events` e `capabilities`, não
-  como `permissions`, e o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`,
-  e a IR 0.1 não tem timeout nem papel por handler
+  políticas de escopo não existem. O `graph:diff` já classifica `calls` de um handler como `permissions` (#34), mas
+  o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`, e a IR 0.1 não tem
+  timeout nem papel por handler
 - [ ] **ADR-025:** conferido só no PostgreSQL 16.15, à mão: índice e chaves em tabela particionada, a chave composta
   por tenant em 1 milhão de linhas e as limitações do `enum` nativo. O comportamento do `NOT VALID` em tabela
   particionada no 17 e no 18, o custo na escrita do índice de apoio da chave composta e que uma partição nova herda

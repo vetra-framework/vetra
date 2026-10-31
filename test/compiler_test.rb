@@ -177,6 +177,36 @@ class CompilerTest < GraphTest
     end
   end
 
+  def test_direct_database_access_is_rejected_like_other_direct_effects
+    {
+      'Sequel.connect("postgres://x/y")' => 'Sequel.connect',
+      'Sequel::Database.new' => 'Sequel::Database.new',
+      'ActiveRecord::Base.connection' => 'ActiveRecord::Base.connection',
+      'PG.connect("postgres://x/y")' => 'PG.connect'
+    }.each do |expression, label|
+      with_app do |root, compiler|
+        edit(root, 'app/domains/blog/find_post.rb') { |text| text.sub('posts.find!(input.post_id)', expression) }
+        error = assert_graph_error('direct_effect') { compiler.build }
+        assert_includes error.message, label
+      end
+    end
+    with_app do |root, compiler|
+      edit(root, 'app/domains/blog/find_post.rb') { |text| text.sub('posts.find!(input.post_id)', 'Sequel.connect("postgres://x/y")') }
+      edit(root, 'app/domains/blog/find_post.rb') { |text| text.sub('  uses :posts', "  unsafe_effect 'legacy connection'\n  uses :posts") }
+      result = compiler.build
+      assert_includes result.warnings.map(&:code), 'unsafe_effect'
+      assert_equal 'legacy connection', node(result.document, 'query', 'blog.find_post')['unsafe_effect']
+    end
+  end
+
+  def test_names_that_only_start_like_database_constants_are_not_direct_effects
+    with_app do |root, compiler|
+      edit(root, 'app/domains/blog/find_post.rb') { |text| text.sub('posts.find!(input.post_id)', 'Sequelizer.run(input.post_id)') }
+      result = compiler.build
+      assert_includes node(result.document, 'query', 'blog.find_post').dig('implementation', 'analysis', 'constants'), 'Sequelizer'
+    end
+  end
+
   def test_dynamic_calls_are_recorded_without_executing_them
     with_app do |root, compiler|
       edit(root, 'app/domains/blog/find_post.rb') { |text| text.sub('posts.find!(input.post_id)', 'posts.public_send(input.post_id)') }

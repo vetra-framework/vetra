@@ -89,7 +89,8 @@ possui algumas dessas representações; conhecer sua forma não significa que es
 
 O construtor não é um sandbox. As declarações são código de desenvolvimento confiável e devem ser
 determinísticas; chamadas explícitas a constantes Ruby podem escapar da API. A análise Prism do corpo de
-`call` cobre efeitos diretos conhecidos, construções dinâmicas conhecidas e gravações literais pelas
+`call` cobre efeitos diretos conhecidos (inclusive o acesso direto ao banco por `Sequel`, `ActiveRecord` e `PG`,
+que só `unsafe_effect` com motivo libera), construções dinâmicas conhecidas e gravações literais pelas
 capacidades nomeadas. Não resolve fluxo de dados, aliases, helpers arbitrários, gems ou todos os efeitos
 transitivos. `analysis.status: complete` só significa que esse analisador limitado não encontrou uma
 construção dinâmica conhecida. Não constitui prova de pureza ou segurança.

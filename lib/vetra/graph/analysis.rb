@@ -6,7 +6,7 @@ module Vetra
       DYNAMIC = %i[send public_send __send__ const_get eval instance_eval class_eval module_eval define_method instance_variable_get].freeze
       PROCESS_CALLS = %i[system exec spawn fork open sleep gets puts print warn rand srand require require_relative load exit abort at_exit trap autoload].freeze
       WRITE_CALLS = %i[create! update! delete! insert update delete save! destroy! add_member! remove_member!].freeze
-      EFFECT_CLASSES = /\A(?:File|IO|Socket|TCPSocket|UDPSocket|Process|Thread|Random|SecureRandom|Net::HTTP|OpenURI|ENV)(?:::|\z)/
+      EFFECT_CLASSES = /\A(?:File|IO|Socket|TCPSocket|UDPSocket|Process|Thread|Random|SecureRandom|Net::HTTP|OpenURI|ENV|Sequel|ActiveRecord|PG)(?:::|\z)/
 
       def initialize(manifest)
         @manifest = manifest
