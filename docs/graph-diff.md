@@ -67,7 +67,9 @@ Contratos consideram seus consumidores nos dois grafos:
 
 Papéis, políticas, autorização, isolamento e superfícies recebem destaque; seu
 `permission_impact` é `indeterminate`. O relatório mostra antes/depois, sem afirmar que uma alteração
-isolada comprovou ganho ou perda efetiva de acesso. Privacidade, capacidades e transições também são
+isolada comprovou ganho ou perda efetiva de acesso. A lista `calls` de um handler também é permissão: ela
+define quais comandos o handler pode executar (ADR-014, §8), então acrescentar ou remover um comando dela, ou
+declarar um handler com `calls`, aparece como `permissions`. Privacidade, capacidades e transições também são
 marcadas para revisão. Índices, armazenamento e restrições merecem revisão de migração própria.
 
 Mudar somente o hash de um arquivo é mudança de build, não prova de equivalência de implementação:

@@ -8,7 +8,8 @@ Medição de 2026-10-30 e 2026-10-31, com Ruby 4.0.9. Antes de `test/diagnostics
 testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos
 três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
 testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções. Depois da junção
-implícita: 191 testes e 1.325 asserções, sem falhas.
+implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco como efeito direto e da categoria
+`permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
