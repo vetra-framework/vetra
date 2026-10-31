@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `ee2a973` (PR #18).
+- **Atualizado em:** 2026-10-31, sobre a main `b70b7f0` (PR #19).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 12 aceitos e 9 propostos, de 21 |
+| ADRs | 13 aceitos e 8 propostos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #16: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #18 integrados |
+| PRs | #1 a #19 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -63,7 +63,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Os 21 ADRs estão escritos
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
-- [x] Rodada 3 aceita em parte: 020 (#15)
+- [x] Rodada 3 aceita em parte: 020 (#15) e 010 (#20)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
 - [x] ADR-004 decidiu o dado externo para comandos: sem capacidade de leitura externa nesta versão (#16)
@@ -71,6 +71,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   opcionais ou um comando fino (#18)
 - [x] ADR-017 decidiu como o `scale` do campo e o expoente da moeda convivem: sem `scale` declarado o campo segue
   a moeda; com `scale` maior é de precisão estendida; `scale` menor que o expoente é erro de compilação (#19)
+- [x] ADR-010 decidiu que o Vetra não escreve em tabelas do Rails e que o ator vem da sessão do Rails, por um
+  resolvedor declarado pela aplicação (#20)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -90,14 +92,13 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **006** Isolamento de domínios em três níveis (rodada 2, #14)
 - [x] **007** Comando e adaptadores (rodada 2, #18)
 - [x] **008** Ordem e continuidade dos eventos (rodada 2, #14)
+- [x] **010** Adoção hospedada e modo serviço (rodada 3, #20)
 - [x] **015** Migrações expand/contract (rodada 2, #14)
 - [x] **016** Ciclo de vida da operação (rodada 1, #12)
 - [x] **017** Tipo `money` (rodada 2, #19)
 - [x] **020** Entrega live incremental (rodada 3, #15)
 
 **Propostos, com decisão de quem revisa**
-- [ ] **010** Adoção hospedada e modo serviço (rodada 3). Decisão: o modo hospedado grava em tabelas do Rails ou só
-  lê? Como a autenticação do Rails vira o ator do contexto assinado?
 - [ ] **013** Privacidade, auditoria e histórico (rodada 3). Decisão: como se identifica o titular de um campo
   pessoal; como o controlador declara retenção obrigatória por exceção legal e como isso convive com a
   eliminação.
@@ -167,6 +168,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 **Runtime**
 - [ ] Execução das primitivas CRUD e dos comandos (hoje são descritores reconhecidos, sem executor)
 - [ ] Persistência e o Vetra Data
+- [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Servidor de produção e cache de compilação
 - [ ] RLS, entrega de eventos e consultas live em execução. As garantias dos ADRs aceitos valem como decisão, não
   como código
@@ -178,6 +180,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-020:** sem sonda; o que o sustenta são os 12 critérios, ainda sem implementação
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
+- [ ] **ADR-010:** o modo hospedado com o Active Record não foi exercitado, e nenhuma sonda mede a gem
+  `sequel-activerecord_connection`. A transação e o contexto de RLS compartilhados e os cinco testes do ADR-003 são
+  hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
 - [ ] **ADR-017:** o protótipo usa `scale` 2 por padrão e não conhece o expoente ISO 4217: um app em JPY aceitaria
   `100.50` e um em BHD recusaria `1.234`. A verificação do `scale` contra o expoente depende de uma tabela de
   expoentes ainda não adotada; a moeda por tenant exige uma nova MENOR da IR
@@ -200,7 +205,7 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] ADRs 010, 013 e 014: redigir as recomendações
+1. [ ] ADRs 013 e 014: redigir as recomendações
 2. [ ] Reler 011, 012, 018 e 021 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde
    não houver lacuna
 3. [ ] Com o 014 aceito, tratar o 009; com o 013, o 019
