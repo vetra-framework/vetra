@@ -3,8 +3,9 @@
 - Status: proposto
 - Data: 2026-10-30
 - Depende de: ADR-002 (somente PostgreSQL), ADR-003 (Sequel e camada de repositórios)
-- Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-014 (outbox),
-  ADR-015 (migrações)
+- Relacionados: ADR-005 (RLS e contexto assinado), ADR-006 (isolamento de domínios), ADR-007 (comando e
+  adaptadores), ADR-014 (outbox), ADR-015 (migrações), ADR-016 (ciclo de vida da operação), ADR-020 (entrega
+  live)
 
 ## Contexto
 
@@ -30,6 +31,11 @@ processo e usam o modo serviço.
 ### 2. Modo hospedado
 
 - O Vetra é montado como **aplicação Rack dentro do Rails** e compartilha a sessão e a autenticação.
+- **O ator vem da sessão do Rails.** O adaptador Rack resolve o ator e o tenant a partir da sessão compartilhada,
+  por um resolvedor que a aplicação declara, e nunca do corpo da requisição (ADR-007, §2). O contexto assinado
+  (ADR-005) é emitido na etapa 4 do ADR-016 com essa identidade. A forma do resolvedor é detalhe do adaptador.
+  Papéis e grupos que existem só no Rails seguem o ADR-020, §8: são materializados em tabelas do Vetra por um
+  comando, ou geram a revisão por `authz.touch!`.
 - O Sequel **reutiliza a conexão do Active Record** (pela gem `sequel-activerecord_connection`, ADR-003), de
   modo que o código Rails e os comandos Vetra participam da **mesma transação** e do **mesmo contexto de
   RLS**.
@@ -55,9 +61,11 @@ processo e usam o modo serviço.
 - **Eventos do Vetra** são publicados para o Rails por outbox.
 - **Jobs do Rails** podem disparar comandos Vetra; o comando passa pelas oito etapas (ADR-016) como em
   qualquer superfície (ADR-007).
-- **Posição inicial sobre escrita em tabelas do Rails:** o Vetra não escreve em tabelas que o Rails possui. A
-  escrita em tabela do Rails pelo Vetra, que a proposta deixa em aberto, só entra se uma medição mostrar
-  necessidade, porque o grafo não enxerga callbacks do Active Record (veja as questões em aberto).
+- **O Vetra não escreve em tabelas do Rails**, nem no modo hospedado nem no modo serviço. O grafo não enxerga as
+  validações e os callbacks do Active Record, então as garantias das etapas 6 e 7 do ADR-016 (reautorização sobre
+  o estado final, campos de transição, evento, histórico e auditoria) não valeriam para essas escritas. Para
+  alterar dado do Rails, o Vetra publica um evento pela outbox, e um handler (ADR-014) aciona o Rails por API ou
+  job; o Rails faz a escrita. Permitir a escrita por uma ponte exige um ADR novo, com um caso real e uma medição.
 
 ### 5. Fronteira entre as duas convenções
 
@@ -89,6 +97,9 @@ serviço.
 - **Só modo hospedado:** deixaria de fora a maior parte dos sistemas existentes.
 - **O Vetra escrevendo livremente em tabelas do Rails:** o grafo não vê validações nem callbacks do Active
   Record, então as garantias de transição e de evento não valeriam para essas escritas.
+- **Escrita em tabelas do Rails por uma ponte declarada** (a hipótese que a proposta deixou em aberto): nenhum
+  caso real a pede, e o problema é o mesmo, porque a ponte continua sem enxergar os callbacks. Adotá-la depois,
+  por ADR novo, com um caso real e uma medição, é a saída.
 - **Migrar o sistema inteiro de uma vez:** sem critério de saída por domínio, não há como saber se a aposta
   funciona.
 
@@ -109,6 +120,8 @@ serviço.
 | Isolamento de tenant nas tabelas do Vetra no modo hospedado | Transacional, condicionado | RLS, desde que o papel de banco não tenha `BYPASSRLS` |
 | Nenhuma tabela com dois donos com escrita | Operacional | `vetra doctor` e a regra de dono único |
 | Domínio Vetra não acessa models Rails fora das pontes | Estrutural, com os limites do ADR-004 | Análise do `call`; código que abra conexão própria escapa |
+| O Vetra não escreve em tabela do Rails | Estrutural, com os limites do ADR-004 | Pontes somente leitura e a mesma análise do `call` |
+| O ator vem da sessão do Rails, nunca do corpo da requisição | Verificável por testes | Resolvedor do adaptador Rack (ADR-007, §2) |
 | Consistência entre Rails e serviço | Operacional | Eventos pela outbox, entrega pelo menos uma vez |
 
 ## Testes de aceitação
@@ -116,7 +129,7 @@ serviço.
 1. Os cinco testes de transação compartilhada entre Active Record e Sequel (ADR-003, item 10) passam.
 2. O `vetra doctor` falha se a conexão compartilhada usa um papel com `BYPASSRLS` ou superusuário.
 3. O Vetra montado como Rack no Rails compartilha a sessão e a autenticação: um usuário autenticado no Rails é
-   o ator de um comando Vetra.
+   o ator de um comando Vetra, e um corpo de requisição que traga outro ator não o altera.
 4. Um model Rails existente é lido por uma ponte somente leitura, e uma tentativa de escrita pelo Vetra é
    recusada.
 5. Um evento do Vetra chega ao Rails pela outbox; um job do Rails dispara um comando Vetra e passa pelas oito
@@ -126,14 +139,20 @@ serviço.
 8. Uma aplicação em Ruby ou Rails fora do pré-requisito é recusada no modo hospedado, com mensagem que
    aponta o modo serviço.
 
+## Verificação preliminar
+
+**O modo hospedado com o Active Record não foi exercitado.** O ADR-003 registra isso em "O que isto não cobre", e
+nenhuma sonda do repositório mede a gem `sequel-activerecord_connection`. A transação e o contexto de RLS
+compartilhados (§2) e os cinco testes do ADR-003 são, por isso, **hipótese** até rodarem contra um Rails real.
+O que se mediu vale para o Sequel e o `pg` sozinhos (`script/sonda_adr003.rb`).
+
 ## Questões em aberto
 
-- **O modo hospedado aceita escrita em tabelas do Rails, ou só leitura nas pontes?** A posição inicial é só
-  leitura; a decisão final depende de um caso real.
+- Escrita em tabelas do Rails pelo Vetra. Não adotada (§4). Volta por ADR novo, com um caso real e uma medição.
 - Qual a menor versão do Rails compatível, e como o isolamento por fibras do Active Record se combina com o
   Falcon (a verificar na versão escolhida).
-- Como a autenticação do Rails (sessão, usuário atual) vira o ator do contexto assinado (ADR-005), e como
-  permissões que vêm de fora do banco geram revisão de autorização (ADR-020).
+- A forma do resolvedor do ator no adaptador Rack (§2) e como uma entidade do Vetra referencia o usuário do
+  Rails, que mora numa tabela de outro dono: chave estrangeira ou referência sem restrição.
 - Quais são os critérios de saída padrão por domínio e quem os aprova.
 - Como o Vetra convive com a política de migração do Rails quando as duas escrevem no mesmo esquema de banco.
 - Gerador de projeto e deploy do modo independente: ficam para depois do primeiro domínio em produção.
