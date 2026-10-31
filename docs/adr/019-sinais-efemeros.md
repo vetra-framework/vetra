@@ -1,6 +1,6 @@
 # ADR-019: Sinais efêmeros autorizados pelo mesmo motor
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-020 (entrega live incremental), ADR-008 (notificação e conexão `LISTEN`), ADR-005 (RLS e
   contexto assinado), ADR-013 (privacidade)

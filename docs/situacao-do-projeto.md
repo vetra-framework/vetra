@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `7e421a3` (PR #22).
+- **Atualizado em:** 2026-10-31, sobre a main `275cb1f` (PR #23).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 16 aceitos e 5 propostos, de 21 |
+| ADRs | 17 aceitos e 4 propostos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #16: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #22 integrados |
+| PRs | #1 a #23 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -64,6 +64,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
 - [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20), 013 (#21), 014 (#22) e 021 (#23)
+- [x] Rodada 4 aceita em parte: 019 (#24)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
 - [x] ADR-004 decidiu o dado externo para comandos: sem capacidade de leitura externa nesta versão (#16)
@@ -79,6 +80,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   comandos que declara em `calls`, e que o fan-out fica materializado por entrega (#22)
 - [x] ADR-021 foi relido por inteiro e corrigido sem decisão a tomar: o trigger de reforço no banco passou a
   cobrir também o `INSERT`, e o `vetra_migrator` passou a ser reconhecido por ele (#23)
+- [x] ADR-019 decidiu que a presença é dado pessoal do usuário, mascarada nos logs e removida na eliminação, sem
+  cifra; e passou a declarar o `FORCE ROW LEVEL SECURITY` da tabela de presença (#24)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -104,6 +107,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **015** Migrações expand/contract (rodada 2, #14)
 - [x] **016** Ciclo de vida da operação (rodada 1, #12)
 - [x] **017** Tipo `money` (rodada 2, #19)
+- [x] **019** Sinais efêmeros (rodada 4, #24)
 - [x] **020** Entrega live incremental (rodada 3, #15)
 - [x] **021** Campos de transição (rodada 3, #23)
 
@@ -112,8 +116,6 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
   como sensíveis; formato da delegação, que estende o contexto assinado `v1` do ADR-005.
 - [ ] **018** Camada de UI em módulos (rodada 3). O 007 já está aceito. Decisão: como o gerador versiona os
   templates ejetados e detecta que o contrato mudou.
-- [ ] **019** Sinais efêmeros (rodada 4). O 020 e o 013 já estão aceitos. Decisão: o estado de presença é dado
-  pessoal, à luz do ADR-013?
 - [ ] **009** Workflows por histórico e replay (rodada 4). O 014 já está aceito. Decisão: viabilidade e custo do
   escalonador de fibras determinístico; quem é o ator de um workflow, à luz do §8 do ADR-014.
 
@@ -171,6 +173,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Persistência e o Vetra Data
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
+- [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
 - [ ] Servidor de produção e cache de compilação
 - [ ] RLS, entrega de eventos e consultas live em execução. As garantias dos ADRs aceitos valem como decisão, não
   como código
@@ -182,6 +185,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-020:** sem sonda; o que o sustenta são os 12 critérios, ainda sem implementação
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
+- [ ] **ADR-019:** o protótipo não tem sinais efêmeros nem presença. A sonda mede o limite do `NOTIFY`, a entrega
+  só no commit, as notificações idênticas, o `LISTEN` por sessão e o WAL da tabela `UNLOGGED`; a autorização, o
+  heartbeat, a limitação de taxa e o comportamento num crash ou failover não têm sonda versionada
 - [ ] **ADR-021:** o protótipo representa `set_by`, `guarded` e `transitions enforce:`, omite os campos e valores
   protegidos do contrato do CRUD, recusa a gravação literal por um comando fora da lista (`transition_owner`) e o
   valor protegido como `default:` (`guard_default`). A verificação na etapa 6, as telas administrativas, o trigger
@@ -217,6 +223,6 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Reler 009, 011, 012, 018 e 019 por inteiro; redigir a recomendação onde houver decisão e propor o aceite
-   onde não houver lacuna
+1. [ ] Reler 009, 011, 012 e 018 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde
+   não houver lacuna
 2. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta

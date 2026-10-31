@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017) e o 010, o 013, o 014, o 020 e o 021 da rodada 3 foram aceitos; os outros 5 têm status **proposto**. Esta
-lista organiza a revisão: em que ordem ler, o
+017), o 010, o 013, o 014, o 020 e o 021 da rodada 3 e o 019 da rodada 4 foram aceitos; os outros 4 têm status
+**proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -40,7 +40,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
 | 3 | 010, 013, 014, 020, 021 (**aceitos**); 011, 012, 018 | rodadas 1 e 2 |
-| 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
+| 4 | 019 (**aceito**); 009 | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
 
@@ -76,7 +76,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
 | 021 Campos de transição | 3 | 016, 004 | compilador da fase 0 (testes 4 em parte e 8) | 9 | 2 |
 | 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 10 | 6 |
-| 019 Sinais efêmeros | 4 | 020, 008, 005 | `sonda_adr019` | 11 | 6 |
+| 019 Sinais efêmeros | 4 | 020, 008, 005, 013 | `sonda_adr019` | 13 | 6 |
 
 ## Por ADR
 
@@ -317,13 +317,17 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: limite de tamanho do histórico, manutenção de versões antigas, sintaxe do DSL (o schema 0.1 não
   representa workflows), precisão dos temporizadores.
 
-**ADR-019 · Sinais efêmeros autorizados pelo mesmo motor**
-- [ ] Evidência: `sonda_adr019` (5 itens, no 16.15, 17.11 e 18.6): limite do payload do `NOTIFY` (7.999 bytes
-  passam, 8.000 falham) e volume de WAL de tabelas `UNLOGGED`.
+**ADR-019 · Sinais efêmeros autorizados pelo mesmo motor** (aceito)
+- [ ] Evidência: `sonda_adr019` (5 itens, no 16.15, 17.11 e 18.6; roda na CI no 17 e no 18): limite do payload do
+  `NOTIFY` (7.999 bytes passam, 8.000 falham), a notificação só no commit, as idênticas na mesma transação, o
+  `LISTEN` por sessão e o volume de WAL de tabelas `UNLOGGED`. A autorização, o heartbeat e o crash da tabela não
+  têm sonda versionada.
 - [ ] Limites: a presença **não sobrevive a um crash do banco** (garantia não oferecida; a tabela `UNLOGGED` volta
   vazia e se recompõe pelos heartbeats); "entrega em tempo hábil" é operacional.
-- [ ] Pode mudar a decisão: **se o estado de presença é dado pessoal** para fins de privacidade (ADR-013). A
-  resposta depende da decisão do ADR-013.
+- [ ] Pode mudar a decisão: **era se o estado de presença é dado pessoal** para fins de privacidade (ADR-013).
+  Resolvida no §3: sim, não sensível, com o usuário como titular; o identificador é mascarado nos logs e a
+  eliminação remove as leases, sem cifra, porque o dado nunca vai para histórico, auditoria, outbox nem WAL. As
+  alternativas descartadas foram tratá-la como dado não pessoal e como dado retido com cifra por titular.
 - [ ] Adiável: valores de limitação de taxa e heartbeat (hipóteses), `autovacuum` da tabela de presença,
   comportamento num failover, limiar para adotar o Redis.
 
@@ -341,6 +345,9 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-019: decisão de que a presença é dado pessoal; a tabela de presença passou a declarar o `FORCE ROW LEVEL
+  SECURITY` que o ADR-005 exige de toda tabela com tenant; o ADR-013 passou de "Relacionados" a "Depende de";
+  duas alternativas rejeitadas, uma garantia e os testes de aceitação 12 e 13.
 - ADR-021: o trigger de reforço no banco passou a ser `BEFORE INSERT OR UPDATE` (um `INSERT` direto o
   contornava); o trigger reconhece o `vetra_migrator`, e só ele; a sintaxe de UI é marcada como proposta (ADR-018);
   teste de aceitação 9 e o ADR-007 em "Relacionados".
