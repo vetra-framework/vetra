@@ -39,6 +39,13 @@ module Vetra
           issue('duplicate_implementation', 'Referência de implementação usada por mais de uma operação.', nodes.last, suffix: '/implementation/ref') if nodes.size > 1
         end
         fail_if_errors!
+        @currency_exponent = Currency.exponent(document.dig('app', 'currency'))
+        money_owner = document['nodes'].find do |node|
+          %w[entity contract].include?(node['kind']) && node['fields'].any? { |field| field.dig('type', 'name') == 'money' }
+        end
+        if money_owner && !@currency_exponent
+          issue('money_currency', 'A moeda da aplicação não tem expoente na tabela ISO 4217 distribuída; use uma moeda com unidade mínima definida.', money_owner, pointer: '/app/currency')
+        end
         document.fetch("nodes").each do |node|
           case node['kind']
           when "domain" then domain(node)
@@ -143,6 +150,9 @@ module Vetra
           if %w[decimal money].include?(type['name']) && type['scale'] > type['precision']
             issue("decimal_scale", "scale não pode exceder precision.", node, suffix: "#{at}/type")
           end
+          if type['name'] == 'money' && @currency_exponent && type['scale'] < @currency_exponent
+            issue('money_scale', "scale de money não pode ser menor que o expoente #{@currency_exponent} de #{@document.dig('app', 'currency')}.", node, suffix: "#{at}/type/scale")
+          end
           if type['groups'] && type['groups'].values.flatten.any? { |value| !type['values'].include?(value) }
             issue("enum_group", "Grupo contém valor ausente do enum.", node, suffix: "#{at}/type/groups")
           end
@@ -151,7 +161,7 @@ module Vetra
             issue("field_constraints", "Tamanho mínimo excede o máximo.", node, suffix: "#{at}/constraints")
           end
           if field['default'] && field.dig('default', 'kind') == "literal" && !literal_valid?(field.dig('default', 'value'), field)
-            issue("field_default", "Default incompatível com tipo, nulabilidade ou precisão do campo #{field['name']}.", node, suffix: "#{at}/default")
+            issue("field_default", "Default incompatível com tipo, moeda, nulabilidade ou precisão do campo #{field['name']}.", node, suffix: "#{at}/default")
           end
           if field.dig('default', 'kind') == 'context' && type['name'] != 'id'
             issue('field_default', 'Defaults de ator/tenant exigem campo id.', node, suffix: "#{at}/default")
@@ -184,6 +194,10 @@ module Vetra
         when 'integer' then value.is_a?(Integer)
         when 'enum' then type['values'].include?(value)
         when 'decimal', 'money'
+          if type['name'] == 'money'
+            exponent = Currency.exponent(value['currency'])
+            return false unless exponent && type['scale'] >= exponent
+          end
           amount = type['name'] == 'money' ? value['amount'] : value
           return false unless amount.is_a?(String) && amount.match?(/\A-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\z/)
           whole, fraction = amount.delete_prefix('-').split('.', 2)

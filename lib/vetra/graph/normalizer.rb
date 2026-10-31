@@ -14,6 +14,7 @@ module Vetra
       def document
         app = @registry.application
         raise Error.single('app_missing', 'Declare Vetra.app em config/app.rb.') unless app
+        @currency = app['currency']
         @application_tenant = application_tenant(app['tenant'])
         domains
         raw('entity').each { |entry| entity(entry) }
@@ -159,6 +160,13 @@ module Vetra
 
       def field(entry, value)
         result = Data.copy(value)
+        if result.dig('type', 'name') == 'money'
+          exponent = Currency.exponent(@currency)
+          unless exponent
+            raise Error.single('money_currency', "A moeda #{@currency} não tem expoente na tabela ISO 4217 distribuída; use uma moeda com unidade mínima definida.", pointer: '/app/currency', source: @registry.application['source'])
+          end
+          result['type']['scale'] = exponent unless result['type'].key?('scale')
+        end
         if result.dig('type', 'entity').is_a?(String)
           result['type']['entity'] = Data.reference('entity', entity_id(result['type']['entity'], entry['domain'], entry))
         end

@@ -4,7 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `2414370` (PR #33).
+- **Atualizado em:** 2026-10-31, sobre a main `88ee91c` (PR #35), com a continuação local de `money`
+  descrita abaixo, ainda sem PR.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +13,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025) |
-| Testes do compilador | 194 testes e 1.355 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
+| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 proposto nesta continuação |
+| Testes do compilador | 206 testes e 1.515 asserções, sem falhas; os 123 códigos anteriormente medidos continuam cobertos e os 2 novos de `money` têm testes |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #33: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #33 integrados |
+| CI registrada | Último resultado registrado neste documento: verde no PR #33; a sonda 011 entrou na matriz no #35 |
+| PRs | #1 a #35 integrados; continuação local ainda sem PR |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -51,6 +52,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `many_to_many` por entidade de junção declarada ou gerada (#13)
 - [x] Papéis, políticas, `crud`, `money`, `decimal`, `enum`, `slug`, privacidade, índices e chaves compostas por
   tenant
+- [x] `money` sem `scale` segue o expoente da moeda da aplicação; uma escala explícita inferior é recusada
+  (`money_scale`), e uma superior permite precisão estendida. A tabela ISO 4217 é local; moedas sem expoente
+  definido falham com `money_currency`. Entidades, entradas de operações, contratos CRUD e payloads de eventos
+  estão cobertos por 12 testes novos (continuação local, ainda sem PR; fonte da tabela no ADR-026 proposto)
 
 **CI e sondas**
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
@@ -177,10 +182,15 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **024** Resolução das questões em aberto do ADR-014 (#32)
 - [x] **025** Resolução das questões em aberto do ADR-015 (#33)
 
-Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
+**Proposto nesta continuação**
+- [ ] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
+  da biblioteca de formatação até a implementação da borda de UI/API. A implementação e os testes acompanham
+  a proposta; o aceite depende de quem integra
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
+- [ ] Revisar a continuação de `money` e o ADR-026 proposto, incluindo a tabela local derivada da SIX e seus
+  limites (códigos sem expoente numérico não são aceitos em `money`)
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
   ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
@@ -214,7 +224,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] `ui`, MCP e workflows
 - [ ] Consultas `live` e `realtime`
 - [ ] `rate_limit:` em `can` e `rounding:` em `currency`
-- [ ] Moeda por tenant e a conferência do `scale` de `money` contra o expoente da moeda
+- [ ] Moeda por tenant (a conferência do `scale` contra a moeda da aplicação já está implementada)
 - [ ] O titular (`subject`) e a retenção (`retention`) de dado pessoal
 - [ ] Consulta sem `returns` e sem `authorize`: os exemplos da proposta as omitem, e o compilador exige as duas
 - [ ] SQL explícito e metadados de dependência por gem
@@ -282,9 +292,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-010:** o modo hospedado com o Active Record não foi exercitado, e nenhuma sonda mede a gem
   `sequel-activerecord_connection`. A transação e o contexto de RLS compartilhados e os cinco testes do ADR-003 são
   hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
-- [ ] **ADR-017:** o protótipo usa `scale` 2 por padrão e não conhece o expoente ISO 4217: um app em JPY aceitaria
-  `100.50` e um em BHD recusaria `1.234`. A verificação do `scale` contra o expoente depende de uma tabela de
-  expoentes ainda não adotada; a moeda por tenant exige uma nova MENOR da IR
+- [ ] **ADR-017:** a escala por moeda da aplicação e a precisão estendida estão implementadas e testadas nesta
+  continuação, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte proposta no ADR-026). A
+  aritmética, o rateio, o arredondamento, a formatação e a validação HTTP ainda dependem do runtime; a moeda por
+  tenant exige uma nova MENOR da IR
 - [ ] **ADR-007:** o protótipo implementa as regras de rota do §4, mas o teste de aceitação 6 só é exercitado na
   direção comando por `GET`; a direção consulta por `POST` está implementada e sem teste. O DSL declara só
   `expose http:`, então `cli`, `job` e `webhook` existem apenas na IR. Os demais testes dependem do runtime
@@ -326,6 +337,7 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
+1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta. A escala
+   por moeda de `money` foi a entrega desta continuação; os demais itens seguem pendentes nas seções 4 e 5
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

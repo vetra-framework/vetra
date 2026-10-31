@@ -9,7 +9,8 @@ testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 18
 três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
 testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções. Depois da junção
 implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco como efeito direto e da categoria
-`permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas.
+`permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas. Depois da escala monetária por moeda
+(ADR-017, §6, com a fonte da tabela no ADR-026 proposto): 206 testes e 1.515 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -28,7 +29,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte emite todos (123 na última medição, com os dois códigos criados depois). Cada caso confere o código, o ponteiro JSON e, quando a regra aponta um nó, a origem. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte emite todos (123 na última medição, com os dois códigos criados depois). `test/money_test.rb` acrescenta casos para os dois novos, `money_currency` e `money_scale`, com código, ponteiro JSON e origem; a medição global por rastreio não foi repetida nesta continuação. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto, exceto o que depende de uma evolução | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`. Leitura anterior e conversão só podem ser testadas quando existir a primeira evolução do formato. |
@@ -125,6 +126,11 @@ são privadas e nenhum `call` é executado. Afirmar essa troca exigiria expor o 
 e as closures são privadas por desenho.
 
 ## O que continua em aberto
+
+A escala monetária por moeda da aplicação (ADR-017, §6) passou a ser normalizada e validada: os 12 testes de
+`money_test.rb` cobrem moedas com 0, 2, 3 e 4 casas, precisão estendida, erro de escala insuficiente, defaults,
+contratos CRUD, entradas de operações, eventos e IR externa. Isso não fecha o critério 7 nem os testes HTTP do
+ADR-017: a sintaxe futura dos exemplos e o runtime continuam pendentes.
 
 - O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
   construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.

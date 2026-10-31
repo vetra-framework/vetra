@@ -95,6 +95,33 @@ capacidades nomeadas. Não resolve fluxo de dados, aliases, helpers arbitrários
 transitivos. `analysis.status: complete` só significa que esse analisador limitado não encontrou uma
 construção dinâmica conhecida. Não constitui prova de pureza ou segurança.
 
+## Dinheiro e escala por moeda
+
+`money :valor` usa precisão 19 e a escala da moeda da aplicação: 2 para BRL/USD, 0 para JPY, 3 para BHD e
+4 para CLF. `scale:` explícito pode ser igual ou maior que o expoente; um valor menor falha com `money_scale`.
+Isso vale para entidades e entradas de comando/consulta e se propaga aos contratos CRUD, retornos e eventos.
+`decimal` continua com escala padrão 2.
+
+```ruby
+Vetra.app :catalogo do
+  currency "BHD"
+end
+
+# Dentro de uma entidade:
+money :total                       # precision: 19, scale: 3
+money :preco_unitario, scale: 4     # precisão estendida
+```
+
+A tabela de expoentes é local e distribuída com o compilador, derivada da List One da SIX, publicada em
+2026-09-17. Sua origem, manutenção e limites estão no [ADR-026 proposto](adr/026-tabela-de-expoentes-iso-4217.md).
+Se houver campo `money`, uma moeda da aplicação desconhecida ou sem expoente definido falha com `money_currency`,
+mesmo com `scale:` explícito. Não há consulta à rede nem suposição de duas casas.
+
+Um `default` monetário precisa trazer uma moeda suportada cujo expoente caiba na escala do campo, e uma string
+decimal que caiba em `precision`/`scale`. Valores excedentes falham com `field_default`; não são arredondados.
+A moeda por tenant, o arredondamento, a formatação e a validação HTTP em execução continuam pendentes. A IR 0.1
+permanece com `scale` numérico explícito, sem mudança de schema.
+
 ## Escopo por vínculo
 
 `roles scope: :dealer` (ou `crud scope: :dealer`) restringe um papel às revendas em que o ator tem vínculo

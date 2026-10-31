@@ -115,7 +115,9 @@ module Vetra
           descriptor["values"] = options.fetch(:values).map(&:to_s) if type.to_s == "enum"
           descriptor["groups"] = options[:groups].to_h { |key, values| [key.to_s, values.map(&:to_s)] } if options[:groups]
           if %w[money decimal].include?(type.to_s)
-            descriptor.merge!("precision" => options.fetch(:precision, 19), "scale" => options.fetch(:scale, 2))
+            descriptor["precision"] = options.fetch(:precision, 19)
+            # Money's implicit scale depends on the application, resolved during normalization.
+            descriptor["scale"] = options.fetch(:scale, 2) if type.to_s == "decimal" || options.key?(:scale)
           end
           personal = options.fetch(:personal, false)
           privacy = { "personal" => personal }

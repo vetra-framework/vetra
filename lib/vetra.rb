@@ -1,6 +1,7 @@
 require_relative "vetra/version"
 require_relative "vetra/graph/diagnostic"
 require_relative "vetra/graph/data"
+require_relative "vetra/graph/currency"
 require_relative "vetra/graph/canonical"
 require_relative "vetra/graph/manifest"
 require_relative "vetra/graph/schema"
