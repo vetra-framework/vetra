@@ -1,7 +1,7 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), cinco da rodada 2 (003, 005, 006, 008 e 015) e o 020
-da rodada 3 foram aceitos; os outros 12 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), seis da rodada 2 (003, 004, 005, 006, 008 e 015) e o 020
+da rodada 3 foram aceitos; os outros 11 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -37,7 +37,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 | Rodada | ADRs | Depende de |
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
-| 2 | 003, 005, 006, 008, 015 (**aceitos**); 004, 007, 017 (esperam uma decisão) | só da rodada 1 |
+| 2 | 003, 004, 005, 006, 008, 015 (**aceitos**); 007, 017 (esperam uma decisão) | só da rodada 1 |
 | 3 | 020 (**aceito**); 010, 011, 012, 013, 014, 018, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
@@ -59,7 +59,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 001 Grafo da Aplicação e IR | 1 | | compilador da fase 0 | 11 (fase 0) | 3 |
 | 002 Somente PostgreSQL | 1 | | `sonda_adr002` | 5 | 3 |
 | 003 Sequel e repositórios | 2 | 002 | `sonda_adr003`, `sonda_pooler` | 11 | 6 |
-| 004 Capacidades e Effect Boundary | 2 | 016 | nenhuma | 8 | 4 |
+| 004 Capacidades e Effect Boundary | 2 | 016 | compilador da fase 0 (testes 2 e 3) | 8 | 4 |
 | 005 RLS e contexto assinado | 2 | 016, 002 | `sonda_adr002`, `sonda_pooler` | 13 | 5 (deixadas a outros) |
 | 006 Isolamento de domínios | 2 | 001 | `sonda_adr006` | 7 | 5 |
 | 007 Comando e adaptadores | 2 | 016 | nenhuma | 8 | 4 |
@@ -119,9 +119,9 @@ revisor precisou aceitar.
 listas de dependentes do 005 e do 008 estavam incompletas (faltavam 011, 013 e 019 no primeiro, e 019 no
 segundo); o 015 chamava de "matriz do ADR-002" as três versões medidas, quando a matriz é 17 e 18; o 008 ganhou a
 seção "Verificação preliminar", que separa o que as sondas conferem do que ainda não tem sonda; o 011 passou a
-dizer que a extensão do contexto assinado é dele, e não do ADR-005. As decisões não mudaram. **004, 007 e 017
+dizer que a extensão do contexto assinado é dele, e não do ADR-005. As decisões não mudaram. **007 e 017
 continuam propostos** porque cada um tem uma questão que pode mudar a decisão (marcadas abaixo) e a resposta é de
-quem revisa.
+quem revisa. O **004** foi aceito depois, num PR à parte, com a questão resolvida (veja o item dele).
 
 **ADR-003 · Sequel com camada fina de repositórios**
 - [ ] Evidência: `sonda_adr003` (19 itens, no 16.15, 17.11 e 18.6) e `sonda_pooler` (8 itens, PgBouncer 1.26.1).
@@ -131,12 +131,16 @@ quem revisa.
 - [ ] Pode mudar a decisão: nenhuma. Duas questões viram limites declarados (outros poolers; `pg` com o Falcon em si).
   O índice pede resolver as questões deste ADR antes da persistência.
 
-**ADR-004 · Capacidades e Effect Boundary**
+**ADR-004 · Capacidades e Effect Boundary** (aceito)
+- [ ] Evidência: o compilador da fase 0 já faz a análise Prism do `call` (`direct_effect` para `Time.now`,
+  `Date.today`, `Net::HTTP`, `File`, `SecureRandom` e semelhantes), aceita `unsafe_effect` com motivo e recusa
+  capacidade externa em comando (`capability_boundary`): cobre os testes de aceitação 2 e 3. Os demais (host do
+  `:http`, simulador, `retry_safe`, `vetra explain` e `vetra doctor`) dependem do runtime.
 - [ ] Limites: "gem com conexão própria respeita o Effect Boundary" está fora da garantia.
-- [ ] Pode mudar a decisão: **leitura externa em comandos**. Hoje um comando que precisa de um dado externo
-  (cotação, CEP) não pode chamá-lo; a saída é um handler que preenche o dado depois, ou um workflow. O ADR
-  propõe avaliar um tipo de capacidade "leitura externa pré-transação" e decidir com um caso real. Confirmar que
-  a saída atual é aceitável para o aceite.
+- [ ] Pode mudar a decisão: **era a leitura externa em comandos** (cotação, CEP). Resolvida no §7 do ADR: não há
+  capacidade de leitura externa nesta versão. O caminho é um handler ou um workflow, e um tipo `phase: :before`
+  só entra por ADR novo, com um caso real, porque altera o ciclo de vida do ADR-016. Nenhum exemplo do módulo de
+  referência precisa dela. A alternativa descartada foi adotá-la já.
 - [ ] Adiável: granularidade da classificação de dependências, formato final do `effect` e a interação com o
   modo sombra (ADR-012).
 
@@ -297,6 +301,8 @@ quem revisa.
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
   ADR-005 aceito não é editado; o formato `v1` já é versionado.
+- ADR-004: nova seção 7 (dado externo para um comando), lista de dependentes (009, 012 e 021) e o ADR-006 em
+  "Relacionados"; a lista de revisão dava "nenhuma" evidência, mas o compilador da fase 0 cobre os testes 2 e 3.
 - ADR-020: nova seção 10 (evento de mudança de linha por trigger gerado, sem campo pessoal), cabeçalho com o ADR-001
   e a lista de dependentes (019), e o prazo de 2 s do modo `strict` entre as hipóteses. O ADR-008 aceito não foi
   editado: a seção 10 estende o evento que ele cita.
