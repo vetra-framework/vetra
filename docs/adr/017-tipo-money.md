@@ -1,9 +1,9 @@
 # ADR-017: Tipo `money` nativo
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-001 (Grafo da Aplicação e IR)
-- Relacionados: ADR-016 (ciclo de vida da operação), ADR-013 (histórico e auditoria)
+- Relacionados: ADR-016 (ciclo de vida da operação), ADR-013 (histórico e auditoria), ADR-018 (camada de UI)
 
 ## Contexto
 
@@ -35,7 +35,7 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
 
 | Camada | Forma |
 |---|---|
-| Entidade e IR | Campo do tipo `money`, com `precision` e `scale` (padrão 19 e 2); o schema 0.1 e o protótipo já o representam |
+| Entidade e IR | Campo do tipo `money`, com `precision` (padrão 19) e `scale` (padrão: o expoente da moeda, 2 para BRL; §6); o schema 0.1 e o protótipo já o representam |
 | Banco | Valor `numeric(precision, scale)` e código de moeda ISO 4217 (três letras), em colunas que existem juntas: ou as duas são nulas, ou nenhuma é, garantido por `CHECK` |
 | API e eventos | Canônica: `{ "amount": "1234.56", "currency": "BRL" }`, com `amount` **string** |
 | Literal na IR | A mesma forma canônica (ADR-001) |
@@ -44,8 +44,7 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
   pode ser a de cada tenant (ainda não implementado). Na entrada, `currency` pode ser omitida e assume a padrão;
   na saída, os dois campos sempre aparecem.
 - O valor é decimal exato em todo o caminho (`BigDecimal` em Ruby, `numeric` no banco). Nunca `Float`.
-- `precision` e `scale` são por campo. Transações usam as casas da moeda; preços unitários podem declarar mais
-  casas (por exemplo, `scale: 4`).
+- `precision` e `scale` são por campo. A relação entre o `scale` e as casas da moeda está no §6.
 
 ### 2. `Float` é recusado
 
@@ -96,6 +95,27 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
 - **Formulários** interpretam a entrada pelo idioma da requisição. **APIs** só aceitam o formato canônico.
 - Logs, eventos e histórico guardam a forma canônica, nunca a formatada.
 
+### 6. Escala do campo e casas da moeda
+
+O **expoente da moeda** (ISO 4217: 2 para BRL e USD, 0 para JPY, 3 para BHD) e o **`scale` do campo** respondem
+a perguntas diferentes: o primeiro diz quantas casas um valor de transação pode ter; o segundo, quantas o campo
+guarda. Eles convivem assim:
+
+- **Sem `scale` declarado**, o campo é um **valor monetário**: o `scale` é o expoente da moeda da aplicação
+  (2 para BRL, 0 para JPY, 3 para BHD). Um valor com mais casas que a moeda é recusado com erro de contrato (422,
+  ADR-016).
+- **Com `scale` declarado maior que o expoente** (por exemplo, `scale: 4` num preço unitário), o campo é de
+  **precisão estendida** e aceita até `scale` casas. Quando um cálculo com esse valor vai para um campo monetário,
+  arredonda-se ao expoente nos pontos do §4.
+- **`scale` menor que o expoente da moeda é erro de compilação:** um campo em BHD com `scale: 2` perderia o
+  milésimo.
+- A coluna é `numeric(precision, scale)` com esse `scale`. O `CHECK` do §1 não muda.
+
+O protótipo usa `scale` 2 por padrão e não conhece o expoente (não há tabela ISO 4217). Ele ainda não aplica a
+segunda e a terceira regras: uma aplicação em JPY aceitaria `100.50`, e uma em BHD recusaria `1.234`. Com uma
+moeda por aplicação, a IR 0.1 basta, porque o campo é de precisão estendida quando o seu `scale` excede o
+expoente. A moeda por tenant (§1, ainda não implementada) precisa de mais (ver as questões em aberto).
+
 ## Alternativas rejeitadas
 
 - **`Decimal` solto com formatação manual** (a alternativa da proposta): cada tela formata e interpreta a
@@ -107,6 +127,11 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
 - **Valor e moeda em campos independentes:** permite o estado inválido (valor sem moeda). Tratá-los como um
   tipo só o impede no contrato e no banco.
 - **Aceitar `amount` numérico no JSON:** perde precisão em clientes JavaScript.
+- **Escala única por campo, sem relação com a moeda** (o que o protótipo faz hoje): aceita JPY com duas casas e
+  recusa BHD com três.
+- **Sempre o expoente da moeda, sem precisão estendida:** impede um preço unitário com mais casas que a moeda
+  (por exemplo, o litro de combustível).
+- **Um tipo à parte para preço unitário:** mais um tipo no núcleo, quando a mesma distinção cabe no `scale`.
 - **Delegar tudo à gem `money-rails`:** é a escolha certa num app Rails, mas o grafo precisa conhecer o tipo
   para validar contratos, gerar tipos TypeScript e recusar `Float`. O Vetra pode usar uma biblioteca de apoio
   por baixo sem expô-la.
@@ -120,6 +145,7 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
   muda para o desenvolvedor.
 - O `amount` em string obriga o cliente a usar um decimal, e o SDK TypeScript gerado deve expor o tipo
   adequado.
+- O compilador passa a depender de uma tabela de expoentes ISO 4217 para conferir o `scale` de cada campo.
 
 ## Garantias e seus níveis
 
@@ -127,6 +153,8 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
 |---|---|---|
 | `Float` não entra no grafo | Estrutural | Serialização canônica da IR e validação dos literais (implementadas no protótipo) |
 | Valor e moeda existem juntos | Transacional | `CHECK` no banco, mais o contrato de entrada |
+| `scale` do campo nunca é menor que o expoente da moeda | Estrutural | Verificação na compilação com a tabela ISO 4217 (§6; ainda não implementada) |
+| Um valor monetário não excede as casas da moeda | Verificável por testes | Validação do contrato (§6) |
 | `amount` numérico na API é recusado | Verificável por testes | Validação do contrato (etapa 2, ADR-016) |
 | Moedas não se misturam | Verificável por testes | Erro na aritmética e na agregação |
 | O rateio soma o total | Verificável por testes | Teste de propriedade sobre totais, partes e moedas |
@@ -144,13 +172,19 @@ entrada vêm da configuração do tenant e do idioma de quem vê a tela.
 8. No formulário, `1.234` vale 1234 em pt-BR e 1,234 em en-US; na API, só a forma canônica é aceita.
 9. O banco recusa uma linha com valor e sem moeda, e o contrário.
 10. Uma agregação sem agrupar por moeda, com duas moedas presentes, falha.
+11. Um campo `money` cujo `scale` é menor que o expoente da moeda da aplicação (BHD com `scale: 2`) falha na
+    compilação.
+12. Num campo `money` sem `scale` declarado, `10.001` em BRL é recusado com 422. Num campo com `scale: 4`,
+    `10.0015` é aceito, e o total calculado a partir dele é arredondado ao expoente ao persistir num campo sem
+    `scale`.
 
 ## Questões em aberto
 
-- Como `scale` do campo e expoente da moeda convivem: o valor de uma transação deve ter no máximo as casas
-  da moeda, e um preço unitário pode ter mais.
+- Com moeda por tenant, como a aplicação declara o conjunto de moedas aceitas (a coluna precisa do maior
+  expoente entre elas) e como a IR registra se o `scale` foi declarado, já que hoje ela guarda só o número. Isso
+  exige uma nova MENOR da IR (ADR-001).
 - Onde ficam as taxas de conversão e quem as fornece.
 - Configuração de arredondamento por tenant e por campo, e se existem outros modos além do comercial.
-- Biblioteca de formatação por idioma que o núcleo usa por baixo (dados de localidade), e como ela é
-  testada.
+- Biblioteca de formatação por idioma que o núcleo usa por baixo (dados de localidade), de onde vem a tabela de
+  expoentes ISO 4217, e como elas são testadas.
 - Moedas sem código ISO 4217 (cripto, pontos de fidelidade): fora do tipo `money` ou tipo à parte.
