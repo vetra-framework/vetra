@@ -1,6 +1,6 @@
 # ADR-001: Grafo da Aplicação compilado em IR versionada
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Relacionados: ADR-004 (capacidades), ADR-005 (RLS), ADR-016 (ciclo de vida), ADR-020 (entrega live) e
   ADR-021 (campos de transição)
@@ -279,7 +279,7 @@ com antes/depois, sem classificar como adição segura. Mudanças só de origem/
 
 ## Consequências
 
-- A pendência de esquema/compatibilidade tem um contrato concreto para a fase 0, ainda proposto.
+- A pendência de esquema/compatibilidade tem um contrato concreto para a fase 0.
 - O compilador precisa de normalização, registro de implementações e validação semântica além do Schema.
 - Leitores antigos recusam formatos futuros até atualização explícita. Compatibilidade custa manutenção.
 - A IR expande convenções em dados sem acrescentar conceitos ao CRUD da camada 1.
@@ -322,7 +322,8 @@ com antes/depois, sem classificar como adição segura. Mudanças só de origem/
 
 São critérios de aceitação, **não uma declaração de que a fase 0 foi concluída**. O
 [primeiro protótipo](../fase-0.md) cobre parte deles; a validação do schema e os testes atuais não
-comprovam uma implementação integral do compilador, do RLS ou do runtime.
+comprovam uma implementação integral do compilador, do RLS ou do runtime. A [cobertura de cada
+critério](../fase-0-criterios.md) é mantida à parte, porque muda com a suíte.
 
 ## Questões em aberto que não bloqueiam a fase 0
 

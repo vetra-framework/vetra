@@ -1,6 +1,6 @@
 # Representação intermediária do Grafo da Aplicação
 
-Contrato **proposto** pelo [ADR-001](../adr/001-grafo-da-aplicacao-e-ir.md). Estes arquivos especificam
+Contrato definido pelo [ADR-001](../adr/001-grafo-da-aplicacao-e-ir.md), aceito. Estes arquivos especificam
 dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL e implementa
 `graph:build`, `graph:check` e `graph:validate`; o runtime continua pendente.
 

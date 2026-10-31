@@ -1,6 +1,7 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos e todos têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002) foram aceitos e os outros 18 têm status **proposto**.
+Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -35,7 +36,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 
 | Rodada | ADRs | Depende de |
 |---|---|---|
-| 1 | 016, 001, 002 | nada |
+| 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 | só da rodada 1 |
 | 3 | 010, 011, 012, 013, 014, 018, 020, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
@@ -82,6 +83,11 @@ Em cada ADR, "limites" são as garantias que o próprio texto classifica abaixo 
 "estrutural". "Pode mudar a decisão" é a proposta descrita no início.
 
 ### Rodada 1
+
+**Aceitos.** Antes do aceite, os três foram relidos inteiros e receberam correções, porque um ADR aceito não é
+editado: um erro de nome no 016 (`retry:` onde a IR usa `retry_safe`), as listas de dependentes do 016 e do 002, e
+uma frase do 001 presa ao status "proposto". As decisões não mudaram. Os itens abaixo ficam como registro do que o
+revisor precisou aceitar.
 
 **ADR-016 · Ciclo de vida da operação**
 - [ ] Limites: "evento entregue pelo menos uma vez, em ordem de commit" é operacional (depende do relay estar
