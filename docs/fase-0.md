@@ -2,7 +2,7 @@
 
 O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
-Os ADRs 001, 002, 003, 004, 005, 006, 007, 008, 010, 013, 015, 016, 017 e 020 foram aceitos e os demais
+Os ADRs 001, 002, 003, 004, 005, 006, 007, 008, 010, 013, 014, 015, 016, 017 e 020 foram aceitos e os demais
 continuam propostos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
 
 ## Executar
