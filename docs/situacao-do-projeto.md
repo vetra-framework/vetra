@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `df64c75` (PR #27).
+- **Atualizado em:** 2026-10-31, sobre a main `f26401d` (PR #28).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -15,8 +15,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | ADRs | 21 aceitos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #27: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #27 integrados |
+| CI da main | Verde no PR #28: `test` e sondas no PostgreSQL 17 e 18 |
+| PRs | #1 a #28 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -104,6 +104,9 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   estendida à UI), uma página não executa comando num `GET`, o CSRF e o escape de saída (o ERB padrão não escapa)
   passaram a ser tratados, `command_form` e `expose ui:` são servidos pela exposição `http` do comando, e a UI
   não está na IR 0.1 (#28)
+- [x] Regra para resolver as questões em aberto de um ADR aceito, que não é editado: um ADR de resolução, com cinco
+  tratamentos (decidida, medição, valor inicial, já resolvida, adiada), uma linha de cabeçalho no ADR original e
+  uma tabela no índice (#29)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -141,8 +144,6 @@ Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
-- [ ] Definir uma regra para resolver as questões em aberto de um ADR **já aceito**, que não é editado. Hoje
-  não há caminho formal
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
   ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
@@ -251,8 +252,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **Sondas manuais:** `sonda_pooler` (precisa de PgBouncer) e `sonda_adr006` (precisa de `RUBY_BOX=1`) não rodam
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
-- [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 precisam estar resolvidas antes de
-  implementá-la
+- [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 precisam estar tratadas por ADRs de
+  resolução antes de implementá-la. Nenhum foi escrito ainda
 - [ ] **ADR-020:** como o trigger de instrução da revisão de autorização obtém o tenant em escritas sem contexto,
   como o preenchimento do `vetra_migrator`; custo da releitura de campos pessoais por grupo
 - [ ] **Diagnósticos:** nada impede que um código de diagnóstico novo nasça sem teste. A medição por rastreio não
@@ -265,5 +266,5 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
-2. [ ] Resolver as questões em aberto dos ADRs aceitos 003, 005, 014 e 015, que precisam estar resolvidas antes de
-   implementar a persistência (depende da regra da seção 3)
+2. [ ] Tratar, por ADR de resolução (um PR por ADR, um de cada vez), as questões em aberto dos ADRs aceitos 003,
+   005, 014 e 015, que precisam estar tratadas antes de implementar a persistência
