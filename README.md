@@ -55,8 +55,8 @@ Ractors, workflows duráveis e MCP são extensões opcionais: o núcleo funciona
 | [Revisões](docs/revisoes.pdf) | Histórico das rodadas de revisão e erros reconhecidos |
 | [Pendências (rodada 7)](docs/pendencias-rodada-7.pdf) | Decisões em aberto, pontos que dependem de medição e próximo passo |
 
-As decisões detalhadas estão no [índice de ADRs](docs/adr/README.md): dezenove aceitas (001, 002, 003, 004, 005,
-006, 007, 008, 009, 010, 012, 013, 014, 015, 016, 017, 019, 020 e 021) e as demais ainda propostas. O
+As decisões detalhadas estão no [índice de ADRs](docs/adr/README.md): vinte aceitas (001, 002, 003, 004, 005,
+006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 019, 020 e 021) e a outra (018) ainda proposta. O
 [ADR-016](docs/adr/016-ciclo-de-vida-da-operacao.md) define o ciclo de vida comum às operações; o
 [ADR-001](docs/adr/001-grafo-da-aplicacao-e-ir.md) define o grafo e a compatibilidade da
 [IR 0.1, com schema e exemplos](docs/ir/README.md), antes do protótipo da fase 0. Os PDFs preservam o
