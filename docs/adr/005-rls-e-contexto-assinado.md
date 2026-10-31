@@ -5,6 +5,7 @@
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-002 (somente PostgreSQL)
 - Dependem deste ADR (na data do aceite): 011 (MCP), 013 (privacidade, auditoria e histórico), 019 (sinais
   efêmeros) e 020 (entrega live incremental)
+- Questões resolvidas por: ADR-023
 
 ## Contexto
 

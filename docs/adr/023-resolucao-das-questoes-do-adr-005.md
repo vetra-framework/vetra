@@ -1,6 +1,6 @@
 # ADR-023: Resolução das questões em aberto do ADR-005
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-31
 - Resolve: ADR-005 (as cinco questões que ele deixa para outros)
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-002 (somente PostgreSQL), ADR-020 (revisão de autorização)

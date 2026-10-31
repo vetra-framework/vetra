@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `6c9ba7f` (PR #29).
+- **Atualizado em:** 2026-10-31, sobre a main `5e550dc` (PR #30).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 22 aceitos: os 21 fundadores e 1 ADR de resolução (022) |
+| ADRs | 23 aceitos: os 21 fundadores e 2 ADRs de resolução (022 e 023) |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
-| CI da main | Verde no PR #29: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #29 integrados |
+| CI da main | Verde no PR #30: `test` e sondas no PostgreSQL 17 e 18 |
+| PRs | #1 a #30 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -111,6 +111,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   critério (o Falcon já tem resultado preliminar: quatro requisições simultâneas de 1 s em 1,05 s, contra 4,02 s do
   controle); os registros são um `Data` por entidade, congelado em profundidade; `uses :sql` fica fora da fase 1; o
   analisador passa a recusar `Sequel`, `ActiveRecord` e `PG` num `call`, que hoje o compilador aceita (#30)
+- [x] ADR-023 resolveu as cinco questões em aberto do ADR-005: o custo do contexto assinado é uma medição com
+  limiar (preliminar: cerca de 0,2 ms por instrução sobre o RLS ingênuo, por instrução e não por linha); a política
+  de escopo por vínculo passa a amarrar tenant e ator como condições não correlacionadas na subconsulta, porque a
+  forma correlacionada fez `Seq Scan` na tabela de vínculos a cada instrução (16,7 a 19,7 ms com 200 mil vínculos,
+  contra 2,05 a 2,23 ms com o tenant amarrado); relatórios entre tenants ficam adiados; SSO e a versão mínima do
+  PostgreSQL já estavam resolvidos (#31)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -146,6 +152,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 
 **ADRs de resolução** (questões em aberto de um ADR aceito, pela regra do índice)
 - [x] **022** Resolução das questões em aberto do ADR-003 (#30)
+- [x] **023** Resolução das questões em aberto do ADR-005 (#31)
 
 Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 
@@ -260,11 +267,16 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 precisam estar tratadas por ADRs de
-  resolução antes de implementá-la. O 003 está tratado (ADR-022); faltam 005, 014 e 015
+  resolução antes de implementá-la. O 003 (ADR-022) e o 005 (ADR-023) estão tratados; faltam 014 e 015
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador ainda aceita `Sequel.connect`, `ActiveRecord::Base.connection` e `PG.connect` num
   `call`, e a ampliação decidida no ADR-022 não foi implementada
+- [ ] **ADR-023:** o custo do contexto assinado foi medido só num protótipo descartável, no PostgreSQL 16.15, com um
+  cliente e sem `WITH CHECK`, comparação em tempo constante, concorrência nem pooler; o gate da fase 1 (0,5 ms por
+  instrução e 25% da latência do comando, hipóteses) está por medir no 17 e no 18. O gerador de políticas não
+  existe, então a forma da política de escopo e o aviso do `db:plan` sobre o índice da tabela de vínculo ainda não
+  estão implementados. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-020:** como o trigger de instrução da revisão de autorização obtém o tenant em escritas sem contexto,
   como o preenchimento do `vetra_migrator`; custo da releitura de campos pessoais por grupo
 - [ ] **Diagnósticos:** nada impede que um código de diagnóstico novo nasça sem teste. A medição por rastreio não
@@ -277,5 +289,5 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
-2. [ ] Tratar, por ADR de resolução (um PR por ADR, um de cada vez), as questões em aberto dos ADRs aceitos 005,
-   014 e 015, que precisam estar tratadas antes de implementar a persistência. O 003 já está (ADR-022)
+2. [ ] Tratar, por ADR de resolução (um PR por ADR, um de cada vez), as questões em aberto dos ADRs aceitos 014 e
+   015, que precisam estar tratadas antes de implementar a persistência. O 003 (ADR-022) e o 005 (ADR-023) já estão
