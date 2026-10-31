@@ -23,16 +23,16 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
-| 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Parcial | Cobertos: versão futura, propriedade desconhecida, nó e referência de `kind` errados, número de ponto flutuante, referência externa no schema (`validator_test`, `canonical_test`, `compiler_test`, `diagnostics_test`). Não conferido item a item: propriedade obrigatória ausente. |
+| 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto, com 3 lacunas de teste | Cobertos: exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`); versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido e número de ponto flutuante. **Sem teste, com comportamento correto (conferido):** propriedade obrigatória ausente, decimal ou `money` com valor numérico e validade do próprio schema no metaschema do Draft 2020-12. Detalhes na seção abaixo. |
 | 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte agora emite os 121. Cada caso confere o código, o ponteiro JSON e, quando a regra aponta um nó, a origem. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto, exceto o que depende de uma evolução | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`. Leitura anterior e conversão só podem ser testadas quando existir a primeira evolução do formato. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão diferente (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
-| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial | Contratos CRUD sem campos protegidos, defaults e chaves compostas por tenant são testados. A equivalência exata com os três exemplos da proposta não foi conferida item a item. |
+| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). No blog da proposta, 5 de 14 construtos ainda são recusados pelo DSL. Mini CRM e chat não foram conferidos construto a construto. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. |
-| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma ressalva | `only_a_sealed_registry_can_be_published`, `missing_and_unexpected_implementations_are_rejected`, `missing_or_duplicate_declaration_is_rejected`. A falha de uma recarga preserva o grafo anterior (`failed_relink_keeps_previously_returned_graph_unchanged`); a recarga bem-sucedida como unidade não foi conferida individualmente. |
+| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
 | 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Parcial | `Ractor.make_shareable` é conferido nos documentos e na vinculação (`compiler_test`, `link_test`). O compartilhamento entre Ractors é opcional no ADR-001 e não existe como extensão; o núcleo roda sem ele. |
 
 ## Os 43 códigos que antes não eram emitidos
@@ -57,9 +57,40 @@ quatro que dependem do ambiente têm teste próprio.
   (`git_unavailable` esvazia o `PATH`, e `schema_reference` troca o caminho do schema por uma cópia com referência
   externa, restaurando-o em seguida).
 
+## Conferência item a item dos critérios 1, 7 e 10
+
+Feita em 2026-10-30 com sondas avulsas, fora do repositório, e sem criar testes.
+
+**Critério 1.** O schema declara `$schema` do Draft 2020-12 e é válido nesse metaschema
+(`JSONSchemer.valid_schema?`). Remover uma propriedade obrigatória (`fields` de uma entidade, `app` da raiz,
+`authorize` de um comando) produz `schema`. Um `money` com `amount` numérico produz `schema`, e o mesmo valor como
+string (`"12.00"`) é aceito. Um operador desconhecido produz `schema`. Nenhum dos três primeiros tem teste. A
+lacuna é de teste, não de código. O `delete("required")` de `validator_test` testa uma regra semântica de campo,
+não uma propriedade obrigatória do schema.
+
+**Critério 7.** O `docs/ir/README.md` declara que os exemplos documentais são recortes didáticos, então a diferença
+para o compilado (por exemplo, contratos `post_input` contra `*.input`, nenhum comando CRUD no documental) é
+esperada e não é defeito. A comparação possível é contra o DSL da proposta (`docs/exemplos/`). No blog, cada
+construto foi aplicado sozinho sobre `examples/blog`:
+
+- **Aceitos (9):** `slug` com `from:` e `unique:`, `text`, `belongs_to :author, entity: :user, default:
+  :current_actor` (com uma entidade `user` declarada), `normalize: :downcase` com `unique:`, a entidade `comment`
+  com `email` pessoal, `boolean` com default e `set_by:` de um comando declarado, o papel visitante com
+  `where:`, `can ... fields:` e `role :admin` com `can :manage, on: %i[...]`.
+- **Recusados (5):** `many_to_many :tags` sem entidade de junção declarada (a geração automática é documentada
+  como não implementada), `ui:` em `crud` e em `expose`, `rate_limit:` em `can` e uma consulta sem `returns` nem
+  `authorize`. Todos falham de forma audível, como o `fase-0.md` promete.
+
+**Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
+`binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
+`arguments`. Não guarda o digest da implementação, que fica na IR. Editar o texto do corpo de um `call` mudou o
+documento e deixou o `binding` idêntico. A troca do código não é verificável pela API pública, porque as closures
+são privadas e nenhum `call` é executado. Afirmar essa troca exigiria expor o digest da implementação no
+`binding`, o que é uma decisão de projeto.
+
 ## O que continua em aberto
 
-- Os critérios 1, 7 e 10 pedem a conferência item a item descrita na matriz.
+- As lacunas dos critérios 1, 7 e 10 estão detalhadas na seção anterior.
 - Um caso do validador prova que a regra dispara sobre uma IR montada à mão, não que o DSL consegue alcançá-la.
   Para as regras que o normalizador impede de chegar ao validador, isso é o esperado: o validador existe para
   recusar uma IR que não veio do compilador.
