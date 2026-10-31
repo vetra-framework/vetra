@@ -1,7 +1,7 @@
 # Lista de revisão para aceitar os ADRs
 
-Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002) foram aceitos e os outros 18 têm status **proposto**.
-Esta lista organiza a revisão: em que ordem ler, o
+Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002) e cinco da rodada 2 (003, 005, 006, 008 e 015) foram
+aceitos; os outros 13 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -37,7 +37,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 | Rodada | ADRs | Depende de |
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
-| 2 | 003, 004, 005, 006, 007, 008, 015, 017 | só da rodada 1 |
+| 2 | 003, 005, 006, 008, 015 (**aceitos**); 004, 007, 017 (esperam uma decisão) | só da rodada 1 |
 | 3 | 010, 011, 012, 013, 014, 018, 020, 021 | rodadas 1 e 2 |
 | 4 | 009, 019 | 009 depende do 014 (rodada 3); 019, do 020 (rodada 3) |
 
@@ -115,6 +115,14 @@ revisor precisou aceitar.
 
 ### Rodada 2
 
+**Aceitos: 003, 005, 006, 008 e 015.** Foram relidos inteiros antes do aceite e receberam correções de texto: as
+listas de dependentes do 005 e do 008 estavam incompletas (faltavam 011, 013 e 019 no primeiro, e 019 no
+segundo); o 015 chamava de "matriz do ADR-002" as três versões medidas, quando a matriz é 17 e 18; o 008 ganhou a
+seção "Verificação preliminar", que separa o que as sondas conferem do que ainda não tem sonda; o 011 passou a
+dizer que a extensão do contexto assinado é dele, e não do ADR-005. As decisões não mudaram. **004, 007 e 017
+continuam propostos** porque cada um tem uma questão que pode mudar a decisão (marcadas abaixo) e a resposta é de
+quem revisa.
+
 **ADR-003 · Sequel com camada fina de repositórios**
 - [ ] Evidência: `sonda_adr003` (19 itens, no 16.15, 17.11 e 18.6) e `sonda_pooler` (8 itens, PgBouncer 1.26.1).
 - [ ] Limites: "o `call` só alcança dados pelo repositório declarado" é estrutural com o limite do ADR-004;
@@ -158,6 +166,8 @@ revisor precisou aceitar.
 **ADR-008 · Notificação como invalidação, ordem por `xid8` e continuidade**
 - [ ] Evidência: `sonda_adr002` (tipo `xid8`; uma escrita aberta prende o `xmin`, uma leitura não) e
   `sonda_pooler` (atrás de um pooler em modo de transação o `LISTEN` entrega ao cliente que segura o backend).
+  A regra de leitura por intervalo (§2), a versão por linha `_v` (§3) e a ressincronização (§4) **não têm sonda
+  versionada**; o ADR declara isso e as deixa aos testes de aceitação 1, 2 e 4 a 8.
 - [ ] Limites: "entrega em tempo hábil" é operacional.
 - [ ] Pode mudar a decisão: nenhuma. Volume do `NOTIFY`, intervalo de leitura e retenção (1 s e 10 minutos são
   hipóteses) e partição da outbox dependem da matriz de carga.
@@ -274,6 +284,15 @@ revisor precisou aceitar.
 - ADR-005: a "versão mínima do PostgreSQL" era listada como pendência, mas o ADR-002 já a fixou em 17. A frase
   agora remete ao ADR-002.
 - ADR-014: a medição do `FOR UPDATE` passou a citar a sonda que a confere.
+- ADR-005 e ADR-008: as listas "Dependem deste ADR" ficaram completas e rotuladas "na data do aceite" (005: 011,
+  013, 019 e 020; 008: 014, 019 e 020).
+- ADR-008: nova seção "Verificação preliminar" (o que tem sonda e o que não tem) e os tempos limite de transação
+  entram entre as hipóteses.
+- ADR-015: "as três versões da matriz do ADR-002" passou a "as três versões medidas"; cita o ADR-008 em
+  "Relacionados".
+- ADR-006: cita o ADR-014 em "Relacionados".
+- ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
+  ADR-005 aceito não é editado; o formato `v1` já é versionado.
 
 ## Depois do aceite
 

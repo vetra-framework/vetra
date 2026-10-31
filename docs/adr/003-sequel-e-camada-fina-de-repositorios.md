@@ -1,6 +1,6 @@
 # ADR-003: Sequel com camada fina de repositórios
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-002 (somente PostgreSQL)
 - Relacionados: ADR-004 (capacidades), ADR-005 (RLS e contexto assinado), ADR-008 (conexão `LISTEN`), ADR-016

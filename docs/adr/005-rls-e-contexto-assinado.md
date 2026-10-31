@@ -1,9 +1,10 @@
 # ADR-005: RLS obrigatório com contexto assinado
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-002 (somente PostgreSQL)
-- Dependem deste ADR: ADR-020 (entrega live incremental)
+- Dependem deste ADR (na data do aceite): 011 (MCP), 013 (privacidade, auditoria e histórico), 019 (sinais
+  efêmeros) e 020 (entrega live incremental)
 
 ## Contexto
 
