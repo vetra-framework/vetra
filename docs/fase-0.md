@@ -62,7 +62,7 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
 - `entity`, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
   `belongs_to`, incluindo chaves compostas para `same_tenant`, `has_many` como inverso de um `belongs_to` e
-  `many_to_many` por uma entidade de junção declarada.
+  `many_to_many` por uma entidade de junção declarada ou gerada.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
   repositórios e rotas HTTP. Ainda não existe execução dessas primitivas.
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
@@ -82,12 +82,11 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 `graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI, MCP,
-workflows, consultas live, geração automática de junções muitos-para-muitos, `auth` e geração de usuários/vínculos,
-metadados de dependências por gem, SQL explícito, `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e
-políticas baseadas em atributos materializados do ator além de `id`. Uma palavra-chave desconhecida em qualquer
-declaração falha com `unsupported_option`, e uma obrigatória ausente com `missing_option`; os dois nomeiam o método
-e apontam a linha da declaração. O schema 0.1 possui algumas dessas representações; conhecer sua forma não significa
-que este consumidor saiba compilá-las.
+workflows, consultas live, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
+`realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos materializados do
+ator além de `id`. Uma palavra-chave desconhecida em qualquer declaração falha com `unsupported_option`, e uma
+obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. O schema 0.1
+possui algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
 
 O construtor não é um sandbox. As declarações são código de desenvolvimento confiável e devem ser
 determinísticas; chamadas explícitas a constantes Ruby podem escapar da API. A análise Prism do corpo de
@@ -155,9 +154,8 @@ Vetra Data. O predicado é o contrato que essa geração vai consumir.
 
 ## Relações muitos-para-muitos
 
-`many_to_many` liga duas entidades por uma terceira, a **junção**, que a aplicação declara como entidade
-comum. A proposta gera a junção (`room_memberships`); aqui ela é explícita, porque inferir seu nome a partir
-do nome da relação seria uma regra frágil e a IR não a registra.
+`many_to_many` liga duas entidades por uma terceira, a **junção**. A aplicação pode declará-la como entidade
+comum (`through:`) ou deixar o compilador gerá-la (sem `through:`, ver "Junção gerada" abaixo).
 
 ```ruby
 entity :room do
@@ -188,8 +186,35 @@ Na IR 0.1 a relação usa campos que o schema já tem, com este significado:
   `where: { room: { members: :current_actor } }`. O predicado é um `exists` pela relação, e `reads` inclui a
   junção, senão o validador acusa `policy_reads`.
 
-Ainda não existem: a geração automática da junção, os comandos `add_member`/`remove_member` e o `created_at`
-implícito do exemplo da proposta (o índice de mensagens usa só `room_id`).
+### Junção gerada
+
+Sem `through:`, o compilador gera a junção como um nó comum da IR, com `generated_from` apontando o dono:
+
+```ruby
+entity :tag do
+  string :name, required: true, unique: true, normalize: :downcase
+end
+
+entity :post do
+  many_to_many :tags # alvo: blog.tag; junção gerada: blog.post_tag
+end
+```
+
+- **Alvo.** Sem `entity:`, é a entidade do mesmo domínio com o nome da relação no singular (`tags` vira `tag`,
+  `companies` vira `company`). Se ela não existir, `relation_target` manda declará-la ou informar `entity:`.
+- **Nome.** `<dono>_<relação no singular>`: `blog.post_tag`, `chat.room_member`. A regra é mínima de propósito;
+  para outro nome, declare a junção e use `through:`.
+- **Forma.** Um `belongs_to` para cada lado (`post_id`, `tag_id`) e um índice único sobre o par. Com tenant, a
+  junção herda o tenant da aplicação, os dois `belongs_to` usam `same_tenant` e o índice começa pelo campo do
+  tenant.
+- **Recusas** (`relation_through`): auto-relação, nome que colide com uma entidade declarada e um lado com tenant
+  e o outro sem. Nos três casos, declare a junção e use `through:`.
+- Os nomes de tabela da proposta (`posts_tags`, `room_memberships`) não são reproduzidos: a junção gerada segue a
+  convenção das demais entidades (`post_tags`, `room_members`). A persistência ainda não existe, então isso não
+  afeta nada hoje.
+
+Ainda não existem: os comandos `add_member`/`remove_member` e o `created_at` implícito do exemplo da proposta (o
+índice de mensagens usa só `room_id`).
 
 ## Integridade e limites
 
@@ -229,7 +254,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 122 códigos de diagnóstico do compilador são disparados por algum teste.
+e registra o que foi fechado: os 123 códigos de diagnóstico do compilador são disparados por algum teste.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
 restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.

@@ -185,9 +185,11 @@ module Vetra
           @attributes["relations"] << { "name" => name.to_s, "target" => entity.to_s, "kind" => "has_many", "by" => by.to_s, "same_tenant" => false }
         end
 
-        def many_to_many(name, entity:, through:, include: nil)
+        # `entity:` e `through:` são opcionais: sem `entity:`, o alvo é a entidade do mesmo domínio com o nome da
+        # relação no singular; sem `through:`, o normalizador gera a entidade de junção (ver Normalizer).
+        def many_to_many(name, entity: nil, through: nil, include: nil)
           @attributes["relations"] << {
-            "name" => name.to_s, "target" => entity.to_s, "kind" => "many_to_many", "through" => through.to_s,
+            "name" => name.to_s, "target" => entity&.to_s, "kind" => "many_to_many", "through" => through&.to_s,
             "include" => ::Kernel.Array(include).map(&:to_s), "same_tenant" => false
           }
         end

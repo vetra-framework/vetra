@@ -63,14 +63,81 @@ class ManyToManyTest < GraphTest
     end
   end
 
-  def test_through_is_required_and_must_name_a_declared_entity
-    with_chat do |root, compiler|
-      edit(root, 'app/domains/chat/room.rb') { |text| text.sub(', through: :room_membership', '') }
-      assert_graph_error('missing_option') { compiler.build }
-    end
+  def test_through_must_name_a_declared_entity
     with_chat do |root, compiler|
       edit(root, 'app/domains/chat/room.rb') { |text| text.sub('through: :room_membership', 'through: :missing') }
       assert_graph_error('reference_missing') { compiler.build }
+    end
+  end
+
+  # Sem `through:`, o compilador gera a entidade de junção com o formato que a aplicação declararia à mão
+  # (docs/fase-0.md, "Relações muitos-para-muitos"). O nome é <dono>_<relação no singular>.
+  def test_omitting_through_generates_a_registered_junction
+    with_chat do |root, compiler|
+      FileUtils.rm(File.join(root, 'app/domains/chat/room_membership.rb'))
+      edit(root, 'app/domains/chat/room.rb') { |text| text.sub(', through: :room_membership', '') }
+      document = compiler.build.document
+      relation = members(document)
+      assert_equal 'chat.room_member', relation.dig('through', 'id')
+      assert_equal ['owner'], relation['include_on_create']
+      junction = node(document, 'entity', 'chat.room_member')
+      assert_equal({ 'kind' => 'entity', 'id' => 'chat.room' }, junction['generated_from'])
+      assert_equal 'room_members', junction.dig('storage', 'table')
+      assert_equal %w[id room_id user_id], junction['fields'].map { |field| field['name'] }.sort
+      assert_equal %w[room user], junction['relations'].map { |item| item['name'] }.sort
+      assert junction['indexes'].any? { |index| index['unique'] && index['fields'] == %w[room_id user_id] }
+      assert_nil junction['tenant']
+      assert_equal %w[chat.room chat.room_member chat.user], policy(document, 'room', 'read')['reads'].map { |item| item['id'] }
+    end
+  end
+
+  def test_target_is_inferred_from_the_relation_name_in_the_singular
+    with_app('blog') do |root, compiler|
+      write(root, 'app/domains/blog/tag.rb', "entity :tag do\n  string :name, required: true, unique: true, normalize: :downcase\nend\n")
+      edit(root, 'app/domains/blog/post.rb') { |text| text.sub('  crud', "  many_to_many :tags\n  crud") }
+      document = compiler.build.document
+      relation = node(document, 'entity', 'blog.post')['relations'].find { |item| item['name'] == 'tags' }
+      assert_equal 'blog.tag', relation.dig('target', 'id')
+      assert_equal 'blog.post_tag', relation.dig('through', 'id')
+      assert_equal %w[id post_id tag_id], node(document, 'entity', 'blog.post_tag')['fields'].map { |field| field['name'] }.sort
+    end
+  end
+
+  def test_generated_junction_follows_the_application_tenant
+    with_app('mini_crm_revendas') do |root, compiler|
+      edit(root, 'app/domains/crm/lead.rb') { |text| text.sub('  crud', "  many_to_many :watchers, entity: :user\n  crud") }
+      document = compiler.build.document
+      junction = node(document, 'entity', 'crm.lead_watcher')
+      assert_equal 'crm.company', junction.dig('tenant', 'entity', 'id')
+      assert junction['relations'].all? { |item| item['same_tenant'] }
+      assert junction['indexes'].any? { |index| index['unique'] && index['fields'] == %w[company_id lead_id user_id] }
+      relation = node(document, 'entity', 'crm.lead')['relations'].find { |item| item['name'] == 'watchers' }
+      assert_equal %w[company_id id], relation['local_fields']
+      assert relation['same_tenant']
+    end
+  end
+
+  def test_implicit_junction_refuses_what_it_cannot_infer_safely
+    with_chat do |root, compiler|
+      edit(root, 'app/domains/chat/room.rb') { |text| text.sub('  crud', "  many_to_many :gizmos\n  crud") }
+      error = assert_graph_error('relation_target') { compiler.build }
+      assert_includes error.message, 'chat.gizmo'
+    end
+    with_chat do |root, compiler|
+      write(root, 'app/domains/chat/room_member.rb', "entity :room_member do\n  belongs_to :room\n  belongs_to :user\nend\n")
+      edit(root, 'app/domains/chat/room.rb') { |text| text.sub(', through: :room_membership', '') }
+      error = assert_graph_error('relation_through') { compiler.build }
+      assert_includes error.message, 'chat.room_member'
+    end
+    with_chat do |root, compiler|
+      edit(root, 'app/domains/chat/user.rb') { |text| text.sub("end\n", "  many_to_many :friends, entity: :user\nend\n") }
+      error = assert_graph_error('relation_through') { compiler.build }
+      assert_match(/auto-relações/, error.message)
+    end
+    with_app('mini_crm_revendas') do |root, compiler|
+      edit(root, 'app/domains/crm/lead.rb') { |text| text.sub('  crud', "  many_to_many :partners, entity: :company\n  crud") }
+      error = assert_graph_error('relation_through') { compiler.build }
+      assert_match(/mesmo tratamento de tenant/, error.message)
     end
   end
 

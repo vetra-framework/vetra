@@ -7,7 +7,8 @@ fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 Medição de 2026-10-30 e 2026-10-31, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136
 testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos
 três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
-testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções, sem falhas.
+testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções. Depois da junção
+implícita: 191 testes e 1.325 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -26,12 +27,12 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte agora emite os 121. Cada caso confere o código, o ponteiro JSON e, quando a regra aponta um nó, a origem. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto | Medido: eram 78 de 121 códigos de diagnóstico emitidos pela suíte. `test/diagnostics_test.rb` acrescenta um caso para cada um dos 43 que faltavam, e a suíte emite todos (123 na última medição, com os dois códigos criados depois). Cada caso confere o código, o ponteiro JSON e, quando a regra aponta um nó, a origem. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto, exceto o que depende de uma evolução | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`. Leitura anterior e conversão só podem ser testadas quando existir a primeira evolução do formato. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão diferente (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
-| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). Conferidos construto a construto contra a proposta: no blog, 5 de 14 recusados; no mini CRM, 4 de 6; no chat, 7 de 9. Todos falham de forma audível. |
+| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 4 de 6; no chat, 6 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
@@ -76,12 +77,12 @@ para o compilado (por exemplo, contratos `post_input` contra `*.input`, nenhum c
 esperada e não é defeito. A comparação possível é contra o DSL da proposta (`docs/exemplos/`). No blog, cada
 construto foi aplicado sozinho sobre `examples/blog`:
 
-- **Aceitos (9):** `slug` com `from:` e `unique:`, `text`, `belongs_to :author, entity: :user, default:
+- **Aceitos (10):** `slug` com `from:` e `unique:`, `text`, `belongs_to :author, entity: :user, default:
   :current_actor` (com uma entidade `user` declarada), `normalize: :downcase` com `unique:`, a entidade `comment`
   com `email` pessoal, `boolean` com default e `set_by:` de um comando declarado, o papel visitante com
-  `where:`, `can ... fields:` e `role :admin` com `can :manage, on: %i[...]`.
-- **Recusados (5):** `many_to_many :tags` sem entidade de junção declarada (a geração automática é documentada
-  como não implementada), `ui:` em `crud` e em `expose`, `rate_limit:` em `can` e uma consulta sem `returns` nem
+  `where:`, `can ... fields:`, `role :admin` com `can :manage, on: %i[...]` e `many_to_many :tags` com a entidade
+  `tag` declarada (a junção é gerada; antes era recusado).
+- **Recusados (4):** `ui:` em `crud` e em `expose`, `rate_limit:` em `can` e uma consulta sem `returns` nem
   `authorize`. Todos falham de forma audível, como o `fase-0.md` promete.
 
 No mini CRM, a base foi `examples/mini_crm_revendas`, que reproduz o exemplo da proposta. Cada diferença entre a
@@ -95,22 +96,24 @@ proposta e o repositório foi aplicada sozinha:
 
 No chat, a base foi `examples/chat`:
 
-- **Aceitos (2):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }` e o comando
-  `add_member_by_email` com `authorize :add_member` e `input :email, :email`. O compilador os aceita, mas o
+- **Aceitos (3):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }`, o comando
+  `add_member_by_email` com `authorize :add_member` e `input :email, :email`, e `many_to_many :members, entity: :user,
+  include: :owner` sem nenhuma junção declarada (antes era recusado). O compilador aceita as duas primeiras, mas o
   repositório não tem os comandos `add_member` e `remove_member`, que o `fase-0.md` lista como inexistentes.
-- **Recusados (7):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse`, `many_to_many` sem
-  `through:`, `index :room_id, :created_at`, uma consulta sem `returns` nem `authorize` e `live true`.
+- **Recusados (6):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse`, `index :room_id,
+  :created_at`, uma consulta sem `returns` nem `authorize` e `live true`.
 
-Os três exemplos juntos recusam dez famílias de construto. Seis já constavam no `fase-0.md` como não implementadas:
-`auth`, `ui`, `live true`, junção implícita de `many_to_many`, `returns` explícito (a obrigatoriedade de `authorize`
-só aparece no diagnóstico do compilador) e o `created_at` implícito. Uma é requisito de desenho que o `fase-0.md` só
-mostra por exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da
-documentação:** `realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do
-`fase-0.md`. As duas últimas falhavam com um `dsl_error` que repassava o `ArgumentError` do Ruby (`unknown keyword:
-:rate_limit` e `wrong number of arguments`), sem nomear o recurso. Isso foi corrigido, primeiro em `can` e
-`currency` e depois em todo o DSL: uma palavra-chave desconhecida falha com `unsupported_option` e uma obrigatória
-ausente com `missing_option`, nomeando o método e apontando a linha da declaração (antes era sempre a linha 1 do
-arquivo).
+Os três exemplos juntos recusam nove famílias de construto. Cinco já constavam no `fase-0.md` como não
+implementadas: `auth`, `ui`, `live true`, `returns` explícito (a obrigatoriedade de `authorize` só aparece no
+diagnóstico do compilador) e o `created_at` implícito. Uma é requisito de desenho que o `fase-0.md` só mostra por
+exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da documentação:**
+`realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do `fase-0.md`. As duas
+últimas falhavam com um `dsl_error` que repassava o `ArgumentError` do Ruby (`unknown keyword: :rate_limit` e `wrong
+number of arguments`), sem nomear o recurso. Isso foi corrigido, primeiro em `can` e `currency` e depois em todo o
+DSL: uma palavra-chave desconhecida falha com `unsupported_option` e uma obrigatória ausente com `missing_option`,
+nomeando o método e apontando a linha da declaração (antes era sempre a linha 1 do arquivo). A décima família da
+primeira medição, a junção implícita de `many_to_many`, deixou de ser recusada: o compilador a gera (`fase-0.md`,
+"Junção gerada").
 
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
