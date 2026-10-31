@@ -17,7 +17,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #33: `test` e sondas no PostgreSQL 17 e 18 |
 | PRs | #1 a #33 integrados |
-| Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
+| Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
 ## Como manter este arquivo
@@ -55,7 +55,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **CI e sondas**
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
-- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 009, 015 e 019)
+- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 009, 011, 015 e 019). A 011 (o `FOR SHARE` da revogação da
+  delegação, que só estava conferido à mão no 16.15) entrou em #35
 - [x] Verdicts das sondas por contagem de varreduras e por relógio do servidor, não por tempo de parede (#7)
 - [x] Lista de revisão dos ADRs (#7) e auditoria dos critérios do ADR-001 (#8)
 
@@ -183,8 +184,6 @@ Não há ADR proposto: nenhuma decisão de ADR espera quem revisa.
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
   ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
-- [ ] Decidir se o ADR-011 ganha `script/sonda_adr011.rb` (`FOR SHARE` contra a revogação), com CI no PostgreSQL
-  17 e 18
 - [ ] Decidir se a `sonda_adr015` ganha os quatro casos do ADR-025 (índice e chave em tabela particionada, chave
   composta por tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18
 - [ ] Decidir quais das questões em aberto dos demais ADRs aceitos merecem um ADR de resolução agora. Nenhuma
@@ -253,8 +252,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   está especificado; ramos concorrentes exigem um escalonador determinístico e um ADR novo
 - [ ] **ADR-011:** a IR 0.1 não representa a exposição MCP (o `surface` aceita `http`, `cli`, `job` e `webhook`;
   é preciso uma nova MENOR com `vetra.mcp`) e o DSL só tem `expose http:`. As delegações, as aprovações, o
-  adaptador, o limite de taxa e o piso de sensibilidade não existem. O `FOR SHARE` da revogação foi conferido à
-  mão no PostgreSQL 16.15, sem sonda versionada. O piso cobre só o que a IR enxerga, porque o `call` não é
+  adaptador, o limite de taxa e o piso de sensibilidade não existem. O `FOR SHARE` da revogação tem a
+  `sonda_adr011` (5 itens, rodando na CI no 17 e no 18). O piso cobre só o que a IR enxerga, porque o `call` não é
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
 - [ ] **ADR-018:** os módulos de UI, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no protótipo), a
   representação na IR (nova MENOR com `vetra.ui`), o `vetra doctor` e `vetra ui:resync` não existem; a CLI só tem

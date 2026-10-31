@@ -51,8 +51,8 @@ Onde está "nenhuma", o ADR é uma decisão de projeto e o que o sustenta são o
 implementação.
 
 A CI reverifica a cada PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `sonda_adr003`, `sonda_adr009`,
-`sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler` (exige um PgBouncer)
-são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados que a CI não repete.
+`sonda_adr011`, `sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler`
+(exige um PgBouncer) são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados que a CI não repete.
 
 | ADR | Rodada | Depende de | Evidência | Testes de aceitação | Questões em aberto |
 |---|---|---|---|---|---|
@@ -68,7 +68,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 015 Migrações expand/contract | 2 | 002, 001 | `sonda_adr015`, `sonda_adr002` | 12 | 6 |
 | 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
-| 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma sonda (o `FOR SHARE` foi conferido à mão) | 17 | 9 |
+| 011 MCP com identidade delegada | 3 | 007, 016, 005 | `sonda_adr011` (o `FOR SHARE` da revogação) | 17 | 9 |
 | 012 Canário em modo sombra | 3 | 004, 016 | `sonda_adr002` (`xid`); o campo `simulation` na IR | 13 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
@@ -226,10 +226,12 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   gerador e deploy do modo independente.
 
 **ADR-011 · MCP opt-in com identidade delegada** (aceito)
-- [ ] Evidência: nenhuma sonda. O `FOR SHARE` da revogação (§2) foi conferido à mão no PostgreSQL 16.15: duas
-  leituras com `FOR SHARE` não esperam uma pela outra, e o `UPDATE` da revogação espera a transação que trava a
-  linha. A IR 0.1 não representa a exposição MCP (o `surface` aceita `http`, `cli`, `job` e `webhook`) e o DSL só
-  tem `expose http:`. O piso de sensibilidade, as delegações, as aprovações e o adaptador não existem.
+- [ ] Evidência: `sonda_adr011` (5 itens, no 16.15; roda na CI no 17 e no 18). O `FOR SHARE` da revogação (§2) foi
+  conferido primeiro à mão e depois pela sonda: duas leituras com `FOR SHARE` não esperam uma pela outra, o
+  `UPDATE` da revogação espera a transação que trava a linha e vale depois do commit dela, e uma operação que
+  começa ou espera depois da revogação não obtém a linha. A IR 0.1 não representa a exposição MCP (o `surface`
+  aceita `http`, `cli`, `job` e `webhook`) e o DSL só tem `expose http:`. O piso de sensibilidade, as delegações,
+  as aprovações e o adaptador não existem.
 - [ ] Limites: "argumentos hostis não ultrapassam o contrato" é verificável por testes, mas não é prova; "dado
   entregue ao agente não é repassado" está fora da garantia; o piso de sensibilidade cobre só o que a IR enxerga
   (ação, entidade e campo `money`), porque o `call` não é registrado; as recusas das etapas 1 a 3 ficam no log, não
