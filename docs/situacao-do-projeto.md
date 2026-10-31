@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `1bb1e62` (PR #24).
+- **Atualizado em:** 2026-10-31, sobre a main `53808ac` (PR #25).
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -12,11 +12,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 18 aceitos e 3 propostos, de 21 |
+| ADRs | 19 aceitos e 2 propostos, de 21 |
 | Testes do compilador | 191 testes e 1.325 asserções, sem falhas; os 123 códigos de diagnóstico são disparados por algum teste |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI da main | Verde no PR #16: `test` e sondas no PostgreSQL 17 e 18 |
-| PRs | #1 a #24 integrados |
+| PRs | #1 a #25 integrados |
 | Sondas | 7 em `script/`, mais o simulador do gate da CI; 5 rodam na CI (002, 003, 009, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -64,7 +64,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Rodada 1 aceita: 016, 001 e 002 (#12)
 - [x] Rodada 2 aceita por inteiro: 003, 005, 006, 008 e 015 (#14), 004 (#16), 007 (#18) e 017 (#19)
 - [x] Rodada 3 aceita em parte: 020 (#15), 010 (#20), 013 (#21), 014 (#22), 021 (#23) e 012 (#25)
-- [x] Rodada 4 aceita em parte: 019 (#24)
+- [x] Rodada 4 aceita por inteiro: 019 (#24) e 009 (#26)
 - [x] ADR-020 passou a definir o evento de mudança de linha (trigger gerado, sem campo pessoal), que nenhum ADR
   definia (#15)
 - [x] ADR-004 decidiu o dado externo para comandos: sem capacidade de leitura externa nesta versão (#16)
@@ -86,6 +86,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   instantâneo; amostra incomparável quando o avaliador não resolve) e corrigiu o momento do instantâneo da sombra
   (o da abertura da transação de produção) e o contexto assinado dela (um novo, porque o da produção expira em
   30 s) (#25)
+- [x] ADR-009 decidiu que a primeira versão dos workflows não tem escalonador de fibras (o workflow linear
+  suspende a Fiber a cada `ctx`, como a sonda verifica) e que o workflow age como um ator de sistema do tenant da
+  execução, com um contexto assinado emitido a cada passo; o histórico do workflow passou a ter os campos
+  pessoais cifrados (#26)
 - [x] `docs/situacao-do-projeto.md` (#17)
 
 Os PRs #1 a #5 reúnem a análise e as correções iniciais, a verificação do Sequel e do `pg` contra um PostgreSQL
@@ -105,6 +109,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
 - [x] **006** Isolamento de domínios em três níveis (rodada 2, #14)
 - [x] **007** Comando e adaptadores (rodada 2, #18)
 - [x] **008** Ordem e continuidade dos eventos (rodada 2, #14)
+- [x] **009** Workflows por histórico e replay (rodada 4, #26)
 - [x] **010** Adoção hospedada e modo serviço (rodada 3, #20)
 - [x] **012** Canário em modo sombra (rodada 3, #25)
 - [x] **013** Privacidade, auditoria e histórico (rodada 3, #21)
@@ -121,8 +126,6 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md). "Decisão" é a 
   como sensíveis; formato da delegação, que estende o contexto assinado `v1` do ADR-005.
 - [ ] **018** Camada de UI em módulos (rodada 3). O 007 já está aceito. Decisão: como o gerador versiona os
   templates ejetados e detecta que o contrato mudou.
-- [ ] **009** Workflows por histórico e replay (rodada 4). O 014 já está aceito. Decisão: viabilidade e custo do
-  escalonador de fibras determinístico; quem é o ator de um workflow, à luz do §8 do ADR-014.
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
@@ -176,6 +179,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
 - [ ] Modo sombra em execução: simulador determinístico, repositório simulado e relatório de divergências
+- [ ] Workflows duráveis em execução: histórico, replay, temporizadores, sinais e versões
 - [ ] Servidor de produção e cache de compilação
 - [ ] RLS, entrega de eventos e consultas live em execução. As garantias dos ADRs aceitos valem como decisão, não
   como código
@@ -187,6 +191,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-020:** sem sonda; o que o sustenta são os 12 critérios, ainda sem implementação
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
+- [ ] **ADR-009:** o motor de workflows, o histórico e a sintaxe não existem, e o schema 0.1 não representa
+  workflows. A `sonda_adr009` verifica o replay em Fiber (sem escalonador), o código alterado e a Fiber não
+  serializável, e mede o `TracePoint`. O contrato de cancelamento, sinais concorrentes e compensação ainda não
+  está especificado; ramos concorrentes exigem um escalonador determinístico e um ADR novo
 - [ ] **ADR-012:** o simulador, o repositório simulado e o cálculo de elegibilidade não existem; o grafo só traz o
   campo `simulation` das capacidades. O comportamento do instantâneo exportado (a sombra parte do estado anterior
   à escrita da produção; importar depois que a produção terminou falha) foi conferido à mão no PostgreSQL 16.15,
@@ -230,6 +238,6 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
-1. [ ] Reler 009, 011 e 018 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde não
-   houver lacuna
+1. [ ] Reler 011 e 018 por inteiro; redigir a recomendação onde houver decisão e propor o aceite onde não houver
+   lacuna
 2. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta
