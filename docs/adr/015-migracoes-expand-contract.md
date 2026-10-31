@@ -1,6 +1,6 @@
 # ADR-015: Migrações expand/contract com análise de locks
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-002 (somente PostgreSQL), ADR-001 (Grafo da Aplicação e IR)
 - Relacionados: ADR-005 (papéis do banco e políticas RLS), ADR-008 (o `xmin` e a entrega de eventos), ADR-016

@@ -1,6 +1,6 @@
 # ADR-008: Notificação como invalidação, ordem por xid8 e continuidade
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-002 (somente PostgreSQL)
 - Dependem deste ADR (na data do aceite): 014 (outbox com entrega pelo menos uma vez), 019 (sinais efêmeros) e
