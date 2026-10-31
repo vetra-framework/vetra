@@ -2,8 +2,11 @@
 
 - Status: proposto
 - Data: 2026-10-30
-- Dependem deste ADR: 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado), 008 (ordem e
-  continuidade dos eventos), 020 (entrega live incremental), 021 (campos de transição)
+- Relacionados: ADR-002 (as garantias transacionais assumem uma transação do PostgreSQL)
+- Dependem deste ADR (na data do aceite): 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado),
+  007 (comando e adaptadores), 008 (ordem e continuidade dos eventos), 009 (workflows), 011 (MCP), 012 (canário
+  em modo sombra), 013 (privacidade, auditoria e histórico), 014 (outbox), 018 (camada de UI), 020 (entrega
+  live incremental) e 021 (campos de transição)
 
 ## Contexto
 
@@ -148,7 +151,7 @@ idempotência. Não existe estado intermediário visível.
   com erro retentável.
 - Em falha de serialização ou deadlock, o framework **repete a operação inteira** (no máximo 3 vezes, com
   espera crescente com variação aleatória). Isso só é seguro porque a etapa 5 não tem efeito externo fora do
-  Effect Boundary; um comando que declare uma capacidade sem repetição segura (`retry: false`) não é
+  Effect Boundary; um comando que declare uma capacidade sem repetição segura (`retry_safe: false`) não é
   repetido.
 - Streaming e operações longas (relatórios, importações) não rodam dentro de uma única unidade de trabalho:
   são divididas em comandos menores ou viram workflow durável (pilar 5).
