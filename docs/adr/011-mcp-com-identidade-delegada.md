@@ -1,6 +1,6 @@
 # ADR-011: MCP opt-in com identidade delegada, aprovação para comandos sensíveis e limite de taxa
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-007 (comando e adaptadores), ADR-016 (ciclo de vida da operação), ADR-005 (RLS e contexto
   assinado)

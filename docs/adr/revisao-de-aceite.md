@@ -1,8 +1,8 @@
 # Lista de revisão para aceitar os ADRs
 
 Os 21 ADRs estão escritos. Os da rodada 1 (016, 001 e 002), os da rodada 2 (003, 004, 005, 006, 007, 008, 015 e
-017), o 010, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e os da rodada 4 (009 e 019) foram aceitos; os outros
-2 têm status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
+017), o 010, o 011, o 012, o 013, o 014, o 020 e o 021 da rodada 3 e os da rodada 4 (009 e 019) foram aceitos; o
+outro (018) tem status **proposto**. Esta lista organiza a revisão: em que ordem ler, o
 que conferir em cada ADR e o que o revisor precisa aceitar de forma explícita. Ela não aceita nada por si; a
 decisão é de quem revisa.
 
@@ -39,7 +39,7 @@ dos outros, então podem ser revisados em qualquer ordem entre si.
 |---|---|---|
 | 1 | 016, 001, 002 (**aceitos**) | nada |
 | 2 | 003, 004, 005, 006, 007, 008, 015, 017 (**aceitos**) | só da rodada 1 |
-| 3 | 010, 012, 013, 014, 020, 021 (**aceitos**); 011, 018 | rodadas 1 e 2 |
+| 3 | 010, 011, 012, 013, 014, 020, 021 (**aceitos**); 018 | rodadas 1 e 2 |
 | 4 | 009, 019 (**aceitos**) | 009 depende do 014 (rodada 3); 019, do 020 e do 013 (rodada 3) |
 
 O índice sugere começar pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. Todos estão nas rodadas 1 e 2.
@@ -68,7 +68,7 @@ são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados
 | 015 Migrações expand/contract | 2 | 002, 001 | `sonda_adr015`, `sonda_adr002` | 12 | 6 |
 | 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
-| 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma | 12 | 7 |
+| 011 MCP com identidade delegada | 3 | 007, 016, 005 | nenhuma sonda (o `FOR SHARE` foi conferido à mão) | 17 | 9 |
 | 012 Canário em modo sombra | 3 | 004, 016 | `sonda_adr002` (`xid`); o campo `simulation` na IR | 13 | 6 |
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
@@ -225,13 +225,24 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: menor versão do Rails, critérios de saída por domínio, convivência com migrações do Rails,
   gerador e deploy do modo independente.
 
-**ADR-011 · MCP opt-in com identidade delegada**
+**ADR-011 · MCP opt-in com identidade delegada** (aceito)
+- [ ] Evidência: nenhuma sonda. O `FOR SHARE` da revogação (§2) foi conferido à mão no PostgreSQL 16.15: duas
+  leituras com `FOR SHARE` não esperam uma pela outra, e o `UPDATE` da revogação espera a transação que trava a
+  linha. A IR 0.1 não representa a exposição MCP (o `surface` aceita `http`, `cli`, `job` e `webhook`) e o DSL só
+  tem `expose http:`. O piso de sensibilidade, as delegações, as aprovações e o adaptador não existem.
 - [ ] Limites: "argumentos hostis não ultrapassam o contrato" é verificável por testes, mas não é prova; "dado
-  entregue ao agente não é repassado" está fora da garantia.
-- [ ] Pode mudar a decisão: **quem classifica os comandos como sensíveis** (o ADR fixa só o mínimo) e **o
-  formato da delegação**, que estende o contexto assinado do ADR-005.
-- [ ] Adiável: autenticação do agente e transporte, canal de aprovação humana, validade e limite de taxa,
-  leituras como ferramentas e exfiltração, conjunto de testes adversariais.
+  entregue ao agente não é repassado" está fora da garantia; o piso de sensibilidade cobre só o que a IR enxerga
+  (ação, entidade e campo `money`), porque o `call` não é registrado; as recusas das etapas 1 a 3 ficam no log, não
+  no Audit.
+- [ ] Pode mudar a decisão: **eram duas**. Resolvidas no ADR: (1) quem classifica: todo comando exposto declara
+  `approval: :required` ou `:none`, sem padrão, e o compilador deriva um piso (exclusão, vínculo de permissão,
+  campo `money`) que não se baixa (§3). (2) A delegação: o contexto assinado mantém o delegante em `actor_id`, para
+  o RLS nunca dar ao agente mais do que ao usuário, e ganha as claims `agent_id` e `delegation_id` dentro do `v1`;
+  a revogação vale por `FOR SHARE` na etapa 6 (§2). As alternativas descartadas foram a classificação opcional, o
+  agente como `actor_id` e derivar tudo do `call`.
+- [ ] Adiável: autenticação do agente e transporte, canal e prazo da aprovação, validade e limite de taxa (e onde
+  o contador mora), escopo por campo, leituras como ferramentas e exfiltração, se um deploy invalida aprovações
+  pendentes, registro consultável das recusas, representação exata na IR, conjunto de testes adversariais.
 
 **ADR-012 · Canário em modo sombra com capacidades simuladas** (aceito)
 - [ ] Evidência: `sonda_adr002` (um `SELECT` simples não atribui `xid`, o `FOR UPDATE` atribui) e o campo
@@ -358,7 +369,14 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   "Relacionados".
 - ADR-006: cita o ADR-014 em "Relacionados".
 - ADR-011: a extensão do contexto assinado (identidade do agente e delegação) passou a ser deste ADR, porque o
-  ADR-005 aceito não é editado; o formato `v1` já é versionado.
+  ADR-005 aceito não é editado; o formato `v1` já é versionado. Decisões sobre quem classifica os comandos
+  sensíveis e sobre o delegante no `actor_id`. A releitura achou cinco lacunas, corrigidas: a IR 0.1 não representa
+  a exposição MCP (exige uma nova MENOR); a aprovação pode chegar horas depois da autorização, então as etapas 1 a
+  3 repetem e a aprovação é consumida uma vez; a entrada da aprovação pendente é dado pessoal fora do Audit e passou
+  a ser cifrada pela DEK do titular; o texto prometia auditar as recusas, mas o ADR-016 (teste 1) diz que recusa não
+  abre transação, então as recusas das etapas 1 a 3 vão ao log; e "suspender o agente em andamento" não tinha
+  sentido transacional. Sete alternativas rejeitadas novas, uma verificação preliminar, cinco garantias novas, os
+  testes de aceitação 13 a 17 e os ADRs 001 e 017 em "Relacionados".
 - ADR-009: decisões sobre o escalonador de fibras (fora desta versão) e o ator do workflow; o histórico do
   workflow, um terceiro lugar onde dado pessoal persiste, passou a ter os campos pessoais cifrados pela DEK do
   titular (ADR-013); o contrato de cancelamento, sinais e compensação, que a seção 2 citava sem definir, entrou
