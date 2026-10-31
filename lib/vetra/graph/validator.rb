@@ -427,6 +427,12 @@ module Vetra
 
       def route(node)
         write = node.dig('target', 'kind') == 'command'
+        if node['surface'] == 'job' && !write
+          issue('route_target', 'Job deve chamar um comando; consultas são expostas por HTTP de leitura, CLI ou live.', node, suffix: '/target')
+        end
+        if %w[cli job].include?(node['surface']) && node.dig('config', 'name').strip.empty?
+          issue('route_format', 'CLI e job exigem um nome não vazio.', node, suffix: '/config/name')
+        end
         if %w[http webhook].include?(node['surface'])
           method = node.dig('config', 'method')
           if (write && %w[GET HEAD OPTIONS].include?(method)) || (!write && !%w[GET HEAD].include?(method))

@@ -145,7 +145,7 @@ class DiagnosticsTest < GraphTest
   def test_keyword_errors_name_the_option_the_method_and_the_line
     {
       'unsupported_option' => ['post.rb', 'crud scope: :author', 'crud scope: :author, ui: :admin', 'ui', 'crud'],
-      'missing_option' => ['publish_post.rb', 'expose http: "POST /posts/:post_id/publish"', 'expose ui: { button: "Publicar" }', 'http', 'expose']
+      'missing_option' => ['publish_post.rb', 'expose http: "POST /posts/:post_id/publish"', 'expose', 'http', 'expose']
     }.each do |code, (file, from, to, option, method)|
       with_app('blog') do |root, compiler|
         path = "app/domains/blog/#{file}"

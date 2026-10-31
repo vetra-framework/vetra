@@ -247,8 +247,24 @@ module Vetra
           @attributes["emits"] << { "event" => event.to_s, "fields" => with.map(&:to_s), "from" => from&.to_s }
         end
 
-        def expose(http:, idempotency: :optional)
-          @attributes["exposures"] << { "http" => http, "idempotency" => idempotency.to_s }
+        def expose(idempotency: :optional, **surfaces)
+          origin = source(nil)
+          unknown = surfaces.keys - %i[http cli job webhook]
+          unless unknown.empty?
+            ::Kernel.raise Error.single('unsupported_option', "Opções não implementadas em expose: #{unknown.join(', ')}.", source: origin)
+          end
+          if surfaces.empty?
+            ::Kernel.raise Error.single('missing_option', 'Declare ao menos uma superfície em expose: http, cli, job ou webhook.', source: origin)
+          end
+          surfaces.each do |surface, value|
+            named = %i[cli job].include?(surface)
+            valid = value.is_a?(::String) || (named && value.is_a?(::Symbol))
+            unless valid && !value.to_s.strip.empty?
+              format = named ? 'um nome não vazio (String ou Symbol)' : '"MÉTODO /caminho" (String)'
+              ::Kernel.raise Error.single('route_format', "expose #{surface} exige #{format}.", source: origin)
+            end
+            @attributes['exposures'] << { 'surface' => surface.to_s, 'value' => value.to_s, 'idempotency' => idempotency.to_s, 'source' => origin }
+          end
         end
 
         def call(&block)

@@ -68,7 +68,8 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
   `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
 - `command` e `query`, com `input`, `returns :entidade`, `authorize`, `uses`, `call`, `unsafe_effect` e
-  `expose http:`. `returns` é explícito porque não se infere retorno de Ruby arbitrário.
+  `expose http:`, `cli:`, `job:` e `webhook:`. `returns` é explícito porque não se infere retorno de Ruby
+  arbitrário. Queries aceitam HTTP de leitura e CLI; jobs e webhooks exigem comandos.
 - `event`, com projeção de campos, visibilidade e exigência de consumidor; `emits` pode inferir o evento
   interno e seu payload quando ele não foi declarado separadamente.
 - `handler`, com `on`, `uses`, `calls`, `idempotent_by :event_id` e `call`; `effect` registra capacidades
@@ -94,6 +95,42 @@ que só `unsafe_effect` com motivo libera), construções dinâmicas conhecidas 
 capacidades nomeadas. Não resolve fluxo de dados, aliases, helpers arbitrários, gems ou todos os efeitos
 transitivos. `analysis.status: complete` só significa que esse analisador limitado não encontrou uma
 construção dinâmica conhecida. Não constitui prova de pureza ou segurança.
+
+## Exposições HTTP, CLI, job e webhook
+
+Cada exposição gera um nó `route` da IR 0.1, apontando para a mesma operação. O contrato de entrada, a
+autorização, as capacidades e o bloco `call` pertencem à operação, como decide o [ADR-007](adr/007-comando-como-unidade-unica-e-adaptadores.md).
+O mini CRM demonstra as quatro superfícies em `win_lead`:
+
+```ruby
+expose http: "POST /leads/:lead_id/win"
+expose cli: "leads:win"
+expose job: "leads.win", idempotency: :required
+expose webhook: "POST /webhooks/leads/:lead_id/win", idempotency: :required
+```
+
+- `http` e `webhook` recebem uma String `"MÉTODO /caminho"`. Comandos recusam `GET`, `HEAD` e `OPTIONS`;
+  consultas só aceitam `GET` e `HEAD`. Todo parâmetro de caminho precisa existir no contrato de entrada.
+- `cli` e `job` recebem nome não vazio, como String ou Symbol, único dentro de sua superfície em toda a
+  aplicação. O mesmo nome pode existir uma vez em CLI e outra em job. Uma consulta pode declarar CLI;
+  jobs e webhooks exigem comando.
+- `idempotency` é `optional` por padrão. Webhook exige `idempotency: :required` explícito. A omissão ou a
+  opção `optional` falha com `webhook_idempotency`, antes de escrever o artefato.
+- Várias superfícies podem ser declaradas numa chamada, como `expose cli: :publicar, job: :publicar`. Nesse
+  caso compartilham a opção `idempotency` daquela chamada. Exposições separadas podem exigir valores distintos.
+- HTTP e webhook disputam o mesmo espaço de método/caminho. Nomes de parâmetros diferentes, trechos fixos
+  sobrepostos com parâmetros e o par `GET`/`HEAD` entram na verificação de ambiguidade.
+- Uma exposição não projeta nem restringe os campos do contrato: opções como `fields:` falham. UI e MCP
+  continuam sem suporte. Erros de argumentos de `expose` identificam o arquivo e a linha da exposição;
+  erros semânticos da rota também trazem o ponteiro JSON e a origem da operação que a gerou.
+
+Os identificadores gerados contam por superfície: `crm.win_lead.http_1`, `.cli_1`, `.job_1` e `.webhook_1`.
+Acrescentar uma exposição CLI não renomeia as rotas HTTP existentes. Rotas novas aparecem no `graph:diff`
+como mudanças de superfície e permissão que exigem revisão.
+
+Este suporte é declarativo: `graph:link` vincula o bloco uma única vez. O protótipo ainda não tem servidor
+HTTP, terminal para executar comandos de negócio, fila de jobs nem recebimento de webhooks; a exigência de
+idempotência é metadado validado, sem deduplicação em execução.
 
 ## Dinheiro e escala por moeda
 

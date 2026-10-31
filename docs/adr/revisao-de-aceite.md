@@ -164,10 +164,11 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 
 **ADR-007 · Comando como unidade única de operação e adaptadores de superfície** (aceito)
 - [ ] Evidência: o compilador da fase 0 implementa as regras de rota do §4 (`route_target`, `webhook_idempotency`,
-  `route_collision` e a conferência dos parâmetros de caminho). Os testes exercitam o comando exposto por `GET`,
-  o webhook sem idempotência obrigatória e a rota ambígua; a direção consulta por `POST` está implementada, mas
-  sem teste. O DSL declara só `expose http:`, então `cli`, `job` e `webhook` existem apenas na IR. Os demais
-  testes de aceitação dependem do runtime.
+  `route_collision` e a conferência dos parâmetros de caminho). O DSL declara `expose http:`, `cli:`, `job:` e
+  `webhook:`. `exposure_test.rb` cobre consulta por POST, comando por método seguro em webhook, nomes únicos por
+  superfície, idempotência obrigatória de webhook, rotas ambíguas entre HTTP e webhook e vínculo único à
+  operação. O caso comando por GET também é coberto na suíte anterior. Os demais testes de aceitação dependem
+  do runtime; os adaptadores não foram implementados.
 - [ ] Limites: nenhum; as cinco garantias são verificáveis por testes ou estruturais.
 - [ ] Pode mudar a decisão: **era se uma exposição pode restringir o contrato** (aceitar menos campos que o
   comando) sem criar um comando novo. Resolvida no §7 do ADR: não pode. Uma entrada menor se resolve com campos
@@ -230,7 +231,7 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   conferido primeiro à mão e depois pela sonda: duas leituras com `FOR SHARE` não esperam uma pela outra, o
   `UPDATE` da revogação espera a transação que trava a linha e vale depois do commit dela, e uma operação que
   começa ou espera depois da revogação não obtém a linha. A IR 0.1 não representa a exposição MCP (o `surface`
-  aceita `http`, `cli`, `job` e `webhook`) e o DSL só tem `expose http:`. O piso de sensibilidade, as delegações,
+  aceita `http`, `cli`, `job` e `webhook`) e o DSL aceita as quatro superfícies, sem MCP. O piso de sensibilidade, as delegações,
   as aprovações e o adaptador não existem.
 - [ ] Limites: "argumentos hostis não ultrapassam o contrato" é verificável por testes, mas não é prova; "dado
   entregue ao agente não é repassado" está fora da garantia; o piso de sensibilidade cobre só o que a IR enxerga

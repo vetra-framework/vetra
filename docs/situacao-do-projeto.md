@@ -4,8 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre a main `88ee91c` (PR #35), com a continuação local de `money`
-  descrita abaixo, ainda sem PR.
+- **Atualizado em:** 2026-10-31, sobre `635d926` (implementação de `money`, após o PR #35), com a
+  continuação local das exposições do ADR-007 descrita abaixo, ainda sem PR.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -13,11 +13,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 proposto nesta continuação |
-| Testes do compilador | 206 testes e 1.515 asserções, sem falhas; os 123 códigos anteriormente medidos continuam cobertos e os 2 novos de `money` têm testes |
+| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 continua proposto |
+| Testes do compilador | 221 testes e 1.697 asserções, sem falhas; os 123 códigos anteriormente medidos continuam cobertos e os 2 novos de `money` têm testes; as exposições reutilizam códigos existentes |
 | Critérios da fase 0 (ADR-001) | 8 cobertos e 3 parciais |
 | CI registrada | Último resultado registrado neste documento: verde no PR #33; a sonda 011 entrou na matriz no #35 |
-| PRs | #1 a #35 integrados; continuação local ainda sem PR |
+| PRs | #1 a #35 integrados; `money` em `635d926`; continuação das exposições ainda sem PR |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -55,7 +55,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `money` sem `scale` segue o expoente da moeda da aplicação; uma escala explícita inferior é recusada
   (`money_scale`), e uma superior permite precisão estendida. A tabela ISO 4217 é local; moedas sem expoente
   definido falham com `money_currency`. Entidades, entradas de operações, contratos CRUD e payloads de eventos
-  estão cobertos por 12 testes novos (continuação local, ainda sem PR; fonte da tabela no ADR-026 proposto)
+  estão cobertos por 12 testes novos (`635d926`; fonte da tabela no ADR-026 proposto)
+- [x] `expose http:`, `cli:`, `job:` e `webhook:` no DSL, conforme o ADR-007, mantendo uma única operação,
+  contrato e autorização. Nomes são únicos por superfície; HTTP e webhook compartilham a detecção de rotas
+  ambíguas; webhook exige comando com `idempotency: :required` explícito. Consultas recusam POST, job e
+  webhook. O mini CRM declara as quatro superfícies de `win_lead`; 15 testes novos cobrem geração, falhas,
+  vinculação e diff (continuação local, ainda sem PR)
 
 **CI e sondas**
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
@@ -236,6 +241,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 
 **Runtime**
 - [ ] Execução das primitivas CRUD e dos comandos (hoje são descritores reconhecidos, sem executor)
+- [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
+  as exposições e a exigência de idempotência já são compiladas e validadas
 - [ ] Persistência e o Vetra Data
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
@@ -261,7 +268,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   serializável, e mede o `TracePoint`. O contrato de cancelamento, sinais concorrentes e compensação ainda não
   está especificado; ramos concorrentes exigem um escalonador determinístico e um ADR novo
 - [ ] **ADR-011:** a IR 0.1 não representa a exposição MCP (o `surface` aceita `http`, `cli`, `job` e `webhook`;
-  é preciso uma nova MENOR com `vetra.mcp`) e o DSL só tem `expose http:`. As delegações, as aprovações, o
+  é preciso uma nova MENOR com `vetra.mcp`) e o DSL aceita as quatro superfícies, sem MCP. As delegações, as aprovações, o
   adaptador, o limite de taxa e o piso de sensibilidade não existem. O `FOR SHARE` da revogação tem a
   `sonda_adr011` (5 itens, rodando na CI no 17 e no 18). O piso cobre só o que a IR enxerga, porque o `call` não é
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
@@ -292,13 +299,15 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-010:** o modo hospedado com o Active Record não foi exercitado, e nenhuma sonda mede a gem
   `sequel-activerecord_connection`. A transação e o contexto de RLS compartilhados e os cinco testes do ADR-003 são
   hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
-- [ ] **ADR-017:** a escala por moeda da aplicação e a precisão estendida estão implementadas e testadas nesta
-  continuação, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte proposta no ADR-026). A
+- [ ] **ADR-017:** a escala por moeda da aplicação e a precisão estendida estão implementadas e testadas em
+  `635d926`, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte proposta no ADR-026). A
   aritmética, o rateio, o arredondamento, a formatação e a validação HTTP ainda dependem do runtime; a moeda por
   tenant exige uma nova MENOR da IR
-- [ ] **ADR-007:** o protótipo implementa as regras de rota do §4, mas o teste de aceitação 6 só é exercitado na
-  direção comando por `GET`; a direção consulta por `POST` está implementada e sem teste. O DSL declara só
-  `expose http:`, então `cli`, `job` e `webhook` existem apenas na IR. Os demais testes dependem do runtime
+- [ ] **ADR-007:** as quatro superfícies são declaradas no DSL e validadas na IR 0.1. O teste de aceitação 6
+  cobre comando por GET e consulta por POST. Nomes únicos por superfície, colisões entre HTTP e webhook,
+  idempotência obrigatória de webhook e vínculo único ao comando estão cobertos em `exposure_test.rb`.
+  Os adaptadores, a tradução da entrada/saída, a transação comum e a idempotência em execução continuam
+  dependentes do runtime
 - [ ] **Sondas manuais:** `sonda_pooler` (precisa de PgBouncer) e `sonda_adr006` (precisa de `RUBY_BOX=1`) não rodam
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
@@ -338,6 +347,7 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6, 7 e 11, com os exemplos da proposta. A escala
-   por moeda de `money` foi a entrega desta continuação; os demais itens seguem pendentes nas seções 4 e 5
+   por moeda de `money` e as exposições do ADR-007 estão implementadas; os demais itens seguem pendentes nas
+   seções 4 e 5
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

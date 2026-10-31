@@ -10,7 +10,8 @@ três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóst
 testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções. Depois da junção
 implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco como efeito direto e da categoria
 `permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas. Depois da escala monetária por moeda
-(ADR-017, §6, com a fonte da tabela no ADR-026 proposto): 206 testes e 1.515 asserções, sem falhas.
+(ADR-017, §6, com a fonte da tabela no ADR-026 proposto): 206 testes e 1.515 asserções, sem falhas. Depois das
+exposições CLI, job e webhook do ADR-007: 221 testes e 1.697 asserções, sem falhas.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -36,7 +37,7 @@ só são alcançáveis por uma IR montada à mão, não pelo DSL, e um teste que
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão diferente (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
 | 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (49 e 58 mudanças no `graph:diff`). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 4 de 6; no chat, 6 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
-| 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. |
+| 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
 | 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Parcial | `Ractor.make_shareable` é conferido nos documentos e na vinculação (`compiler_test`, `link_test`). O compartilhamento entre Ractors é opcional no ADR-001 e não existe como extensão; o núcleo roda sem ele. |
 
@@ -131,6 +132,12 @@ A escala monetária por moeda da aplicação (ADR-017, §6) passou a ser normali
 `money_test.rb` cobrem moedas com 0, 2, 3 e 4 casas, precisão estendida, erro de escala insuficiente, defaults,
 contratos CRUD, entradas de operações, eventos e IR externa. Isso não fecha o critério 7 nem os testes HTTP do
 ADR-017: a sintaxe futura dos exemplos e o runtime continuam pendentes.
+
+As exposições do ADR-007 agora são compiladas de `expose http:`, `cli:`, `job:` e `webhook:` para a IR 0.1.
+Os 15 testes de `exposure_test.rb` cobrem o vínculo único à operação, nomes por superfície, rotas ambíguas,
+métodos HTTP, consulta por POST, idempotência obrigatória de webhook, diagnósticos e IR externa. O mini CRM
+declara as quatro superfícies; o `graph:diff` contra `635d926` mostra três rotas adicionadas, todas para
+revisão, e nenhuma quebra potencial. Os adaptadores ainda não existem, e o critério 7 continua parcial.
 
 - O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
   construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.

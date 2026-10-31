@@ -12,4 +12,7 @@ command :win_lead do
   end
 
   expose http: "POST /leads/:lead_id/win"
+  expose cli: "leads:win"
+  expose job: "leads.win", idempotency: :required
+  expose webhook: "POST /webhooks/leads/:lead_id/win", idempotency: :required
 end

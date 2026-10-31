@@ -377,7 +377,7 @@ module Vetra
           add(operation)
           method = { 'create' => 'POST', 'read' => 'GET', 'update' => 'PATCH', 'delete' => 'DELETE' }.fetch(action)
           path = "/#{entity.dig('storage', 'table')}#{action == 'create' ? '' : '/:id'}"
-          route(entry, operation, method, path, 'optional', "#{id}.http")
+          route(entry, operation, { 'method' => method, 'path' => path }, 'optional', "#{id}.http")
         end
       end
 
@@ -540,10 +540,18 @@ module Vetra
         end
         check_writes(entry, node, report)
         add(node)
-        entry['exposures'].each_with_index do |exposure, i|
-          method, path = exposure['http'].split(' ', 2)
-          fail!('route_format', 'expose http exige "MÉTODO /caminho".', entry) unless method && path
-          route(entry, node, method, path, exposure['idempotency'], "#{entry['id']}.http_#{i + 1}")
+        counts = Hash.new(0)
+        entry['exposures'].each do |exposure|
+          surface = exposure['surface']
+          config = if %w[http webhook].include?(surface)
+            method, path = exposure['value'].split(' ', 2)
+            fail!('route_format', "expose #{surface} exige \"MÉTODO /caminho\".", entry.merge('source' => exposure['source'])) unless method && path
+            { 'method' => method, 'path' => path }
+          else
+            { 'name' => exposure['value'] }
+          end
+          counts[surface] += 1
+          route(entry, node, config, exposure['idempotency'], "#{entry['id']}.#{surface}_#{counts[surface]}", surface: surface)
         end
       end
 
@@ -579,8 +587,8 @@ module Vetra
         end
       end
 
-      def route(entry, target, method, path, idempotency, id)
-        add(base(entry, 'route', id, generated: true).merge('surface' => 'http', 'target' => Data.reference(target['kind'], target['id']), 'config' => { 'method' => method, 'path' => path }, 'idempotency' => idempotency))
+      def route(entry, target, config, idempotency, id, surface: 'http')
+        add(base(entry, 'route', id, generated: true).merge('surface' => surface, 'target' => Data.reference(target['kind'], target['id']), 'config' => config, 'idempotency' => idempotency))
       end
 
       def sort_sets(document)
