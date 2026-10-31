@@ -1,6 +1,6 @@
 # ADR-024: Resolução das questões em aberto do ADR-014
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-31
 - Resolve: ADR-014 (as seis questões em aberto)
 - Depende de: ADR-014 (outbox), ADR-005 (contexto assinado), ADR-008 (ordem dos eventos), ADR-015 (expand/contract)

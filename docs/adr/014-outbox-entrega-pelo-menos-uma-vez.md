@@ -7,6 +7,7 @@
 - Dependem deste ADR (na data do aceite): 009 (workflows)
 - Relacionados: ADR-004 (capacidades e Effect Boundary), ADR-005 (RLS e contexto assinado), ADR-007
   (adaptadores), ADR-010 (modo serviço), ADR-013 (privacidade), ADR-020 (entrega live)
+- Questões resolvidas por: ADR-024
 
 ## Contexto
 
