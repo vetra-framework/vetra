@@ -1,6 +1,6 @@
 # ADR-002: Somente PostgreSQL
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Dependem deste ADR (na data do aceite): 003 (Sequel e repositórios), 005 (RLS), 008 (ordem e continuidade dos
   eventos), 010 (adoção hospedada e modo serviço), 014 (outbox) e 015 (migrações)

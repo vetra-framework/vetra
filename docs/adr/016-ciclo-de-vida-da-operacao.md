@@ -1,6 +1,6 @@
 # ADR-016: Ciclo de vida da operação
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Relacionados: ADR-002 (as garantias transacionais assumem uma transação do PostgreSQL)
 - Dependem deste ADR (na data do aceite): 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado),

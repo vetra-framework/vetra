@@ -1,6 +1,6 @@
 # ADR-001: Grafo da Aplicação compilado em IR versionada
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Relacionados: ADR-004 (capacidades), ADR-005 (RLS), ADR-016 (ciclo de vida), ADR-020 (entrega live) e
   ADR-021 (campos de transição)

@@ -2,15 +2,15 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos**, e todos ainda têm status **proposto**: nenhum foi
-aceito, e nenhum componente além do compilador da fase 0 foi implementado.
+componente correspondente. **Os 21 ADRs estão escritos**. Três estão **aceitos** (001, 002 e 016) e os outros
+18 continuam **propostos**. Nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
 | ADR | Título | Status |
 |---|---|---|
-| [001](001-grafo-da-aplicacao-e-ir.md) | Grafo da Aplicação compilado em IR versionada | proposto |
-| [002](002-somente-postgresql.md) | Somente PostgreSQL | proposto |
+| [001](001-grafo-da-aplicacao-e-ir.md) | Grafo da Aplicação compilado em IR versionada | aceito |
+| [002](002-somente-postgresql.md) | Somente PostgreSQL | aceito |
 | [003](003-sequel-e-camada-fina-de-repositorios.md) | Sequel com camada fina de repositórios | proposto |
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | proposto |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | proposto |
@@ -24,7 +24,7 @@ aceito, e nenhum componente além do compilador da fase 0 foi implementado.
 | [013](013-privacidade-auditoria-e-historico.md) | Privacy, Audit e History separados, com criptografia por envelope | proposto |
 | [014](014-outbox-entrega-pelo-menos-uma-vez.md) | Outbox com entrega pelo menos uma vez | proposto |
 | [015](015-migracoes-expand-contract.md) | Migrações expand/contract com análise de locks | proposto |
-| [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | proposto |
+| [016](016-ciclo-de-vida-da-operacao.md) | Ciclo de vida da operação | aceito |
 | [017](017-tipo-money.md) | Tipo money nativo | proposto |
 | [018](018-camada-de-ui-em-modulos.md) | Camada de UI em módulos fora do núcleo, com ejeção em três níveis | proposto |
 | [019](019-sinais-efemeros.md) | Sinais efêmeros autorizados pelo mesmo motor | proposto |
@@ -32,7 +32,7 @@ aceito, e nenhum componente além do compilador da fase 0 foi implementado.
 | [021](021-campos-de-transicao.md) | Campos de transição | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
-à pendência documental anterior à fase 0. A aceitação das decisões e os testes do compilador/runtime
+à pendência documental anterior à fase 0. A decisão foi aceita, mas os testes do compilador/runtime
 continuam pendentes; o esquema e os exemplos não constituem uma implementação.
 
 O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL,
@@ -62,9 +62,10 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 
 ## Próximo passo
 
-1. **Revisar e aceitar** os ADRs, começando pelos que a fundação usa: 016, 001, 004, 005, 007 e 003. A
-   [lista de revisão](revisao-de-aceite.md) traz a ordem, os critérios e o que conferir em cada um. Um ADR
-   aceito não é editado; uma mudança de decisão gera outro que o substitui.
+1. **Revisar e aceitar** os ADRs restantes. A rodada 1 da [lista de revisão](revisao-de-aceite.md) (016, 001
+   e 002) foi aceita; seguem as rodadas 2 a 4, começando pelos que a fundação usa: 004, 005, 007 e 003. A lista
+   traz a ordem, os critérios e o que conferir em cada um. Um ADR aceito não é editado; uma mudança de decisão
+   gera outro que o substitui.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
