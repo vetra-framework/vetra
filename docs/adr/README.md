@@ -2,9 +2,9 @@
 
 A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da proposta naquela revisão;
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
-componente correspondente. **Os 21 ADRs estão escritos**. Dez estão **aceitos** (001, 002, 003, 004, 005, 006,
-008, 015, 016 e 020) e os outros 11 continuam **propostos**. Nenhum componente além do compilador da fase 0 foi
-implementado.
+componente correspondente. **Os 21 ADRs estão escritos**. Onze estão **aceitos** (001, 002, 003, 004, 005, 006,
+007, 008, 015, 016 e 020) e os outros 10 continuam **propostos**. Nenhum componente além do compilador da fase 0
+foi implementado.
 
 ## Escritos
 
@@ -16,7 +16,7 @@ implementado.
 | [004](004-capacidades-e-effect-boundary.md) | Capacidades e Effect Boundary | aceito |
 | [005](005-rls-e-contexto-assinado.md) | RLS obrigatório com contexto assinado | aceito |
 | [006](006-isolamento-de-dominios-em-tres-niveis.md) | Isolamento de domínios em três níveis, com Ruby::Box opcional | aceito |
-| [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | proposto |
+| [007](007-comando-como-unidade-unica-e-adaptadores.md) | Comando como unidade única de operação e adaptadores de superfície | aceito |
 | [008](008-ordem-e-continuidade-dos-eventos.md) | Notificação como invalidação, ordem por xid8 e continuidade | aceito |
 | [009](009-workflows-por-historico-e-replay.md) | Workflows duráveis por histórico de eventos e replay determinístico | proposto |
 | [010](010-adocao-hospedada-e-modo-servico.md) | Adoção hospedada em Rails ou modo serviço | proposto |
@@ -64,8 +64,8 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
 ## Próximo passo
 
 1. **Revisar e aceitar** os ADRs restantes. A rodada 1 da [lista de revisão](revisao-de-aceite.md) (016, 001
-   e 002) foi aceita, assim como seis da rodada 2 (003, 004, 005, 006, 008 e 015) e o 020 da rodada 3. Ficam 007
-   e 017, que têm uma questão em aberto capaz de mudar a decisão e esperam a resposta de quem revisa, e depois o
+   e 002) foi aceita, assim como sete da rodada 2 (003, 004, 005, 006, 007, 008 e 015) e o 020 da rodada 3. Fica
+   o 017, que tem uma questão em aberto capaz de mudar a decisão e espera a resposta de quem revisa, e depois o
    restante das rodadas 3 e 4. A lista traz a ordem, os critérios e o que conferir em cada um. Um ADR aceito
    não é editado; uma mudança de decisão gera outro que o substitui.
 2. **Acompanhar as sondas na CI** (PostgreSQL 17 e 18) e, quando o PostgreSQL 19 estiver disponível, incluí-lo

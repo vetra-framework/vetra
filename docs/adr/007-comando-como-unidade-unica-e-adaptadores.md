@@ -1,9 +1,11 @@
 # ADR-007: Comando como unidade única de operação e adaptadores de superfície
 
-- Status: proposto
+- Status: aceito
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação)
-- Relacionados: ADR-004 (capacidades), ADR-011 (MCP), ADR-014 (outbox), ADR-021 (campos de transição)
+- Dependem deste ADR (na data do aceite): 011 (MCP) e 018 (camada de UI)
+- Relacionados: ADR-004 (capacidades), ADR-005 (RLS), ADR-009 (workflows), ADR-014 (outbox), ADR-020 (entrega
+  live), ADR-021 (campos de transição)
 
 ## Contexto
 
@@ -100,6 +102,26 @@ superfícies:
 Um comando que chama outro usa **savepoint** dentro da transação do primeiro (ADR-016). A chamada interna não
 passa por adaptador, não abre outra transação e é reautorizada com o ator da operação externa.
 
+### 7. A exposição não restringe o contrato
+
+Todas as exposições de um comando ou de uma consulta aceitam **o mesmo contrato de entrada**, o que o grafo
+deriva da operação. Uma exposição não aceita menos campos, não fixa valores e não renomeia campos. Traduzir a
+entrada (§2) continua permitido: o parâmetro de caminho, o argumento da CLI ou a chave do payload preenchem um
+campo do contrato.
+
+Quando uma superfície precisa de uma entrada menor (um botão que só publica, uma ferramenta MCP com um
+argumento), há dois caminhos:
+
+- os campos que ela não envia já são opcionais ou têm o default do próprio comando;
+- ou o desenvolvedor declara um **comando novo e fino**, com o contrato menor, que chama o original por
+  composição (§6). O comando novo tem identidade, política e histórico próprios, e aparece no diff arquitetural.
+
+A razão é a identidade única do comando. Com um contrato por exposição, a equivalência entre superfícies
+(ADR-016, teste 10) perderia o conjunto de entradas em comum, o diff teria de revisar um contrato por
+superfície, e o adaptador passaria a decidir o que se omite, que é regra de negócio (§2). A proteção de campos
+(`set_by`, `guarded`) é declarada no grafo, não na exposição. O ADR-011 já parte desta regra: a superfície MCP
+usa o contrato do comando.
+
 ## Alternativas rejeitadas
 
 - **Controllers, services e jobs separados** (o estilo Rails): é o problema que motiva a decisão. A regra se
@@ -111,6 +133,11 @@ passa por adaptador, não abre outra transação e é reautorizada com o ator da
 - **Um comando por superfície, compartilhando um service:** reintroduz a camada de service que o comando
   existe para substituir.
 - **Adaptador com transação própria:** ver a alternativa equivalente rejeitada no ADR-016.
+- **Contrato restrito por exposição** (uma opção de `expose` que aceite só alguns campos; era a hipótese que a
+  proposta deixou em aberto): quebra a identidade única e a equivalência entre superfícies. Só poderia omitir
+  campos opcionais ou com default; omitir um obrigatório exigiria o adaptador fixar um valor, o que é regra de
+  negócio no adaptador. Também exigiria evoluir a IR, porque o nó `route` do schema 0.1 não tem onde guardar a
+  projeção. Voltar atrás exige um ADR novo que substitua o §7.
 
 ## Consequências
 
@@ -119,6 +146,8 @@ passa por adaptador, não abre outra transação e é reautorizada com o ator da
   semântica daquela superfície (timeout, idempotência, tradução de erros).
 - O diff arquitetural passa a mostrar exposições novas como mudança de superfície que exige revisão.
 - O custo de ser opt-in: quem quer um comando também em CLI precisa dizê-lo, mesmo no caso óbvio.
+- Quem precisa de uma entrada menor numa superfície escreve um comando fino, algumas linhas a mais, em troca de
+  um contrato só por operação.
 - Cada adaptador é código do framework a manter e a testar; o contrato acima é o que impede que eles
   divirjam.
 
@@ -128,6 +157,7 @@ passa por adaptador, não abre outra transação e é reautorizada com o ator da
 |---|---|---|
 | Nada é alcançável por uma superfície sem `expose` | Estrutural | O grafo só gera rotas das exposições declaradas |
 | Rotas ambíguas, método incompatível e parâmetro inexistente são erro de compilação | Estrutural | Validações do compilador (implementadas em `http` e `webhook` no protótipo) |
+| Todas as exposições de uma operação aceitam o mesmo contrato de entrada | Estrutural | O nó `route` do schema 0.1 não guarda projeção de campos, e o DSL recusa palavra-chave desconhecida em qualquer declaração |
 | Todas as superfícies produzem o mesmo resultado e o mesmo histórico para a mesma entrada | Verificável por testes | Teste de equivalência entre superfícies (ADR-016, teste 10) |
 | Um adaptador não decide regra de negócio | Verificável por testes | Os adaptadores são pequenos e testados contra o contrato; não há como provar a ausência de lógica |
 
@@ -140,11 +170,13 @@ passa por adaptador, não abre outra transação e é reautorizada com o ator da
    transação.
 4. Um webhook sem identificador de evento é recusado antes da etapa 1.
 5. Duas exposições de CLI com o mesmo nome falham na compilação.
-6. Uma rota `GET` para um comando e um `POST` para uma consulta falham na compilação (já cobertas no
-   protótipo).
+6. Uma rota `GET` para um comando e um `POST` para uma consulta falham na compilação (o protótipo implementa as
+   duas regras; os testes dele exercitam a rota `GET` para um comando).
 7. Um adaptador que tenta abrir transação ou pular a autorização é detectado pelo teste de contrato do
    adaptador.
 8. Um comando chamado por composição é reautorizado com o ator externo e não passa por adaptador.
+9. Todas as exposições do mesmo comando publicam o mesmo esquema de entrada, e uma exposição que tenta aceitar
+   menos campos falha na compilação.
 
 ## Questões em aberto
 
@@ -153,4 +185,5 @@ passa por adaptador, não abre outra transação e é reautorizada com o ator da
 - Como um comando exposto como job devolve o resultado a quem o enfileirou, e por quanto tempo o guarda.
 - Streaming de resposta em HTTP e SSE: ficam fora do comando; entram como consulta live (ADR-020) ou como
   workflow (ADR-009).
-- Se uma exposição pode restringir o contrato (aceitar menos campos que o comando) sem criar um comando novo.
+- Contrato restrito por exposição. Não adotado (§7). Volta por ADR novo, com um caso real que o comando fino não
+  atenda.
