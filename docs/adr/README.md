@@ -110,7 +110,7 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 Resolver uma questão **não muda a decisão** do ADR aceito; completa-a. Se a resposta mudasse o que o ADR decide,
 não seria resolução, e sim um ADR que o substitui. Como o ADR aceito não é editado, a resolução vive num ADR novo,
 com número próprio, no [modelo de resolução](#modelo-de-adr-de-resolução). Ele entra pelo caminho de qualquer ADR:
-um PR, e o aceite só vale quando quem revisa o integra.
+um commit na `main`, e o aceite só vale quando o mantenedor o integra.
 
 Cada questão tratada recebe um de cinco tratamentos:
 

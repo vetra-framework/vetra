@@ -122,9 +122,21 @@ interpretado como autorização para prosseguir.
 `--fail-on-breaking` reage somente ao impacto `breaking`; não aprova mudanças de permissão ou outros itens
 em revisão. Relatórios com mudanças apenas de metadados também não garantem equivalência do código.
 
-## CI e revisão antes da integração
+## Fluxo de integração e CI
 
-O workflow executa o diff em PRs, contra `pull_request.base.sha`, e em pushes da `main`, contra `push.before`.
+O projeto tem um único mantenedor e integra **direto na `main`, sem branches de trabalho nem PRs**. A revisão
+acontece antes do push, na máquina do mantenedor, e a CI repete as verificações depois do push:
+
+1. Trabalhe e faça commit na `main`.
+2. Antes do push, rode a suíte e o gate contra o estado publicado:
+   `bundle exec rake test:diagnostics` e `bundle exec ruby script/check_graph_compatibility.rb --base origin/main`.
+3. Se o gate apontar uma quebra intencional, declare-a em `.github/graph-compatibility.json` **no mesmo commit**
+   que muda o grafo, com o motivo; uma quebra não declarada é um erro a corrigir antes do push.
+4. Faça o push na `main`. A CI roda os testes, os exemplos, o gate contra `push.before` e as sondas.
+   Uma falha na CI da `main` é corrigida com um novo commit, nunca reescrevendo a história.
+
+O workflow também executa o diff em PRs, contra `pull_request.base.sha`, para contribuições externas; pushes
+da `main` são comparados com `push.before`.
 Um SHA ausente, uma base ilegível ou um artefato removido faz o gate falhar. O primeiro push, com SHA anterior
 zerado, é tratado explicitamente; os exemplos continuam passando por check, validação com fontes e link.
 Uma base legítima sem grafos é diferente de uma referência inexistente.
@@ -144,12 +156,16 @@ Declarações inválidas, duplicadas, sem motivo ou com wildcard nos digests sã
 continua sendo erro. A opção `graph:diff --fail-on-breaking` conserva seu comportamento original.
 
 Essa declaração registra uma mudança intencional e sua migração. O mantenedor revisa o relatório e a
-justificativa antes de integrar o PR. A proteção da `main`, descrita em
-[.github/main-protection.json](../.github/main-protection.json), exige PR, os três checks do workflow e a
-branch atualizada, inclusive para administradores. Como o projeto tem um único mantenedor, a quantidade
-mínima de aprovações é zero e a aprovação por outra pessoa após o último push fica desabilitada.
-Force-push e exclusão da branch continuam desabilitados. Um push na `main` tem comparação adicional
-após a integração; a revisão do mantenedor acontece no PR.
+justificativa antes do push. A proteção da `main`, descrita em
+[.github/main-protection.json](../.github/main-protection.json), só impede force-push e exclusão da branch,
+inclusive para administradores. Ela não exige PR nem checks prévios: o GitHub recusaria o push direto de um
+commit que ainda não passou pelos checks obrigatórios, o que inviabiliza o fluxo acima. O arquivo é a fonte
+da configuração; para aplicá-lo ou conferi-lo:
+
+```sh
+gh api -X PUT repos/vetra-framework/vetra/branches/main/protection --input .github/main-protection.json
+gh api repos/vetra-framework/vetra/branches/main/protection
+```
 
 A correção do chat retira a rota HTTP de busca por e-mail e declara unicidade do e-mail normalizado.
 Essas duas quebras estão justificadas para os digests registrados. Em uma aplicação com dados, seria

@@ -4,10 +4,11 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-02, sobre `694b34d`, com as correções da revisão em `fix/review-priorities` ([PR #36](https://github.com/vetra-framework/vetra/pull/36)).
-  A inclusão por e-mail e a IR 0.2 já foram integradas; esta rodada ativou a proteção de branch e prepara o próximo pacote.
+- **Atualizado em:** 2026-11-03, sobre `fac9b8e` (merge do [PR #36](https://github.com/vetra-framework/vetra/pull/36)).
+  O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
+  force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
-  quem é a decisão. "Quem revisa" é quem integra o PR.
+  quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
 ## Resumo
 
@@ -24,8 +25,9 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 ## Como manter este arquivo
 
-- Todo PR que muda um status atualiza este arquivo **no mesmo PR**: marque `[x]`, anote o número do PR e ajuste o
-  resumo e a data.
+- Todo commit que muda um status atualiza este arquivo **no mesmo commit**: marque `[x]`, anote o hash curto do
+  commit (ou o número do PR, numa contribuição externa) e ajuste o resumo e a data. As mudanças entram direto na
+  `main`, conforme o [fluxo de integração](graph-diff.md#fluxo-de-integração-e-ci).
 - Os contadores de ADR saem dos próprios arquivos. Para conferi-los:
 
 ```bash
@@ -98,10 +100,11 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   Oito testes do gate e 17 cenários de simulação passaram nesta revisão.
 - [x] `sonda_adr011.rb` executável; os demais modos do Git foram preservados. O aviso experimental é
   silenciado apenas durante a criação de Ractors no teste, com restauração da configuração anterior.
-- [x] Proteção da main ajustada em 2026-11-02 para mantenedor único: PR obrigatório, zero aprovações
-  externas, três checks obrigatórios, branch atualizada, aplicação a admins e sem force-push ou exclusão.
-  O mantenedor revisa o diff e as quebras intencionais antes de integrar. Configuração em
-  `.github/main-protection.json`, conferida por leitura da API.
+- [ ] Proteção da main redefinida em 2026-11-03 para integração direta: sem PR nem checks prévios, com
+  force-push e exclusão bloqueados, inclusive para admins. O mantenedor roda a suíte e o gate antes do push
+  ([fluxo](graph-diff.md#fluxo-de-integração-e-ci)). Configuração em `.github/main-protection.json`;
+  **pendente de aplicação pelo mantenedor** com o `gh api -X PUT` do fluxo (a configuração anterior, com PR
+  obrigatório, ainda está ativa no GitHub).
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
 - [x] `test:diagnostics` executa a suíte uma vez e confere os códigos realmente criados em `Diagnostic.new`
@@ -387,7 +390,7 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 ## 7. Próximos passos propostos
 
-Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
+Ordem sugerida; cada passo é um ou mais commits na `main`, e o aceite só vale quando o mantenedor o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
    por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
