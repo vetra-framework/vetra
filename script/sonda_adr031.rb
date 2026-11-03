@@ -16,7 +16,7 @@ class GeneratedAuthorizationProbe
   def initialize(url)
     @url = url
     @prefix = "vt_sonda031_#{Process.pid}_#{SecureRandom.hex(3)}"
-    @owner, @app, @extra = %w[owner app extra].map { |suffix| "#{@prefix}_#{suffix}" }
+    @owner, @app, @extra, @definer, @bridge, @holder = %w[owner app extra definer routine_bridge routine_holder].map { |suffix| "#{@prefix}_#{suffix}" }
     @roles, @results = [], []
     @document = Vetra::Graph::Compiler.new(root: File.expand_path('../examples/mini_crm_revendas', __dir__)).build.document
   end
@@ -24,7 +24,7 @@ class GeneratedAuthorizationProbe
   def run
     @admin = connect
     version = @admin.exec('SHOW server_version').getvalue(0, 0)
-    [@owner, @app, @extra].each do |role|
+    [@owner, @app, @extra, @definer, @bridge, @holder].each do |role|
       @admin.exec("CREATE ROLE #{role} NOLOGIN NOSUPERUSER NOBYPASSRLS")
       @roles << role
     end
@@ -298,6 +298,268 @@ class GeneratedAuthorizationProbe
         @admin.exec("ALTER DEFAULT PRIVILEGES FOR ROLE #{@owner} REVOKE CREATE ON SCHEMAS FROM #{@extra}; REVOKE #{@extra} FROM #{@app}")
       end
     end
+    check('catálogo padrão não tem SECURITY DEFINER em pg_catalog ou information_schema') do
+      counts = @admin.exec("SELECT n.nspname, count(p.oid) FILTER (WHERE p.prosecdef) AS definers FROM pg_namespace n " \
+                           "LEFT JOIN pg_proc p ON p.pronamespace = n.oid WHERE n.nspname IN ('pg_catalog', 'information_schema') " \
+                           'GROUP BY n.nspname ORDER BY n.nspname').to_h { |row| [row['nspname'], row['definers'].to_i] }
+      [counts == { 'information_schema' => 0, 'pg_catalog' => 0 }, "prosecdef=#{counts}"]
+    end
+    check('TRUNCATE por definer criado depois da instalação deixa a revisão parada (limite)') do
+      install
+      definer_routine(body: "TRUNCATE #{@data}.memberships;")
+      sessions(1) do |writer|
+        writer.exec("INSERT INTO #{@data}.memberships VALUES (1, 1)")
+        before = revisions
+        writer.exec("SELECT #{@data}.danger()")
+        empty = @admin.exec("SELECT count(*) FROM #{@data}.memberships").getvalue(0, 0) == '0'
+        [empty && before['1'] == 1 && revisions == before, "tabela vazia=#{empty}; antes=#{before}; depois=#{revisions}"]
+      end
+    end
+    check('recusa e lista função, sobrecarga e procedimento SECURITY DEFINER com EXECUTE de PUBLIC') do
+      definer_routine(body: "TRUNCATE #{@data}.memberships;")
+      definer_routine(arguments: 'value integer')
+      definer_routine(name: 'danger_proc', procedure: true)
+      message = "#{@data}.danger() [dono: #{@owner}]; #{@data}.danger(value integer) [dono: #{@owner}]; #{@data}.danger_proc() [dono: #{@owner}]"
+      ok, detail = rejection(message)
+      unchanged = @admin.exec_params("SELECT bool_and(has_function_privilege($1, p.oid, 'EXECUTE')) FROM pg_proc p " \
+                                    'WHERE p.pronamespace = $2::regnamespace', [@app, @data]).getvalue(0, 0) == 't'
+      [ok && unchanged, "#{detail}; EXECUTE externo preservado=#{unchanged}"]
+    end
+    check('recusa definer com EXECUTE concedido diretamente à aplicação') do
+      definer_routine(public_execute: false)
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.danger() TO #{@app}")
+      rejection('Rotinas SECURITY DEFINER')
+    end
+    check('recusa definer com EXECUTE herdado pela aplicação sem SET') do
+      definer_routine(public_execute: false)
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.danger() TO #{@bridge}; GRANT #{@bridge} TO #{@app} WITH INHERIT TRUE, SET FALSE")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("REVOKE #{@bridge} FROM #{@app}")
+      end
+    end
+    check('recusa definer com EXECUTE herdado por papel assumível (SET -> INHERIT)') do
+      definer_routine(public_execute: false)
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.danger() TO #{@holder}; GRANT #{@holder} TO #{@bridge} WITH INHERIT TRUE, SET FALSE; GRANT #{@bridge} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        hidden = @admin.exec_params("SELECT NOT has_function_privilege($1, $2, 'EXECUTE')", [@app, "#{@data}.danger()"]).getvalue(0, 0) == 't'
+        ok, detail = rejection('Rotinas SECURITY DEFINER')
+        [ok && hidden, "#{detail}; EXECUTE fora da herança direta=#{hidden}"]
+      ensure
+        @admin.exec("REVOKE #{@bridge} FROM #{@app}; REVOKE #{@holder} FROM #{@bridge}")
+      end
+    end
+    check('recusa cadeia a -> b: entrada sem poder chama definer privado que pode TRUNCATE; lista ambos') do
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{@holder}")
+      definer_routine(name: 'b', owner: @holder, public_execute: false, body: "TRUNCATE #{@data}.memberships;")
+      definer_routine(name: 'a', owner: @definer, body: "PERFORM #{@data}.b();")
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.b() TO #{@definer}")
+      hidden = @admin.exec_params("SELECT NOT has_function_privilege($1, $2, 'EXECUTE') AND NOT has_table_privilege($3, $4, 'TRUNCATE')",
+                                 [@app, "#{@data}.b()", @definer, "#{@data}.memberships"]).getvalue(0, 0) == 't'
+      emptied = sessions(1) do |writer|
+        writer.exec("INSERT INTO #{@data}.memberships VALUES (1, 1); SELECT #{@data}.a()")
+        @admin.exec("SELECT count(*) FROM #{@data}.memberships").getvalue(0, 0) == '0'
+      end
+      message = "#{@data}.a() [dono: #{@definer}]; #{@data}.b() [dono: #{@holder}]"
+      ok, detail = rejection(message)
+      [ok && hidden && emptied, "#{detail}; b privado e entrada sem TRUNCATE=#{hidden}; cadeia esvaziou tabela=#{emptied}"]
+    end
+    check('recusa cadeia a -> b -> c com EXECUTE herdado pelo dono intermediário; lista as três') do
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{@holder}")
+      definer_routine(name: 'c', owner: @holder, public_execute: false, body: "TRUNCATE #{@data}.memberships;")
+      definer_routine(name: 'b', owner: @bridge, public_execute: false, body: "PERFORM #{@data}.c();")
+      definer_routine(name: 'a', owner: @definer, body: "PERFORM #{@data}.b();")
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.b() TO #{@definer}; GRANT EXECUTE ON FUNCTION #{@data}.c() TO #{@extra}; GRANT #{@extra} TO #{@bridge} WITH INHERIT TRUE, SET FALSE")
+      begin
+        hidden = @admin.exec_params("SELECT NOT has_function_privilege($1, $2, 'EXECUTE') AND NOT has_function_privilege($1, $3, 'EXECUTE')",
+                                   [@app, "#{@data}.b()", "#{@data}.c()"]).getvalue(0, 0) == 't'
+        emptied = sessions(1) do |writer|
+          writer.exec("INSERT INTO #{@data}.memberships VALUES (1, 1); SELECT #{@data}.a()")
+          @admin.exec("SELECT count(*) FROM #{@data}.memberships").getvalue(0, 0) == '0'
+        end
+        message = "#{@data}.a() [dono: #{@definer}]; #{@data}.b() [dono: #{@bridge}]; #{@data}.c() [dono: #{@holder}]"
+        ok, detail = rejection(message)
+        [ok && hidden && emptied, "#{detail}; b/c privados=#{hidden}; cadeia esvaziou tabela=#{emptied}"]
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@bridge}")
+      end
+    end
+    check('cadeia legítima a -> b com ciclo de EXECUTE entre donos sem poder instala e executa') do
+      definer_routine(name: 'b', owner: @holder, public_execute: false)
+      definer_routine(name: 'a', owner: @definer, body: "PERFORM #{@data}.b();")
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.b() TO #{@definer}")
+      cycle = @admin.exec_params("SELECT has_function_privilege($1, $2, 'EXECUTE') AND has_function_privilege($3, $4, 'EXECUTE') AND NOT has_function_privilege($5, $2, 'EXECUTE')",
+                                [@definer, "#{@data}.b()", @holder, "#{@data}.a()", @app]).getvalue(0, 0) == 't'
+      install
+      sessions(1) { |writer| writer.exec("SELECT #{@data}.a()") }
+      [cycle && revisions == { '1' => 0, '2' => 0 }, "ciclo de permissões a/b e b privado=#{cycle}; revisões=#{revisions}"]
+    end
+    check('recusa TRUNCATE herdado pelo dono da rotina') do
+      definer_routine(owner: @definer, body: "TRUNCATE #{@data}.memberships;")
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{@holder}; GRANT #{@holder} TO #{@definer} WITH INHERIT TRUE, SET FALSE")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("REVOKE #{@holder} FROM #{@definer}")
+      end
+    end
+    check('recusa conservadora da cadeia SET -> SET -> INHERIT do dono; SET no corpo é proibido pelo PostgreSQL') do
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{@holder}; GRANT #{@holder} TO #{@extra} WITH INHERIT TRUE, SET FALSE; GRANT #{@extra} TO #{@bridge} WITH INHERIT FALSE, SET TRUE; GRANT #{@bridge} TO #{@definer} WITH INHERIT FALSE, SET TRUE")
+      definer_routine(owner: @definer, body: "SET ROLE #{@bridge}; TRUNCATE #{@data}.memberships;")
+      begin
+        state = sessions(1) do |writer|
+          begin
+            writer.exec("SELECT #{@data}.danger()")
+            nil
+          rescue PG::Error => error
+            error.result&.error_field(PG::PG_DIAG_SQLSTATE)
+          end
+        end
+        hidden = @admin.exec_params("SELECT NOT has_table_privilege($1, $2, 'TRUNCATE')", [@definer, "#{@data}.memberships"]).getvalue(0, 0) == 't'
+        ok, detail = rejection('Rotinas SECURITY DEFINER')
+        [ok && hidden && state == '42501', "#{detail}; TRUNCATE só via SET=#{hidden}; SET no corpo=#{state}"]
+      ensure
+        @admin.exec("REVOKE #{@bridge} FROM #{@definer}; REVOKE #{@extra} FROM #{@bridge}; REVOKE #{@holder} FROM #{@extra}")
+      end
+    end
+    check('definer cujo dono só tem DML instala e DELETE pela rotina incrementa a revisão') do
+      definer_routine(owner: @definer, body: "DELETE FROM #{@data}.memberships;")
+      @admin.exec("GRANT INSERT (id, company_id), UPDATE (company_id), DELETE ON #{@data}.memberships TO #{@definer}")
+      install
+      sessions(1) do |writer|
+        writer.exec("INSERT INTO #{@data}.memberships VALUES (1, 1)")
+        before = revisions
+        writer.exec("SELECT #{@data}.danger()")
+        empty = @admin.exec("SELECT count(*) FROM #{@data}.memberships").getvalue(0, 0) == '0'
+        [empty && before == { '1' => 1, '2' => 0 } && revisions == { '1' => 2, '2' => 0 },
+         "tabela vazia=#{empty}; antes=#{before}; depois do DELETE por definer=#{revisions}"]
+      end
+    end
+    ['TRIGGER', 'REFERENCES (company_id)'].each do |privilege|
+      check("recusa definer cujo dono tem #{privilege} na tabela protegida") do
+        definer_routine(owner: @definer)
+        @admin.exec("GRANT #{privilege} ON #{@data}.memberships TO #{@definer}")
+        rejection('Rotinas SECURITY DEFINER')
+      end
+    end
+    {
+      'TABLES' => ['INSERT, UPDATE, DELETE, TRUNCATE', 'escrita nas revisões'],
+      'FUNCTIONS' => ['EXECUTE', 'execução das funções de revisão'],
+      'SCHEMAS' => ['CREATE', 'CREATE na infraestrutura']
+    }.each do |objects, (privileges, description)|
+      check("recusa #{description} por privilégios padrão globais do instalador, via cadeia de definers") do
+        definer_routine(name: 'b', owner: @holder, public_execute: false)
+        definer_routine(name: 'a', owner: @definer, body: "PERFORM #{@data}.b();")
+        @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.b() TO #{@definer}")
+        @admin.exec("ALTER DEFAULT PRIVILEGES FOR ROLE #{@owner} GRANT #{privileges} ON #{objects} TO #{@holder}")
+        begin
+          hidden = @admin.exec_params("SELECT NOT has_function_privilege($1, $2, 'EXECUTE') AND NOT pg_has_role($1, $3, 'MEMBER') AND NOT pg_has_role($4, $3, 'MEMBER')",
+                                     [@app, "#{@data}.b()", @owner, @holder]).getvalue(0, 0) == 't'
+          message = "#{@data}.a() [dono: #{@definer}]; #{@data}.b() [dono: #{@holder}]"
+          ok, detail = with_owner_installation { rejection(message) }
+          [ok && hidden, "#{detail}; b privado e aplicação/dono sem vínculo com proprietário=#{hidden}"]
+        ensure
+          @admin.exec("ALTER DEFAULT PRIVILEGES FOR ROLE #{@owner} REVOKE #{privileges} ON #{objects} FROM #{@holder}")
+        end
+      end
+    end
+    check('recusa dono da tabela mesmo depois de revogar todas as suas ACLs') do
+      definer_routine(owner: @definer)
+      @admin.exec("ALTER TABLE #{@data}.memberships OWNER TO #{@definer}; REVOKE ALL ON #{@data}.memberships FROM #{@definer}")
+      no_acl = @admin.exec_params("SELECT NOT has_table_privilege($1, $2, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')", [@definer, "#{@data}.memberships"]).getvalue(0, 0) == 't'
+      ok, detail = rejection('Rotinas SECURITY DEFINER')
+      [ok && no_acl, "#{detail}; sem ACL perigosa=#{no_acl}"]
+    end
+    check('recusa definer de dono do schema protegido, que poderia removê-lo com CASCADE') do
+      definer_routine(owner: @definer)
+      @admin.exec("ALTER SCHEMA #{@data} OWNER TO #{@definer}")
+      rejection('Rotinas SECURITY DEFINER')
+    end
+    check('recusa definer do futuro dono da infraestrutura mesmo sem poder nas tabelas protegidas') do
+      @generated.tables.each { |table| @admin.exec("ALTER TABLE #{@data}.#{table['table']} OWNER TO #{@extra}") }
+      @admin.exec("ALTER SCHEMA #{@data} OWNER TO #{@extra}")
+      definer_routine
+      no_acl = @admin.exec_params("SELECT NOT has_table_privilege($1, $2, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')", [@owner, "#{@data}.memberships"]).getvalue(0, 0) == 't'
+      ok, detail = rejection('Rotinas SECURITY DEFINER')
+      [ok && no_acl, "#{detail}; sem poder nas tabelas=#{no_acl}"]
+    end
+    %w[SUPERUSER BYPASSRLS CREATEROLE].each do |attribute|
+      check("recusa definer cujo dono tem #{attribute}") do
+        @admin.exec("ALTER ROLE #{@definer} #{attribute}")
+        definer_routine(owner: @definer)
+        begin
+          rejection('Rotinas SECURITY DEFINER')
+        ensure
+          @admin.exec("ALTER ROLE #{@definer} NO#{attribute}")
+        end
+      end
+    end
+    check('recusa definer com ADMIN utilizável depois de SET -> INHERIT do dono') do
+      definer_routine(owner: @definer)
+      @admin.exec("GRANT #{@extra} TO #{@holder} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE; GRANT #{@holder} TO #{@bridge} WITH INHERIT TRUE, SET FALSE; GRANT #{@bridge} TO #{@definer} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("REVOKE #{@bridge} FROM #{@definer}; REVOKE #{@holder} FROM #{@bridge}; REVOKE #{@extra} FROM #{@holder}")
+      end
+    end
+    check('recusa definer cujo dono usa pg_execute_server_program por herança') do
+      definer_routine(owner: @definer)
+      @admin.exec("GRANT pg_execute_server_program TO #{@definer}")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("REVOKE pg_execute_server_program FROM #{@definer}")
+      end
+    end
+    check('recusa definer cujo dono pode criar subscriptions') do
+      definer_routine(owner: @definer)
+      @admin.exec("GRANT pg_create_subscription TO #{@definer}")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("REVOKE pg_create_subscription FROM #{@definer}")
+      end
+    end
+    check('recusa definer cujo dono possui subscription sem pg_create_subscription') do
+      subscription = "#{@prefix}_definer_sub"
+      definer_routine(owner: @definer)
+      @admin.exec("GRANT pg_create_subscription TO #{@definer}")
+      @admin.exec("CREATE SUBSCRIPTION #{subscription} CONNECTION 'dbname=vetra_inexistente' PUBLICATION vetra_pub " \
+                  "WITH (connect = false, enabled = false, create_slot = false, slot_name = NONE)")
+      @admin.exec("ALTER SUBSCRIPTION #{subscription} OWNER TO #{@definer}; REVOKE pg_create_subscription FROM #{@definer}")
+      begin
+        rejection('Rotinas SECURITY DEFINER')
+      ensure
+        @admin.exec("DROP SUBSCRIPTION #{subscription}; REVOKE pg_create_subscription FROM #{@definer}")
+      end
+    end
+    check('definer executável de dono sem poder instala e executa') do
+      definer_routine(owner: @definer)
+      install
+      sessions(1) do |writer|
+        writer.exec("SELECT #{@data}.danger()")
+        [revisions == { '1' => 0, '2' => 0 }, "revisões=#{revisions}"]
+      end
+    end
+    check('definer privilegiado sem EXECUTE para aplicação ou seus papéis instala') do
+      definer_routine(public_execute: false)
+      install
+      [revisions == { '1' => 0, '2' => 0 }, "revisões=#{revisions}"]
+    end
+    check('revogar EXECUTE de PUBLIC e do papel assumível permite instalar após recusa') do
+      definer_routine
+      @admin.exec("GRANT EXECUTE ON FUNCTION #{@data}.danger() TO #{@bridge}; GRANT #{@bridge} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        refused, detail = rejection('Rotinas SECURITY DEFINER')
+        @admin.exec("REVOKE EXECUTE ON FUNCTION #{@data}.danger() FROM PUBLIC, #{@app}, #{@bridge}")
+        install
+        [refused && revisions == { '1' => 0, '2' => 0 }, "#{detail}; instalou depois do REVOKE"]
+      ensure
+        @admin.exec("REVOKE #{@bridge} FROM #{@app}")
+      end
+    end
     check('colisão de schema preserva objetos existentes') do
       @admin.exec("CREATE SCHEMA #{@infra}; CREATE TABLE #{@infra}.marker (id integer); INSERT INTO #{@infra}.marker VALUES (7)")
       error = begin
@@ -322,6 +584,24 @@ class GeneratedAuthorizationProbe
   end
 
   private
+
+  # Exercita os defaults FOR ROLE do proprietário como instalador efetivo, sem depender dos defaults do admin.
+  def with_owner_installation
+    database = @admin.exec('SELECT quote_ident(current_database())').getvalue(0, 0)
+    @admin.exec("GRANT CREATE ON DATABASE #{database} TO #{@owner}; SET ROLE #{@owner}")
+    yield
+  ensure
+    @admin.exec("RESET ROLE; REVOKE CREATE ON DATABASE #{database} FROM #{@owner}")
+  end
+
+  def definer_routine(name: 'danger', arguments: '', owner: @owner, procedure: false, body: nil, public_execute: true)
+    kind = procedure ? 'PROCEDURE' : 'FUNCTION'
+    returns = procedure ? '' : 'RETURNS void'
+    @admin.exec("CREATE #{kind} #{@data}.#{name}(#{arguments}) #{returns} LANGUAGE plpgsql SECURITY DEFINER " \
+                "SET search_path = pg_catalog, pg_temp AS $$ BEGIN #{body || 'NULL;'} END $$; " \
+                "ALTER #{kind} #{@data}.#{name}(#{arguments}) OWNER TO #{owner}; GRANT USAGE ON SCHEMA #{@data} TO #{owner}")
+    @admin.exec("REVOKE EXECUTE ON #{kind} #{@data}.#{name}(#{arguments}) FROM PUBLIC, #{@app}") unless public_execute
+  end
 
   def connect(role: nil)
     PG.connect(@url).tap do |connection|

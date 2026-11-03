@@ -38,7 +38,7 @@ module Vetra
         @tables = tables.sort_by { |table| table.values_at('schema', 'table') }
         sql = [header, 'BEGIN;', "SET LOCAL lock_timeout = '3s';", 'SET LOCAL search_path = pg_catalog, pg_temp;', role_guards,
                "LOCK TABLE #{@tables.map { |table| "ONLY #{relation(table)}" }.join(', ')} IN SHARE ROW EXCLUSIVE MODE;",
-               storage_guards, infrastructure, *@tables.map { |table| triggers(table) }, privilege_guards,
+               storage_guards, infrastructure, *@tables.map { |table| triggers(table) }, privilege_guards, routine_guards,
                "-- Varredura da raiz do tenant para preencher revisões iniciais.",
                "INSERT INTO #{revisions} (tenant_id, revision) SELECT #{quote('id')}::text, 0 FROM #{root_relation};", 'COMMIT;', ''].join("\n")
         Graph::Data.freeze(Result.new(sql: sql, tables: @tables, warnings: warnings))
@@ -162,6 +162,70 @@ module Vetra
         SQL
       end
 
+      def routine_guards
+        protected_tables = @tables.map { |table| "#{literal(relation(table))}::regclass" }.join(', ')
+        <<~SQL
+          -- Depois dos REVOKEs: confere também a infraestrutura e seus privilégios padrão efetivos.
+          -- As funções de revisão só entram no fecho se algum papel alcançado ainda puder executá-las.
+          -- Conservador: confere poderes, não interpreta o corpo; inclui EXECUTE e a cadeia SET de cada dono.
+          DO $vetra_routines$
+          DECLARE unsafe_routines text;
+          BEGIN
+            WITH RECURSIVE definers AS MATERIALIZED (
+              SELECT p.oid, p.proowner FROM pg_proc p WHERE p.prosecdef AND p.prokind IN ('f', 'p')
+            ), owner_roles AS MATERIALIZED (
+              SELECT p.proowner, r.oid FROM (SELECT DISTINCT proowner FROM definers) p
+                JOIN pg_roles r ON pg_has_role(p.proowner, r.oid, 'SET')
+            ), reachable_roles(oid) AS (
+              SELECT r.oid FROM #{assumable_roles}
+              UNION
+              SELECT o.oid FROM reachable_roles a
+                JOIN definers p ON has_function_privilege(a.oid, p.oid, 'EXECUTE')
+                JOIN owner_roles o ON o.proowner = p.proowner
+            ), routine_calls AS MATERIALIZED (
+              SELECT a.oid AS caller, p.oid AS routine, p.proowner FROM reachable_roles a
+                JOIN definers p ON has_function_privilege(a.oid, p.oid, 'EXECUTE')
+            ), unsafe_roles(oid) AS (
+              -- Avalia os poderes uma vez por papel alcançável, não a cada caminho até ele.
+              SELECT r.oid FROM reachable_roles a JOIN pg_roles r ON r.oid = a.oid
+                WHERE r.rolsuper OR r.rolbypassrls OR r.rolcreaterole
+                  OR pg_has_role(r.oid, #{literal(@owner)}, 'USAGE')
+                  OR EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace s ON s.oid = c.relnamespace
+                    WHERE c.oid IN (#{protected_tables})
+                      AND (pg_has_role(r.oid, c.relowner, 'USAGE') OR pg_has_role(r.oid, s.nspowner, 'USAGE')
+                        OR has_table_privilege(r.oid, c.oid, 'TRUNCATE,TRIGGER')
+                        OR has_any_column_privilege(r.oid, c.oid, 'REFERENCES')))
+                  OR has_schema_privilege(r.oid, #{literal(@schema)}, 'CREATE')
+                  OR has_table_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
+                  OR has_any_column_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,REFERENCES')
+                  OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = #{literal(@schema)}::regnamespace
+                    AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))
+                  OR EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.admin_option AND pg_has_role(r.oid, m.member, 'USAGE'))
+                  OR pg_has_role(r.oid, 'pg_create_subscription'::regrole, 'USAGE')
+                  OR EXISTS (SELECT 1 FROM pg_subscription s WHERE pg_has_role(r.oid, s.subowner, 'USAGE'))
+                  OR EXISTS (SELECT 1 FROM pg_roles server_role
+                    WHERE server_role.rolname IN ('pg_execute_server_program', 'pg_write_server_files', 'pg_read_server_files')
+                      AND pg_has_role(r.oid, server_role.oid, 'USAGE'))
+              UNION
+              -- Volta pelas chamadas para listar também as rotinas de entrada e intermediárias.
+              SELECT c.caller FROM unsafe_roles u JOIN owner_roles o ON o.oid = u.oid
+                JOIN routine_calls c ON c.proowner = o.proowner
+            )
+            SELECT string_agg(format('%I.%I(%s) [dono: %I]', n.nspname, p.proname,
+              pg_get_function_identity_arguments(p.oid), pg_get_userbyid(p.proowner)), '; ' ORDER BY n.nspname, p.proname, p.oid)
+              INTO unsafe_routines
+              FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+              WHERE EXISTS (SELECT 1 FROM routine_calls c WHERE c.routine = p.oid)
+                AND EXISTS (SELECT 1 FROM owner_roles o JOIN unsafe_roles u ON u.oid = o.oid
+                  WHERE o.proowner = p.proowner);
+            IF unsafe_routines IS NOT NULL THEN
+              RAISE EXCEPTION 'Rotinas SECURITY DEFINER executáveis pela aplicação com dono privilegiado: %', unsafe_routines
+                USING HINT = 'Revogue EXECUTE de PUBLIC, da aplicação, dos papéis herdados ou assumíveis e dos donos intermediários antes de instalar.';
+            END IF;
+          END $vetra_routines$;
+        SQL
+      end
+
       def triggers(table)
         suffix = Digest::SHA256.hexdigest([@document.dig('app', 'name'), table['entity']].join("\0"))[0, 24]
         column = quote(table['tenant_column'])
@@ -194,8 +258,8 @@ module Vetra
         end.join + "REVOKE TRUNCATE, TRIGGER, REFERENCES ON #{relation(table)} FROM PUBLIC, #{quote(@app)};\n"
       end
 
-      # Papéis cujos privilégios a aplicação tem ou pode obter: ela própria, os herdados e os alcançáveis por SET ROLE,
-      # inclusive concessões com INHERIT FALSE, que has_*_privilege(app, ...) não enxerga.
+      # Papéis assumíveis pela aplicação, inclusive ela própria e cadeias SET.
+      # has_*_privilege/USAGE abaixo acrescentam as heranças de cada papel assumível, inclusive SET -> INHERIT.
       def assumable_roles
         "pg_roles r WHERE pg_has_role(#{literal(@app)}, r.oid, 'SET')"
       end

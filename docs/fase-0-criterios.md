@@ -60,6 +60,13 @@ com inclusão na CI do 17/18. Depois, a K5 estendeu as recusas aos papéis assum
 sonda passou a 29/29. O compilador passa a alpha.5, preservando a IR. O [guia](db-authz-sql.md)
 registra os limites do bootstrap; os critérios 6 e 7 continuam parciais.
 
+Na C2, a guarda de rotinas `SECURITY DEFINER` leva a suíte a 355 testes e 2.984 asserções, sem falhas,
+com 141/141 diagnósticos. Um fecho recursivo alcança os donos por cadeias de definers e confere neles os
+mesmos poderes perigosos da aplicação, inclusive sobre a infraestrutura recém-criada; DML comum continua
+permitido, porque incrementa a revisão. A sonda ADR-031 passou 59/59 no PostgreSQL 18.6 (35/59 contra o
+gerador de `fb41921`). Rotinas criadas depois da instalação continuam um limite operacional; os critérios
+de runtime seguem parciais ([guia](db-authz-sql.md)).
+
 Com a C1 e o ADR-032 **proposto**, em 2026-11-03: 351 testes e 2.906 asserções, sem falhas;
 141/141 códigos exercitados. São 23 testes novos para comandos gerados de `many_to_many`, contratos,
 autorização, recusas, link sem executor, compatibilidade e diff. Na rodada 2 após devolução, a evolução

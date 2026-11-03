@@ -15,7 +15,7 @@ Situações: `a fazer`, `em andamento`, `em auditoria`, `devolvida`, `concluída
 | C1 | Geração automática dos comandos de vínculo de `many_to_many` (parte do critério 7) | Codex | concluída | `58993e2` | Devolvida na rodada 1, aprovada na rodada 2; ADR-032 proposto; CI verde ([auditoria](#auditoria-c1)) |
 | K4 | Protocolo novo: os dois implementam, auditoria cruzada, decisão e envio pelo Claude; lacunas do parecer | Claude | concluída | `e761f05` | Pedido do mantenedor; incorpora o parecer do Codex sobre `1aca944` |
 | K5 | `db:authz:sql`: fechar os caminhos que contornam a revisão (papéis assumíveis por `SET ROLE`, `ADMIN OPTION`, `REFERENCES`, `session_replication_role`) | Claude | concluída | `fb41921` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada com ajuste não bloqueante; CI verde, sonda 29/29 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k5)) |
-| C2 | `db:authz:sql`: recusar ou listar para revisão as rotinas `SECURITY DEFINER` existentes que a aplicação pode executar e que pertencem a papéis com poder de escrita, `TRUNCATE` ou `TRIGGER` nas tabelas protegidas (achado da auditoria da K5) | Codex | em andamento | — | Auditoria pelo Claude |
+| C2 | `db:authz:sql`: recusar ou listar para revisão as rotinas `SECURITY DEFINER` existentes que a aplicação pode executar e que pertencem a papéis com poder de escrita, `TRUNCATE` ou `TRIGGER` nas tabelas protegidas (achado da auditoria da K5) | Codex | concluída | este commit | Rodadas 1 e 2 devolvidas pelo Claude; rodada 3 aprovada ([auditoria](#auditoria-c2)) |
 
 ### C1: escopo
 
@@ -48,6 +48,34 @@ sem quebra, com a troca de `ir_version` para revisão nos quatro grafos; `git di
 | A geração vem ligada por padrão, enquanto `crud` é opt-in | não | Não ajustar agora: segue a proposta e está registrado no ADR-032; decisão do mantenedor no aceite do ADR |
 | Listas de versões repetidas em `schema.rb`, normalizador, validador e linker | não | Não ajustar agora: o padrão já existia; vale uma tabela de versões quando surgir a 0.5 |
 | Nenhum exemplo exercita a geração (o chat usa `commands: false`) | não | Não ajustar: os 20 testes de `relation_commands_test.rb` cobrem a geração e as recusas |
+
+## Auditoria C2
+
+Implementado pelo Codex sobre `de84819`; auditado pelo Claude; decisão do Claude. O sandbox do Codex recusou
+sockets Unix e TCP em loopback, então a sonda completa foi rodada pelo Claude, no PostgreSQL 18.6, contra o
+gerador novo e contra o de `fb41921` (resto da árvore igual).
+
+**Rodada 1 — devolvida.** Guarda antes da infraestrutura, com o critério de papéis da K5 para quem executa e
+para o dono. Sonda 55/55; 33/55 contra `fb41921`.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Cadeia de definers: `a()` de dono sem poder, executável por `PUBLIC`, chama `b()`, privada, cujo dono tem `TRUNCATE`; reproduzido no PostgreSQL 18 (tabela esvaziada) sem recusa | sim | Ajustar: fecho recursivo dos papéis alcançáveis por `EXECUTE` de definers |
+| A recusa não exige `USAGE` no schema da rotina | não | Não ajustar: conservador; registrar no guia |
+
+**Rodada 2 — devolvida.** Fecho com `UNION`, ciclos encerrados, recusa listando entradas, intermediárias e
+rotinas perigosas. Sonda 58/58; 34/58 contra `fb41921`.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `INSERT`, `UPDATE` e `DELETE` do dono contavam como poder perigoso, mas DML dispara os triggers `ALWAYS` e incrementa a revisão; erro de especificação do Claude na rodada 1, que recusaria funções de escrita comuns | sim | Ajustar: mesmo modelo de poderes da aplicação (`TRUNCATE`, `TRIGGER`, `REFERENCES`, propriedade, atributos, `ADMIN`, subscriptions, papéis de servidor) |
+| A guarda rodava antes da infraestrutura e não conferia, nos donos alcançados, escrita nas revisões, `EXECUTE` nas funções novas e `CREATE` no schema, alcançáveis por privilégios padrão globais do instalador | sim | Ajustar: guarda depois dos `REVOKE`s, conferindo os privilégios efetivos |
+
+**Rodada 3 — aprovada.** Sonda 59/59 no PostgreSQL 18.6, inclusive o `DELETE` por definer de dono só com DML
+(revisão de 1 a 2) e as três recusas por privilégios padrão globais; 35/59 contra `fb41921`. Suíte com 355
+testes e 2.984 asserções, sem falhas; 141/141 diagnósticos; gate sem alterações; `git diff --check` limpo; modo
+`100755` da sonda preservado. O Claude enxugou nos docs a narrativa de rodadas e sandbox, deixando os números
+finais. Limite que permanece, documentado no guia: rotinas, corpos e concessões alterados depois da instalação.
 
 ## Auditoria K5
 

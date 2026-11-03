@@ -4,8 +4,9 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `e761f05`, com a C1 do Codex aprovada pela auditoria do Claude na rodada 2:
-  ADR-032 proposto, IR 0.4 e geração declarativa dos comandos de vínculo, sem executor.
+- **Atualizado em:** 2026-11-03, sobre `de84819`, com a C2 do Codex aprovada pela auditoria do Claude na rodada 3:
+  `db:authz:sql` recusa rotinas `SECURITY DEFINER` preexistentes que levam a donos com poderes perigosos.
+  A C1 foi aprovada na rodada 2: ADR-032 proposto, IR 0.4 e comandos declarativos de vínculo, sem executor.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -16,10 +17,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; ADR-032 proposto, aguardando aceite do mantenedor |
-| Testes do compilador e exemplos | 352 testes e 2.932 asserções, sem falhas (com a K5); 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador e exemplos | 355 testes e 2.984 asserções, sem falhas (com a C2); 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C1 | Rodada 2 após devolução: 23 testes de geração de vínculos e compatibilidade; quatro grafos reconstruídos na IR 0.4, chat com opt-out explícito. Check, validação com fontes e link passaram nos quatro exemplos; gate contra `origin/main` sem quebra, com revisão de `ir_version` nos quatro e um metadado no chat. Gem alpha.5 e schemas 0.1/0.2/0.3 preservados |
+| Verificação da C2 | 18 testes e 228 asserções do gerador; suíte, gate e quatro exemplos em check/validate/link passaram. Sonda ADR-031 59/59 no PostgreSQL 18.6, contra 35/59 no gerador de `fb41921`; o 17 é coberto pela CI |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
 | Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
@@ -129,8 +131,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   tipos/colunas incompatíveis, partições/herança e poderes perigosos, inclusive privilégios padrão herdados e
   papéis que a aplicação pode assumir por `SET ROLE` ou conceder a si com `ADMIN OPTION`, além de `REFERENCES`
   subscriptions de replicação lógica e papéis de acesso ao servidor; os triggers ficam `ENABLE ALWAYS` (K5). A
-  CLI confere o pacote sem reavaliar o DSL. Quinze testes e 29 verificações do SQL aplicado em PostgreSQL 18.6;
-  sonda ADR-031 na CI 17/18.
+  CLI confere o pacote sem reavaliar o DSL. A C2 acrescenta a recusa, com lista, de funções e procedimentos
+  `SECURITY DEFINER` preexistentes que conduzem a donos com poderes perigosos, por um fecho recursivo de
+  `EXECUTE`, heranças e cadeias `SET ROLE`; DML comum dos donos é permitido, e a guarda roda depois dos
+  `REVOKE`s para conferir também a infraestrutura nos papéis do fecho. 18 testes e 59 verificações do SQL
+  aplicado em PostgreSQL 18.6; sonda ADR-031 na CI 17/18. Rotinas criadas depois da instalação continuam fora
+  da conferência.
   [Guia e limites](db-authz-sql.md).
 - [x] `sonda_adr020.rb`: treze verificações de revisão por tenant, sem depender do contexto da escrita;
   inclui lotes, troca de tenant, atomicidade e notificações, concorrência, privilégios, objetos temporários,

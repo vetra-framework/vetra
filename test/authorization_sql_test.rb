@@ -73,8 +73,8 @@ class AuthorizationSQLTest < GraphTest
   def test_privilege_guards_cover_roles_reachable_by_set_role
     with_app('mini_crm_revendas') do |_root, compiler|
       sql = generate(compiler.build.document, app_role: 'web_app').sql
-      # Atributos dos papéis, cinco tabelas protegidas, schema, revisões e funções.
-      assert_equal 9, sql.scan("pg_roles r WHERE pg_has_role('web_app', r.oid, 'SET')").size
+      # Atributos, cinco tabelas, schema, revisões, funções novas e rotinas preexistentes.
+      assert_equal 10, sql.scan("pg_roles r WHERE pg_has_role('web_app', r.oid, 'SET')").size
       assert_includes sql, %q{has_table_privilege(r.oid, '"public"."memberships"', 'TRUNCATE,TRIGGER')}
       assert_includes sql, %q{has_any_column_privilege(r.oid, '"public"."memberships"', 'REFERENCES')}
       assert_includes sql, 'AND (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole)'
@@ -87,6 +87,55 @@ class AuthorizationSQLTest < GraphTest
       %w[has_table_privilege has_any_column_privilege has_schema_privilege has_function_privilege].each do |check|
         refute_includes sql, "#{check}('web_app'"
       end
+    end
+  end
+
+  def test_definers_are_checked_after_restricting_the_infrastructure_privileges
+    with_app('mini_crm_revendas') do |_root, compiler|
+      sql = generate(compiler.build.document, schema: 'infra', app_role: 'web_app').sql
+      guard = sql[sql.index('DO $vetra_routines$')...sql.index('END $vetra_routines$')]
+      assert_includes guard, "p.prosecdef AND p.prokind IN ('f', 'p')"
+      assert_includes guard, "SELECT r.oid FROM pg_roles r WHERE pg_has_role('web_app', r.oid, 'SET')"
+      assert_includes guard, "JOIN definers p ON has_function_privilege(a.oid, p.oid, 'EXECUTE')"
+      assert_includes guard, "pg_has_role(p.proowner, r.oid, 'SET')"
+      assert_includes guard, 'pg_get_function_identity_arguments(p.oid), pg_get_userbyid(p.proowner)'
+      assert_includes guard, "string_agg(format('%I.%I(%s) [dono: %I]'"
+      assert_includes guard, 'Revogue EXECUTE de PUBLIC'
+      # Nenhuma lista de schemas confiáveis oculta definers instalados por operadores/extensões.
+      refute_includes guard, 'n.nspname ='
+      refute_includes guard, 'n.nspname NOT IN'
+      refute_includes guard, 'UNION ALL'
+      assert_operator sql.index('END $vetra_privileges$'), :<, sql.index('DO $vetra_routines$')
+      assert_operator sql.rindex('REVOKE ALL ON FUNCTION'), :<, sql.index('DO $vetra_routines$')
+    end
+  end
+
+  def test_definer_owner_powers_include_column_grants_ownership_and_role_escalation
+    with_app('mini_crm_revendas') do |_root, compiler|
+      sql = generate(compiler.build.document, owner_role: 'data_owner').sql
+      guard = sql[sql.index('DO $vetra_routines$')...sql.index('END $vetra_routines$')]
+      assert_includes guard, "has_table_privilege(r.oid, c.oid, 'TRUNCATE,TRIGGER')"
+      assert_includes guard, "has_any_column_privilege(r.oid, c.oid, 'REFERENCES')"
+      assert_includes guard, "pg_has_role(r.oid, c.relowner, 'USAGE')"
+      assert_includes guard, "pg_has_role(r.oid, s.nspowner, 'USAGE')"
+      assert_includes guard, "pg_has_role(r.oid, 'data_owner', 'USAGE')"
+      assert_includes guard, 'r.rolsuper OR r.rolbypassrls OR r.rolcreaterole'
+      assert_includes guard, "m.admin_option AND pg_has_role(r.oid, m.member, 'USAGE')"
+      assert_includes guard, "pg_has_role(r.oid, s.subowner, 'USAGE')"
+      assert_includes guard, "'pg_execute_server_program', 'pg_write_server_files', 'pg_read_server_files'"
+      assert_includes guard, %q{'"public"."memberships"'::regclass}
+    end
+  end
+
+  def test_definer_closure_checks_effective_privileges_on_the_new_infrastructure
+    with_app('mini_crm_revendas') do |_root, compiler|
+      sql = generate(compiler.build.document, schema: 'infra').sql
+      guard = sql[sql.index('DO $vetra_routines$')...sql.index('END $vetra_routines$')]
+      assert_includes guard, "has_schema_privilege(r.oid, 'infra', 'CREATE')"
+      assert_includes guard, %q{has_table_privilege(r.oid, '"infra"."authz_revisions"', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')}
+      assert_includes guard, %q{has_any_column_privilege(r.oid, '"infra"."authz_revisions"', 'INSERT,UPDATE,REFERENCES')}
+      assert_includes guard, "p.pronamespace = 'infra'::regnamespace"
+      assert_includes guard, "AND has_function_privilege(r.oid, p.oid, 'EXECUTE')"
     end
   end
 

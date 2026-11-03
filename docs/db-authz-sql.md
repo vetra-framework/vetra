@@ -62,7 +62,59 @@ A instalação do SQL segue esta ordem:
    `WITH INHERIT FALSE, SET TRUE`, cujos privilégios não aparecem em `has_table_privilege` da aplicação mas
    ficam disponíveis depois de um `SET ROLE`. Sem isso, um `TRUNCATE` obtido assim apagaria vínculos sem
    incrementar a revisão, porque `TRUNCATE` não dispara os triggers de `DELETE`.
-7. Varre os IDs existentes da raiz para criar revisões zero e confirma a transação.
+7. Audita as funções e procedimentos `SECURITY DEFINER` em `pg_proc`, depois da criação e da restrição dos
+   privilégios da infraestrutura. Começa pelos papéis assumíveis pela aplicação e calcula um fecho recursivo:
+   para cada definer executável por um papel alcançado, acrescenta o dono e seus papéis assumíveis.
+   `EXECUTE` conta diretamente, por herança ou por `PUBLIC` (padrão do PostgreSQL). Repete até não alcançar
+   papéis novos; `UNION` elimina repetições e encerra ciclos. Assim, uma entrada de dono sem poder também é
+   recusada se esse dono pode executar outro definer que chega a um dono perigoso, mesmo sem `EXECUTE` da
+   aplicação na rotina interna. Confere os poderes dos donos alcançados, seus papéis assumíveis e heranças:
+   `TRUNCATE` e `TRIGGER` nas tabelas protegidas, `REFERENCES` também por coluna; propriedade das tabelas ou
+   de seus schemas; acesso ao papel proprietário da infraestrutura; `SUPERUSER`, `BYPASSRLS`, `CREATEROLE`,
+   `ADMIN OPTION` utilizável, criação/posse de subscriptions e os três papéis de acesso ao servidor do passo 2.
+   Na infraestrutura, confere também escrita em `authz_revisions` (inclusive por coluna), `EXECUTE` nas
+   funções novas e `CREATE` no schema. A propriedade conta mesmo sem ACL: permite desabilitar triggers ou
+   remover o schema com `CASCADE`; o dono da infraestrutura pode alterar as revisões. A recusa lista schema,
+   nome, argumentos e dono das rotinas alcançáveis que conduzem a esses poderes, incluindo entradas,
+   intermediárias e rotinas de dono perigoso. Uma segunda recursão percorre as permissões no sentido inverso
+   para compor essa lista. As duas recursões guardam somente OIDs de papéis, sem enumerar caminhos; os donos
+   distintos e as chamadas são materializados, e os poderes são conferidos uma vez por papel alcançado.
+8. Varre os IDs existentes da raiz para criar revisões zero e confirma a transação.
+
+DML comum nas tabelas protegidas é permitido também aos donos alcançados por definers: `INSERT`, `UPDATE`
+e `DELETE` disparam os triggers `ENABLE ALWAYS` e incrementam a revisão. Isso inclui concessões de
+`INSERT` e `UPDATE` por coluna. O mesmo modelo de poderes perigosos vale para a aplicação e para esses donos.
+
+A guarda de rotinas fica depois dos `REVOKE`s para conferir os privilégios efetivos dos objetos novos,
+incluindo concessões padrão globais do instalador a donos alcançados pelo fecho, sem precisar reconstruir as
+regras de `pg_default_acl`. As funções de trigger criadas pelo SQL também são consideradas, mas só entram
+no fecho se um papel alcançado ainda tiver `EXECUTE`: a revogação de `PUBLIC` e da aplicação evita a recusa
+na instalação normal. Todas as guardas continuam dentro da mesma transação; uma recusa desfaz a instalação.
+
+A auditoria de rotinas é conservadora: verifica poderes, sem interpretar corpos ou conceder exceções a
+schemas/extensões. Mesmo um corpo inofensivo é recusado quando seu dono tem esses poderes ou pode chegar a
+eles por outros definers. Uma cadeia cujos donos não têm nem alcançam poderes perigosos permite instalar;
+uma rotina privilegiada também permite instalar quando nenhum papel alcançável consegue executá-la.
+A recusa **não depende de `USAGE` no schema da rotina**: ela pode ser chamada por outra rotina, e as
+permissões de acesso podem mudar depois. Esse critério conservador permanece intencional.
+A cadeia `SET` de cada dono também é recusada por precaução, conforme o critério de papéis da K5;
+isso **não** significa que `SET ROLE` funcione
+dentro de um definer. O PostgreSQL o proíbe (a sonda confere SQLSTATE `42501`), tanto na função quanto em
+chamadas sob esse contexto. Veja [SET ROLE](https://www.postgresql.org/docs/18/sql-set-role.html).
+
+Não há lista de exceções nem revogação automática de rotinas externas. Revise a lista da recusa e revogue
+`EXECUTE` antes de tentar instalar novamente, incluindo `PUBLIC`, cada papel que empresta a permissão e
+os donos intermediários que dão acesso a rotinas internas:
+
+```sql
+REVOKE EXECUTE ON FUNCTION legado.limpar_vinculos(integer) FROM PUBLIC, vetra_app, papel_assumivel;
+REVOKE EXECUTE ON PROCEDURE legado.limpar_tudo() FROM PUBLIC, vetra_app, papel_assumivel;
+REVOKE EXECUTE ON FUNCTION legado.rotina_interna() FROM dono_intermediario;
+```
+
+Revogar somente de `vetra_app` não remove uma concessão de `PUBLIC` ou de outro papel. A instalação aborta
+inteira na recusa e preserva as permissões externas para o operador decidir. As funções de revisão já
+existem nessa conferência, com seus privilégios restringidos.
 
 As tabelas e os papéis devem existir antes. O instalador precisa dos privilégios de migração sobre esses
 objetos e de atribuir as funções ao proprietário. O proprietário deve ser `NOLOGIN NOSUPERUSER NOBYPASSRLS
@@ -92,11 +144,11 @@ result.warnings  # diagnósticos do grafo
 ```
 
 A API valida o grafo e copia sua entrada, sem acessar fontes ou banco. A CLI acrescenta a verificação do
-pacote. IRs 0.1/0.2/0.3 são aceitas com suas regras próprias; a geração não converte ou regrava a IR.
+pacote. IRs 0.1/0.2/0.3/0.4 são aceitas com suas regras próprias; a geração não converte ou regrava a IR.
 
 `test/authorization_sql_test.rb` cobre seleção, nomes, mapeamento, determinismo, falhas e CLI sem reavaliar
 o DSL. A [sonda ADR-031](../script/sonda_adr031.rb) aplica o SQL realmente gerado em PostgreSQL descartável.
-No PostgreSQL 18.6, Ruby 4.0.9 e `pg` 1.7.0, passaram 29/29 verificações: instalação, DML em lote, troca de
+Na rodada K5, no PostgreSQL 18.6, Ruby 4.0.9 e `pg` 1.7.0, passaram 29/29 verificações: instalação, DML em lote, troca de
 tenant, ciclo de vida da raiz, atomicidade, concorrência, privilégios, papéis assumíveis por `SET ROLE`,
 `ADMIN OPTION` (inclusive herdado por papel assumível e o caso legítimo de `ADMIN` implícito inacessível),
 `REFERENCES`, subscriptions (criação e posse herdada), papéis de acesso ao servidor,
@@ -104,17 +156,31 @@ tenant, ciclo de vida da raiz, atomicidade, concorrência, privilégios, papéis
 verificações que detectam esses caminhos falham (19/29). A limpeza dos schemas e papéis foi conferida. A CI repete a sonda no
 PostgreSQL 17 e 18.
 
+A C2 amplia a sonda para 59 verificações: funções, sobrecargas e procedimentos preexistentes; `EXECUTE`
+direto, herdado e assumível; cadeias de definers `a -> b` e `a -> b -> c`, inclusive com rotina interna
+privada; cadeia legítima com ciclo de permissões entre donos sem poder; poderes do dono por coluna, por
+propriedade sem ACL, de replicação e de servidor; dono só com DML (instala, e o `DELETE` pela rotina leva a
+revisão de 1 a 2); privilégios padrão globais `FOR ROLE <owner>` concedidos a um dono interno da cadeia
+(escrita nas revisões, `EXECUTE` nas funções novas e `CREATE` no schema); instalação depois de revogar
+`EXECUTE`; e o limite posterior à instalação (função criada depois faz `TRUNCATE` com a revisão parada).
+No PostgreSQL 18.6 passaram 59/59; contra o gerador de `fb41921`, 35/59. O catálogo do 18.6 não tem
+`prosecdef` em `pg_catalog` nem em `information_schema`, e os fontes do 17 também não
+([`pg_proc.dat`](https://github.com/postgres/postgres/blob/REL_17_STABLE/src/include/catalog/pg_proc.dat)),
+por isso não há exclusão desses schemas.
+
 ## Limites
 
 Não há `db:plan`, `db:migrate`, atualização de instalações existentes, chave global sem tenant, geração de
 RLS ou eventos de linha, assinaturas, executor de operações ou entrega de dados live. O schema novo é uma
 pré-condição: colisões falham sem substituir objetos. O mesmo vale para dados particionados ou herdados.
 A introspecção gerada verifica somente as colunas e os poderes necessários a este SQL, não o esquema
-completo da aplicação. Os poderes são conferidos na instalação; concessões feitas depois não são vigiadas.
-Também não são auditadas as rotinas que já existem: uma função `SECURITY DEFINER` de um papel com poderes sobre
-as tabelas protegidas, executável pela aplicação, pode fazer `TRUNCATE` em nome do dono sem incrementar a revisão.
-Revise essas funções antes da instalação; a auditoria automática delas é a tarefa C2 do
-[quadro dos agentes](tarefas-dos-agentes.md).
+completo da aplicação. Os poderes e as rotinas preexistentes são conferidos na instalação; novas rotinas,
+alterações de corpos, concessões e mudanças de papéis feitas depois não são vigiadas. Uma função
+`SECURITY DEFINER` criada depois, de dono privilegiado e executável pela aplicação, ainda pode fazer `TRUNCATE`
+sem incrementar a revisão, como a sonda demonstra. A guarda segue permissões de execução de definers,
+sem analisar corpos nem provar a segurança de todas as formas de execução indireta; essas mudanças exigem
+revisão operacional. Mantenha DDL e concessões estáveis durante
+a instalação: os locks protegem as tabelas, não congelam os catálogos de rotinas/papéis.
 
 Um `pg_restore --data-only --disable-triggers` termina com `ENABLE TRIGGER ALL`, que troca o estado `ALWAYS`
 dos triggers pela habilitação comum; a partir daí, `session_replication_role = replica` volta a suprimi-los.
