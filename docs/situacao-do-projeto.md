@@ -17,7 +17,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | ADRs | 27 aceitos: os 21 fundadores, 5 ADRs de resolução (022 a 026) e a evolução de formato 027; nenhum proposto |
 | Testes do compilador e exemplos | 268 testes e 2.107 asserções, sem falhas; 127/127 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
-| CI registrada | Confirmados os três checks verdes de `694b34d`; a CI desta rodada está vinculada ao [PR #36](https://github.com/vetra-framework/vetra/pull/36) |
+| CI registrada | Três checks verdes no push direto de `a1c4dad`, o primeiro com a proteção que só bloqueia force-push e exclusão |
 | Verificação local em 2026-11-02 | Suíte completa, os quatro exemplos e 17 cenários do gate passaram. O chat tem duas quebras intencionais, declaradas por digest; 0.1.0-alpha.2 inclui os schemas 0.1 e 0.2 |
 | PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
@@ -100,11 +100,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   Oito testes do gate e 17 cenários de simulação passaram nesta revisão.
 - [x] `sonda_adr011.rb` executável; os demais modos do Git foram preservados. O aviso experimental é
   silenciado apenas durante a criação de Ractors no teste, com restauração da configuração anterior.
-- [ ] Proteção da main redefinida em 2026-11-03 para integração direta: sem PR nem checks prévios, com
+- [x] Proteção da main redefinida em 2026-11-03 para integração direta: sem PR nem checks prévios, com
   force-push e exclusão bloqueados, inclusive para admins. O mantenedor roda a suíte e o gate antes do push
-  ([fluxo](graph-diff.md#fluxo-de-integração-e-ci)). Configuração em `.github/main-protection.json`;
-  **pendente de aplicação pelo mantenedor** com o `gh api -X PUT` do fluxo (a configuração anterior, com PR
-  obrigatório, ainda está ativa no GitHub).
+  ([fluxo](graph-diff.md#fluxo-de-integração-e-ci)). Configuração em `.github/main-protection.json`, aplicada
+  pelo mantenedor e conferida por leitura da API; o push direto de `a1c4dad` passou com os três checks verdes.
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
 - [x] `test:diagnostics` executa a suíte uma vez e confere os códigos realmente criados em `Diagnostic.new`
