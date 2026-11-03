@@ -88,3 +88,4 @@ jobs:
       - run: ruby script/sonda_adr011.rb
       - run: ruby script/sonda_adr015.rb
       - run: ruby script/sonda_adr019.rb
+      - run: ruby script/sonda_adr020.rb

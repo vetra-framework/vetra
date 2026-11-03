@@ -47,6 +47,11 @@ suíte do compilador e execução na CI do PostgreSQL 17 e 18. Localmente, todas
 O [relatório](sondas/adr008.md) registra os mecanismos medidos e as lacunas de runtime. Os grafos e o
 catálogo de diagnósticos não mudam; os critérios 6 e 7 continuam parciais.
 
+Com a sonda ADR-020 e a resolução ADR-030: 13 verificações no PostgreSQL 18.6, fora da suíte, e inclusão na
+CI do 17/18. Quatro falhas introduzidas foram detectadas. A [medição](sondas/adr020.md) cobre revisão de
+autorização e protótipos de decisão strict e releitura agrupada; não fecha os critérios de runtime ou o
+gate G4. A suíte e o catálogo do compilador permanecem com 314 testes e 133 códigos.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes

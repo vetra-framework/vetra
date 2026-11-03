@@ -472,6 +472,8 @@ descritores reconhecidos com executor pendente; os testes não demonstram execu�
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 As sondas de PostgreSQL são executadas separadamente; a [sonda do ADR-008](sondas/adr008.md) verifica
 intervalos, continuidade e versão por linha, sem implementar a entrega live.
+A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
+e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
 e registra o que foi fechado: os 133 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.

@@ -1,6 +1,8 @@
 # ADR-020: Entrega live incremental
 
 - Status: aceito
+- Questões resolvidas por: ADR-030 (questão 6, tenants no trigger de revisão)
+- Evidência posterior ao aceite: [sonda de revisão e entrega live](../sondas/adr020.md), adicionada em 2026-11-03; protótipos de banco e de decisão de entrega, sem runtime integrado.
 - Data: 2026-10-30
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-008 (ordem e continuidade dos eventos), ADR-016 (ciclo
   de vida da operação), ADR-001 (classificação `privacy` da IR)

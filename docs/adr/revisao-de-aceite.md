@@ -51,7 +51,7 @@ Onde está "nenhuma", o ADR é uma decisão de projeto e o que o sustenta são o
 implementação.
 
 A CI reverifica a cada push da main e PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `sonda_adr003`,
-`sonda_adr008`, `sonda_adr009`, `sonda_adr011`, `sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler`
+`sonda_adr008`, `sonda_adr009`, `sonda_adr011`, `sonda_adr015`, `sonda_adr019` e `sonda_adr020`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler`
 (exige um PgBouncer) são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados que a CI não repete.
 
 | ADR | Rodada | Depende de | Evidência | Testes de aceitação | Questões em aberto |
@@ -73,7 +73,7 @@ A CI reverifica a cada push da main e PR, no PostgreSQL 17 e no 18, as sondas `s
 | 013 Privacidade, auditoria e histórico | 3 | 016, 005 | compilador da fase 0 (`privacy`, payload de eventos, diff; teste 2) | 13 | 8 |
 | 014 Outbox | 3 | 016, 008, 002 | `sonda_adr002` | 13 | 6 |
 | 018 Camada de UI | 3 | 007, 016 | nenhuma sonda (o ERB da biblioteca padrão foi conferido à mão) | 16 | 7 |
-| 020 Entrega live incremental | 3 | 005, 008, 016, 001 | nenhuma | 12 (11 do gate G4) | 7 |
+| 020 Entrega live incremental | 3 | 005, 008, 016, 001 | `sonda_adr020` (protótipos; relatório próprio) | 12 (11 do gate G4) | 7 (questão 6 resolvida pelo ADR-030) |
 | 021 Campos de transição | 3 | 016, 004 | compilador da fase 0 (testes 4 em parte e 8) | 9 | 2 |
 | 009 Workflows | 4 | 016, 004, 014 | `sonda_adr009` | 13 | 7 |
 | 019 Sinais efêmeros | 4 | 020, 008, 005, 013 | `sonda_adr019` | 13 | 6 |
@@ -313,6 +313,11 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
   motor de template; autenticação e logs; versionamento dos módulos; acessibilidade e internacionalização.
 
 **ADR-020 · Entrega live incremental**
+- [ ] Evidência: `sonda_adr020` (13 verificações, localmente no PostgreSQL 18.6, com CI no 17 e 18): revisão
+  por tenant a partir das tabelas de transição, atomicidade, concorrência, privilégios, decisão strict,
+  falha fechada, snapshot, eventos sem conteúdo pessoal e releitura demonstrativa por grupo.
+  O [relatório](../sondas/adr020.md) distingue os protótipos do runtime e do gerador ainda ausentes.
+  A questão 6, sobre a origem do tenant, foi resolvida pelo ADR-030.
 - [ ] Limites: a revogação no modo `balanced` vale em até um intervalo (operacional); dados já entregues não são
   recolhidos (fora da garantia).
 - [ ] Os 11 critérios do gate G4 dependem de implementação; o 8 e o 9 vêm do ADR-019 e o 10, do ADR-018. O 12
