@@ -37,7 +37,7 @@ o Claude e as de compilador podem ir para os dois.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | concluída | `1a8ee02`, `3221157` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-033 aceito por delegação; CI verde ([auditoria](#auditoria-c3)) |
-| K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | concluída | este commit | Rodada 1 devolvida pelo Codex; rodada 2 aprovada ([auditoria](#auditoria-k6)) |
+| K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | concluída | `77685b0` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 31/31 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k6)) |
 | C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | em andamento | — | — |
 
 Depois desta rodada: a gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a
