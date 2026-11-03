@@ -42,6 +42,20 @@ o Claude e as de compilador podem ir para os dois.
 
 Rodada concluída. A gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a persistência.
 
+## Rodada 3 (2026-11-03)
+
+Persistência: do grafo a um banco criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O
+objetivo, a lacuna de decisão, os riscos e as regras estão no [plano da persistência](plano-persistencia.md), que
+incorpora o parecer do Codex.
+
+| ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
+|---|---|---|---|---|---|
+| C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | a fazer | — | Auditoria pelo Claude |
+| K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | a fazer | — | Auditoria pelo Codex |
+| C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
+| C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
+| K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
+
 ## Auditoria C4
 
 Implementado pelo Codex sobre `6b371d3`; auditado pelo Claude; decisão do Claude.

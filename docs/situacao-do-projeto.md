@@ -4,8 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `6b371d3`, com a rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
-  concluída. A C4 declara `rate_limit:` em `can`, com limite por política, ator e tenant na IR 0.6 e requisito
+- **Atualizado em:** 2026-11-03, sobre `45b6446`, com a rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
+  concluída e a rodada 3, da persistência, [planejada](plano-persistencia.md). A C4 declara `rate_limit:` em `can`, com limite por política, ator e tenant na IR 0.6 e requisito
   emitido somente quando usado; o ADR-034 foi aceito pelo Claude, por delegação do mantenedor, como antes o 032 e
   o 033. Os schemas 0.1 a 0.5 continuam preservados; contadores e runtime permanecem pendentes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -502,5 +502,6 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
    A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
-2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
-   começa quando quem revisa pedir
+2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) da rodada 3 leva cada exemplo a um banco
+   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate` (tarefas C5, K7, C6, C7 e K8 do
+   quadro). O plano incremental, os repositórios sobre o Sequel e a outbox ficam para a rodada 4
