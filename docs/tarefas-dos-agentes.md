@@ -50,7 +50,7 @@ incorpora o parecer do Codex.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | este commit | Aprovada na rodada 1; ADR-035 aceito por delegação ([auditoria](#auditoria-c5)) |
+| C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | a fazer | — | Auditoria pelo Codex |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
