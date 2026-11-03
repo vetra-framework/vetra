@@ -2,6 +2,7 @@
 
 - Status: aceito
 - Data: 2026-10-31
+- Evidência posterior ao aceite: [sonda das migrações expand/contract](../sondas/adr015.md), estendida em 2026-11-03 com as questões 3, 4 e 6 no PostgreSQL 17 e 18; o relatório registra os resultados, sem alterar a decisão abaixo.
 - Resolve: ADR-015 (as seis questões em aberto)
 - Depende de: ADR-015 (migrações expand/contract), ADR-001 (IR), ADR-005 (papéis e RLS), ADR-024 (tabelas
   particionadas do framework)

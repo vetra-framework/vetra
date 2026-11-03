@@ -329,7 +329,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   - aceitar o ADR-032 e manter a geração dos comandos de vínculo ligada por padrão, e confirmar o aceite dos
     ADRs 028 a 031, auditados na K2;
   - levar à `sonda_adr015` os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por
-    tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18: tarefa K6;
+    tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18: tarefa K6, com [relatório](sondas/adr015.md);
   - não abrir agora ADR de resolução para as questões em aberto dos demais ADRs aceitos: nenhuma bloqueia a
     persistência, e cada uma será tratada quando o componente correspondente começar;
   - manter recusada a consulta sem `returns` nem `authorize`: contrato e autorização explícitos são regra de
@@ -464,10 +464,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   políticas de escopo não existem. O `graph:diff` já classifica `calls` de um handler como `permissions` (#34), mas
   o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`, e a IR 0.1 não tem
   timeout nem papel por handler
-- [ ] **ADR-025:** conferido só no PostgreSQL 16.15, à mão: índice e chaves em tabela particionada, a chave composta
-  por tenant em 1 milhão de linhas e as limitações do `enum` nativo. O comportamento do `NOT VALID` em tabela
-  particionada no 17 e no 18, o custo na escrita do índice de apoio da chave composta e que uma partição nova herda
-  o índice do pai estão por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
+- [ ] **ADR-025:** a [sonda](sondas/adr015.md) confere, no PostgreSQL 17 e 18 da CI, o índice e as chaves em tabela
+  particionada (o 18 aceita `NOT VALID` na chave do pai), a herança do índice por partição nova, a chave composta
+  por tenant com o índice de apoio, o `VALIDATE` sem bloquear escrita e o `enum` por `CHECK` (K6). O custo na
+  escrita do índice de apoio sob carga continua por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
   tem protótipo, e nada do `db:plan`, do retrato `db/schema.sql` e do mapa de `enum` para `text` com `CHECK`
   existe
 - [ ] **ADR-030/020/031:** integrar o bootstrap SQL a planos de migração e gerar upgrades; definir a chave de revisão de aplicações sem

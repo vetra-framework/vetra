@@ -4,8 +4,8 @@
 #
 #   DATABASE_URL=postgres://usuario@127.0.0.1:5432/descartavel ruby script/sonda_adr015.rb
 #
-# Use um banco descartável: cria e remove as tabelas vetra_sonda_pai e vetra_sonda_filho
-# (1 milhão de linhas). A gem pg é instalada por bundler/inline, fora do Gemfile do projeto.
+# Use um banco descartável: cria e remove as tabelas vetra_sonda_* (até 1 milhão de linhas) e o tipo
+# vetra_sonda_estado. A gem pg é instalada por bundler/inline, fora do Gemfile do projeto.
 require "bundler/inline"
 
 gemfile do
@@ -231,6 +231,153 @@ check("sem lock_timeout, um DDL à espera bloqueia leituras que chegam depois de
 end
 
 conn.exec("DROP TABLE IF EXISTS #{FILHO}, #{PAI} CASCADE")
+
+# ADR-025, questões 3, 4 e 6: tabela particionada, chave composta por tenant e enum. O comportamento das tabelas
+# particionadas muda com a versão; se o pai passar a aceitar NOT VALID ou CONCURRENTLY, o padrão do plano muda
+# naquela versão (ADR-025, §3). Por isso essas verificações conferem o esperado para cada versão.
+PART = "vetra_sonda_part"
+EMPRESA = "vetra_sonda_empresa"
+REF = "vetra_sonda_ref"
+TENANT_FILHO = "vetra_sonda_tfilho"
+ENUM_TABELA = "vetra_sonda_enum"
+ENUM_TIPO = "vetra_sonda_estado"
+MAJOR = conn.exec("SHOW server_version_num").getvalue(0, 0).to_i / 10_000
+
+# Executa o SQL e devolve nil, ou o SQLSTATE do erro.
+def sqlstate(conn, sql)
+  conn.exec(sql)
+  nil
+rescue PG::Error => e
+  e.result&.error_field(PG::PG_DIAG_SQLSTATE) || e.message.lines.first.strip
+end
+
+def index_valid?(conn, name)
+  conn.exec_params("SELECT indisvalid FROM pg_index WHERE indexrelid = $1::regclass", [name]).getvalue(0, 0) == "t"
+end
+
+conn.exec("DROP TABLE IF EXISTS #{PART}, #{EMPRESA} CASCADE")
+conn.exec("CREATE TABLE #{EMPRESA} (id int PRIMARY KEY)")
+conn.exec("INSERT INTO #{EMPRESA} SELECT g FROM generate_series(1, 4) g")
+conn.exec("CREATE TABLE #{PART} (company_id int NOT NULL, id int NOT NULL, v int) PARTITION BY LIST (company_id)")
+(1..3).each { |n| conn.exec("CREATE TABLE #{PART}_#{n} PARTITION OF #{PART} FOR VALUES IN (#{n})") }
+conn.exec("INSERT INTO #{PART} SELECT 1 + g % 3, g, g FROM generate_series(1, 30000) g")
+
+check("particionada: CREATE INDEX CONCURRENTLY no pai é recusado") do
+  code = sqlstate(conn, "CREATE INDEX CONCURRENTLY vetra_sonda_part_cic ON #{PART} (v)")
+  conn.exec("DROP INDEX IF EXISTS vetra_sonda_part_cic")
+  [code == "0A000", code ? "recusado (SQLSTATE #{code})" : "aceito no #{MAJOR}: rever o ADR-025, §3, decisão 1"]
+end
+check("particionada: ON ONLY, CONCURRENTLY por partição e ATTACH validam o índice do pai; partição nova herda") do
+  conn.exec("CREATE INDEX vetra_sonda_part_v ON ONLY #{PART} (v)")
+  invalid_first = !index_valid?(conn, "vetra_sonda_part_v")
+  (1..3).each do |n|
+    conn.exec("CREATE INDEX CONCURRENTLY vetra_sonda_part_#{n}_v ON #{PART}_#{n} (v)")
+    conn.exec("ALTER INDEX vetra_sonda_part_v ATTACH PARTITION vetra_sonda_part_#{n}_v")
+  end
+  valid_after = index_valid?(conn, "vetra_sonda_part_v")
+  conn.exec("CREATE TABLE #{PART}_4 PARTITION OF #{PART} FOR VALUES IN (4)")
+  inherited = conn.exec_params(<<~SQL, ["#{PART}_4", "vetra_sonda_part_v"]).getvalue(0, 0).to_i == 1
+    SELECT count(*) FROM pg_inherits i JOIN pg_index x ON x.indexrelid = i.inhrelid
+     WHERE i.inhparent = $2::regclass AND x.indrelid = $1::regclass AND x.indisvalid
+  SQL
+  [invalid_first && valid_after && inherited,
+   "inválido depois do ON ONLY=#{invalid_first}; válido depois dos ATTACH=#{valid_after}; partição nova com índice=#{inherited}"]
+end
+check("particionada: FOREIGN KEY NOT VALID no pai conforme a versão; na partição e a chave completa no pai valem") do
+  parent = sqlstate(conn, "ALTER TABLE #{PART} ADD CONSTRAINT vetra_sonda_part_fk FOREIGN KEY (company_id) REFERENCES #{EMPRESA} (id) NOT VALID")
+  conn.exec("ALTER TABLE #{PART} DROP CONSTRAINT IF EXISTS vetra_sonda_part_fk")
+  partition = sqlstate(conn, "ALTER TABLE #{PART}_1 ADD CONSTRAINT vetra_sonda_part1_fk FOREIGN KEY (company_id) REFERENCES #{EMPRESA} (id) NOT VALID")
+  conn.exec("ALTER TABLE #{PART}_1 DROP CONSTRAINT IF EXISTS vetra_sonda_part1_fk")
+  full = sqlstate(conn, "ALTER TABLE #{PART} ADD CONSTRAINT vetra_sonda_part_fk2 FOREIGN KEY (company_id) REFERENCES #{EMPRESA} (id)")
+  conn.exec("ALTER TABLE #{PART} DROP CONSTRAINT IF EXISTS vetra_sonda_part_fk2")
+  # O PostgreSQL 18 passou a aceitar NOT VALID em chave estrangeira de tabela particionada; o 17 recusa com 42809.
+  [(MAJOR >= 18 ? parent.nil? : parent == "42809") && partition.nil? && full.nil?,
+   "pai: #{parent ? "recusado (SQLSTATE #{parent})" : 'aceito'}; partição: #{partition ? "recusado (#{partition})" : 'aceito'}; " \
+   "chave completa no pai: #{full ? "recusada (#{full})" : 'aceita'}"]
+end
+check("particionada: CHECK NOT VALID e VALIDATE no pai") do
+  added = sqlstate(conn, "ALTER TABLE #{PART} ADD CONSTRAINT vetra_sonda_part_ck CHECK (v > 0) NOT VALID")
+  validated = added ? :pulado : sqlstate(conn, "ALTER TABLE #{PART} VALIDATE CONSTRAINT vetra_sonda_part_ck")
+  [added.nil? && validated.nil?, "NOT VALID: #{added || 'aceito'}; VALIDATE: #{validated || 'aceito'}"]
+end
+conn.exec("DROP TABLE IF EXISTS #{PART}, #{EMPRESA} CASCADE")
+
+# Chave composta por tenant (ADR-025, §4): o índice único de apoio na tabela referenciada vem antes da chave, e
+# a validação não bloqueia escrita na filha.
+conn.exec("DROP TABLE IF EXISTS #{TENANT_FILHO}, #{REF} CASCADE")
+conn.exec("CREATE TABLE #{REF} (id int PRIMARY KEY, company_id int NOT NULL)")
+conn.exec("CREATE TABLE #{TENANT_FILHO} (id int PRIMARY KEY, company_id int NOT NULL, ref_id int NOT NULL)")
+conn.exec("INSERT INTO #{REF} SELECT g, 1 + g % 10 FROM generate_series(1, 100000) g")
+conn.exec("INSERT INTO #{TENANT_FILHO} SELECT g, 1 + (1 + g % 100000) % 10, 1 + g % 100000 FROM generate_series(1, 1000000) g")
+conn.exec("ANALYZE #{REF}, #{TENANT_FILHO}")
+
+check("chave composta por tenant exige o índice único (company_id, id) antes da chave") do
+  fk = "ALTER TABLE #{TENANT_FILHO} ADD CONSTRAINT vetra_sonda_tfk FOREIGN KEY (company_id, ref_id) REFERENCES #{REF} (company_id, id) NOT VALID"
+  without = sqlstate(conn, fk)
+  conn.exec("CREATE UNIQUE INDEX CONCURRENTLY vetra_sonda_ref_tenant ON #{REF} (company_id, id)")
+  with = sqlstate(conn, fk)
+  [without == "42830" && with.nil?, "sem o índice: SQLSTATE #{without.inspect}; com o índice: #{with || 'aceita'}"]
+end
+check("VALIDATE da chave composta não bloqueia INSERT concorrente na filha") do
+  validator = connect
+  validator.exec("BEGIN")
+  t0 = clock
+  validator.exec("ALTER TABLE #{TENANT_FILHO} VALIDATE CONSTRAINT vetra_sonda_tfk")
+  validate_ms = ((clock - t0) * 1000).round
+  # Com a transação do VALIDATE aberta e seus locks mantidos, outra sessão tenta gravar na filha.
+  held = validator.exec_params(<<~SQL, [TENANT_FILHO]).map { |row| row["mode"] }
+    SELECT l.mode FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+     WHERE l.pid = pg_backend_pid() AND l.locktype = 'relation' AND c.relname = $1
+  SQL
+  writer = connect
+  writer.exec("SET lock_timeout = '1s'")
+  t1 = clock
+  code = sqlstate(writer, "INSERT INTO #{TENANT_FILHO} VALUES (2000001, 2, 1)")
+  insert_ms = ((clock - t1) * 1000).round
+  [code.nil? && held.include?("ShareUpdateExclusiveLock") && !held.include?("ShareLock"),
+   "locks do VALIDATE na filha: #{held.uniq.sort.join(', ')}; INSERT concorrente: #{code ? "falhou (SQLSTATE #{code})" : "#{insert_ms} ms"}; VALIDATE: #{validate_ms} ms"]
+ensure
+  # Encerra a transação do VALIDATE mesmo numa falha, para que a remoção das tabelas não espere pelos locks dela.
+  validator&.close
+  writer&.close
+end
+conn.exec("DROP TABLE IF EXISTS #{TENANT_FILHO}, #{REF} CASCADE")
+
+# enum (ADR-025, §6): coluna text com CHECK, nunca o tipo ENUM nativo.
+conn.exec("DROP TABLE IF EXISTS #{ENUM_TABELA}")
+conn.exec("DROP TYPE IF EXISTS #{ENUM_TIPO}")
+conn.exec("CREATE TABLE #{ENUM_TABELA} (id int PRIMARY KEY, estado text NOT NULL CONSTRAINT vetra_sonda_estado_ck CHECK (estado IN ('aberto', 'fechado')))")
+conn.exec("INSERT INTO #{ENUM_TABELA} SELECT g, CASE WHEN g % 2 = 0 THEN 'aberto' ELSE 'fechado' END FROM generate_series(1, 10000) g")
+
+check("enum: ampliar o CHECK com NOT VALID e VALIDATE aceita os valores antigos e o novo") do
+  conn.exec("ALTER TABLE #{ENUM_TABELA} ADD CONSTRAINT vetra_sonda_estado_ck2 CHECK (estado IN ('aberto', 'fechado', 'arquivado')) NOT VALID")
+  conn.exec("ALTER TABLE #{ENUM_TABELA} VALIDATE CONSTRAINT vetra_sonda_estado_ck2")
+  conn.exec("ALTER TABLE #{ENUM_TABELA} DROP CONSTRAINT vetra_sonda_estado_ck")
+  old_value = sqlstate(conn, "INSERT INTO #{ENUM_TABELA} VALUES (10001, 'aberto')")
+  new_value = sqlstate(conn, "INSERT INTO #{ENUM_TABELA} VALUES (10002, 'arquivado')")
+  outside = sqlstate(conn, "INSERT INTO #{ENUM_TABELA} VALUES (10003, 'outro')")
+  [old_value.nil? && new_value.nil? && outside == "23514",
+   "valor antigo: #{old_value || 'aceito'}; novo: #{new_value || 'aceito'}; fora do conjunto: SQLSTATE #{outside.inspect}"]
+end
+check("enum: estreitar o CHECK só valida depois de migrar as linhas com o valor removido") do
+  conn.exec("ALTER TABLE #{ENUM_TABELA} ADD CONSTRAINT vetra_sonda_estado_ck3 CHECK (estado IN ('aberto', 'arquivado')) NOT VALID")
+  early = sqlstate(conn, "ALTER TABLE #{ENUM_TABELA} VALIDATE CONSTRAINT vetra_sonda_estado_ck3")
+  conn.exec("UPDATE #{ENUM_TABELA} SET estado = 'arquivado' WHERE estado = 'fechado'")
+  late = sqlstate(conn, "ALTER TABLE #{ENUM_TABELA} VALIDATE CONSTRAINT vetra_sonda_estado_ck3")
+  [early == "23514" && late.nil?, "VALIDATE com linhas antigas: SQLSTATE #{early.inspect}; depois de migrar: #{late || 'aceito'}"]
+end
+check("enum: o tipo ENUM nativo não tem DROP VALUE nem usa na mesma transação o valor acrescentado") do
+  conn.exec("CREATE TYPE #{ENUM_TIPO} AS ENUM ('aberto', 'fechado')")
+  drop = sqlstate(conn, "ALTER TYPE #{ENUM_TIPO} DROP VALUE 'fechado'")
+  conn.exec("BEGIN")
+  conn.exec("ALTER TYPE #{ENUM_TIPO} ADD VALUE 'arquivado'")
+  same_tx = sqlstate(conn, "SELECT 'arquivado'::#{ENUM_TIPO}")
+  [drop == "0A000" && same_tx == "55P04", "DROP VALUE: SQLSTATE #{drop.inspect}; uso na mesma transação: SQLSTATE #{same_tx.inspect}"]
+ensure
+  conn.exec("ROLLBACK") unless conn.transaction_status == PG::PQTRANS_IDLE
+end
+conn.exec("DROP TABLE IF EXISTS #{ENUM_TABELA}")
+conn.exec("DROP TYPE IF EXISTS #{ENUM_TIPO}")
 width = RESULTS.map { |_, name, _| name.size }.max
 puts "PostgreSQL #{version} | pg #{PG::VERSION}"
 RESULTS.each { |ok, name, detail| puts "  #{ok ? 'PASS' : 'FAIL'}  #{name.ljust(width)}  | #{detail}" }

@@ -36,12 +36,29 @@ o Claude e as de compilador podem ir para os dois.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | concluída | este commit | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-033 aceito por delegação ([auditoria](#auditoria-c3)) |
-| K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | a fazer | — | Auditoria pelo Codex |
-| C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | a fazer | — | — |
+| C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | concluída | `1a8ee02`, `3221157` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-033 aceito por delegação; CI verde ([auditoria](#auditoria-c3)) |
+| K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | concluída | este commit | Rodada 1 devolvida pelo Codex; rodada 2 aprovada ([auditoria](#auditoria-k6)) |
+| C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | em andamento | — | — |
 
 Depois desta rodada: a gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a
 persistência.
+
+## Auditoria K6
+
+Implementado pelo Claude sobre `3221157`; auditado pelo Codex em modo somente leitura; decisão do Claude. A sonda
+foi rodada pelo Claude no PostgreSQL 18.6 (31/31: 22 do ADR-015 e 9 do ADR-025); o 17 roda na CI. O 18 aceita
+`NOT VALID` na chave estrangeira do pai particionado, o que, pela regra do ADR-025 §3, alinha essa versão ao padrão
+das tabelas comuns ([relatório](sondas/adr015.md)).
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Uma falha depois do `VALIDATE` deixava a transação aberta e a remoção das tabelas esperando pelo lock; o bloco do `ENUM` podia deixar a sessão abortada | sim | Ajustar: fechar as sessões e desfazer a transação em `ensure`; conferido com uma falha provocada, sem sobra no banco |
+| `DROP VALUE` responde `0A000` também no 17, não `42601` | não | Ajustar: exigir `0A000` e corrigir o relatório |
+| As recusas aceitavam qualquer erro | não | Ajustar: `0A000` para `CONCURRENTLY` no pai e `42809` para a chave `NOT VALID` no pai antes do 18 |
+
+**Rodada 2 — aprovada pelo Codex**, sem achados novos; suíte com 371 testes, 142/142, e gate repetidos por ele.
 
 ## Auditoria C3
 
