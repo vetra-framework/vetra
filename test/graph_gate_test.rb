@@ -149,7 +149,7 @@ class GraphGateTest < GraphTest
       summary = File.join(root, 'summary.md')
       assert_equal 1, run_gate(root, base, summary: summary).first
       text = File.read(summary)
-      assert_includes text, 'exigem aprovação do PR'
+      assert_includes text, 'exigem revisão do mantenedor antes da integração'
       assert_includes text, 'blog.publish_post.http_1'
       assert_includes text, 'breaking'
     end

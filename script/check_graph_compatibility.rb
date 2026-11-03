@@ -89,7 +89,7 @@ module VetraCI
     def write_summary
       return unless @summary && @reports
       File.open(@summary, 'a') do |file|
-        file.puts "## Diff arquitetural\n\nMudanças marcadas para revisão exigem aprovação do PR."
+        file.puts "## Diff arquitetural\n\nMudanças marcadas para revisão exigem revisão do mantenedor antes da integração."
         @reports.each do |path, report|
           counts = report.data['summary']
           file.puts "\n### `#{path}`\n\n#{counts['breaking']} quebras potenciais; #{counts['requires_review']} mudanças exigem revisão.\n"

@@ -143,11 +143,13 @@ Somente o par exato de grafos é coberto; outra alteração, mesmo de fonte, exi
 Declarações inválidas, duplicadas, sem motivo ou com wildcard nos digests são recusadas. Remover o próprio artefato
 continua sendo erro. A opção `graph:diff --fail-on-breaking` conserva seu comportamento original.
 
-Essa declaração registra uma mudança intencional e sua migração; a aprovação é a revisão do PR. A proteção
-da `main`, descrita em [.github/main-protection.json](../.github/main-protection.json), exige uma aprovação
-de outra pessoa após o último push, descarta aprovações antigas, exige os três checks do workflow e a branch
-atualizada, e também vale para administradores. Force-push e exclusão da branch ficam desabilitados.
-Um push na `main` tem comparação adicional depois da integração; a revisão prévia acontece no PR.
+Essa declaração registra uma mudança intencional e sua migração. O mantenedor revisa o relatório e a
+justificativa antes de integrar o PR. A proteção da `main`, descrita em
+[.github/main-protection.json](../.github/main-protection.json), exige PR, os três checks do workflow e a
+branch atualizada, inclusive para administradores. Como o projeto tem um único mantenedor, a quantidade
+mínima de aprovações é zero e a aprovação por outra pessoa após o último push fica desabilitada.
+Force-push e exclusão da branch continuam desabilitados. Um push na `main` tem comparação adicional
+após a integração; a revisão do mantenedor acontece no PR.
 
 A correção do chat retira a rota HTTP de busca por e-mail e declara unicidade do e-mail normalizado.
 Essas duas quebras estão justificadas para os digests registrados. Em uma aplicação com dados, seria

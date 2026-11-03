@@ -98,9 +98,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   Oito testes do gate e 17 cenários de simulação passaram nesta revisão.
 - [x] `sonda_adr011.rb` executável; os demais modos do Git foram preservados. O aviso experimental é
   silenciado apenas durante a criação de Ractors no teste, com restauração da configuração anterior.
-- [x] Proteção da main ativada no GitHub em 2026-11-02 e conferida por leitura da API: aprovação de outra
-  pessoa após o último push, descarte de revisões antigas, três checks obrigatórios, branch atualizada,
-  aplicação a admins e sem force-push ou exclusão. Configuração em `.github/main-protection.json`.
+- [x] Proteção da main ajustada em 2026-11-02 para mantenedor único: PR obrigatório, zero aprovações
+  externas, três checks obrigatórios, branch atualizada, aplicação a admins e sem force-push ou exclusão.
+  O mantenedor revisa o diff e as quebras intencionais antes de integrar. Configuração em
+  `.github/main-protection.json`, conferida por leitura da API.
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
 - [x] `test:diagnostics` executa a suíte uma vez e confere os códigos realmente criados em `Diagnostic.new`
