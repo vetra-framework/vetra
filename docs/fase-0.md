@@ -1,12 +1,14 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.3 → validação**, o diff arquitetural
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.4 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
-O compilador continua validando e vinculando as IRs 0.1 e 0.2 com seus schemas e semânticas originais.
-Novos builds usam 0.3, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
+O compilador continua validando e vinculando as IRs 0.1, 0.2 e 0.3 com seus schemas e semânticas originais.
+Novos builds usam 0.4, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
 retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
-live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md).
+live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032 proposto](adr/032-comandos-gerados-de-vinculo.md)
+descreve os comandos gerados de `many_to_many`, exclusivos da IR 0.4 e sem executor. A C1 está em auditoria,
+rodada 2 após devolução; a versão da gem permanece alpha.5.
 
 ## Executar
 
@@ -79,7 +81,8 @@ locks e limites. O comando exige tenant e tabelas comuns; não é o planejador d
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
 - `entity`, com `id` e `created_at` implícitos, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
   `belongs_to`, incluindo chaves compostas para `same_tenant`, `has_many` como inverso de um `belongs_to` e
-  `many_to_many` por uma entidade de junção declarada ou gerada.
+  `many_to_many` por uma entidade de junção declarada ou gerada, com comandos de vínculo gerados por padrão
+  e `commands: false` para desligá-los por relação.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
   repositórios e rotas HTTP. Ainda não existe execução dessas primitivas.
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
@@ -254,7 +257,7 @@ A moeda por tenant, o arredondamento, a formatação e a validação HTTP em exe
 
 Novos builds geram `created_at` em todas as entidades, incluindo a raiz do tenant e as junções implícitas.
 O campo é um `timestamp` obrigatório e não nulo, com `generate: { kind: "timestamp", on: "create" }` na
-entidade. O documento usa IR 0.2 e exige `vetra.timestamps`, conforme o [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
+entidade. A regra existe desde a IR 0.2 e exige `vetra.timestamps`, conforme o [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
 
 O campo participa do contrato de registro, pode ser projetado em eventos e pode ser usado em índices.
 Não aparece nas entradas CRUD de criação e atualização. O nome é reservado nas entidades; redeclará-lo
@@ -268,7 +271,7 @@ operação. Persistência, preenchimento de linhas antigas e `updated_at` contin
 
 O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
 0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
-novo build 0.3; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
+novo build 0.4; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
 aparece no diff para revisão, além dos campos e índices.
 
 ## Escopo por vínculo
@@ -389,9 +392,52 @@ end
   convenção das demais entidades (`post_tags`, `room_members`). A persistência ainda não existe, então isso não
   afeta nada hoje.
 
+### Comandos gerados de vínculo
+
+Por padrão, cada `many_to_many` gera os comandos `add_<relação no singular>` e
+`remove_<relação no singular>` no domínio do dono. `many_to_many :tags` gera `add_tag` e `remove_tag`;
+`members` gera `add_member` e `remove_member`. A regra mínima de singular é a mesma usada na junção.
+`commands: true` explicita o padrão; `commands: false` desliga os dois comandos, sem mudar a relação ou
+sua junção. Outros valores falham com `relation_commands_option`.
+
+Cada comando recebe somente `<dono>_id` e `<alvo>_id` (nomes locais das entidades), obrigatórios, não nulos
+e tipados; o tenant vem do contexto, sem campo gravável na entrada. Retorna o registro do dono e autoriza
+a ação `add_<singular>` ou `remove_<singular>` pelo ID dele. Usa somente seu repositório `read_write`,
+respeitando `repository:` customizado. Nenhuma rota, política ou emissão de evento é gerada. A aplicação
+precisa conceder a ação pela política do dono; a mera declaração da relação não concede acesso.
+
+A IR 0.4 exige `vetra.relation_commands` ao gerar esses comandos e registra `implementation: { kind: "builtin", name:
+"many_to_many.add.tags" }` (ou `many_to_many.remove.tags`). O nome da relação e a entidade autorizada
+identificam a junção, os dois lados e as chaves. `generated_from` aponta o dono. O link retorna
+`executor: "pending"`, sem closure Ruby e sem executar operações. O futuro executor deverá autorizar e
+travar o dono, incluir sem duplicar, remover vínculo ausente sem erro e recusar remoção dos alvos indicados
+por `include_on_create`, como o proprietário da sala. Estas são obrigações do descritor, ainda sem execução.
+
+As recusas são explícitas:
+
+- `relation_command_collision`: o nome gerado colide com comando, consulta, handler ou outra geração.
+  Comandos explícitos não substituem os gerados automaticamente. Renomeie a declaração ou use
+  `commands: false` e declare os comandos que a aplicação precisa.
+- `relation_command_junction`: a junção não tem índice único exatamente sobre o par (com tenant, quando
+  houver), tem chaves opcionais/protegidas ou incompatíveis, tenant inconsistente ou campos adicionais
+  obrigatórios ou não nulos sem default/geração. Uma junção com dados de negócio exige comandos explícitos.
+- `relation_command_contract`: os nomes locais do dono e do alvo coincidem ou a IR externa altera a entrada,
+  saída, autorização, origem ou capacidades exigidas pela primitiva. O validador também recusa relação
+  inexistente e efeitos extras; não basta a IR passar no schema.
+
+O diff trata comandos e contratos gerados como os demais nós: adição exige revisão de permissões e
+capacidades; desligar a geração remove contratos/comandos e produz quebras potenciais. Trocar a primitiva
+por Ruby no mesmo ID exige revisão de implementação, sem inferir equivalência. Alterar a relação usada
+pela primitiva também destaca implementação e permissões, inclusive ao mudar `through` ou `include:`.
+As IRs 0.1/0.2/0.3 continuam validando, comparando e vinculando sem geração retroativa, com seus schemas
+publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.4
+adota o padrão e exige revisão. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md) está **proposto**;
+seu aceite permanece com o mantenedor.
+
 ### Comandos de membros no chat
 
-O exemplo `examples/chat` declara `add_member` e `remove_member` explicitamente como comandos Ruby. Ambos
+O exemplo `examples/chat` usa `commands: false` na relação de membros e declara `add_member` e
+`remove_member` explicitamente como comandos Ruby. Ambos
 recebem `room_id` e `user_id`, obrigatórios e não nulos, tipados para `chat.room` e `chat.user`. A autorização
 aponta para a sala de `room_id`, e os dois comandos usam apenas a capacidade `rooms`, retornando o contrato da
 sala. A política segue a proposta:
@@ -432,9 +478,10 @@ por e-mail. A vinculação confere também a ordem dos parâmetros de `rooms` e 
 implementam o executor do framework, autorização em execução, transações, RLS ou revogação live. Build e link
 continuam sem executar os corpos.
 
-A geração automática desses comandos a partir de `many_to_many`, como prevê o PDF, permanece pendente:
-neste incremento os comandos são arquivos escritos pela aplicação, representáveis desde a IR 0.1. A IR 0.2
-inclui o `created_at` implícito, e o índice de mensagens usa `room_id` e `created_at`.
+A geração automática está disponível, mas o chat a desliga para preservar os corpos Ruby, a regra de
+remoção do dono e as exposições existentes. Tirar `commands: false` mantendo esses arquivos falha com
+`relation_command_collision`. Os comandos explícitos são representáveis desde a IR 0.1. O `created_at`
+implícito, presente desde a IR 0.2, participa do índice de mensagens com `room_id`.
 
 ## Integridade e limites
 
@@ -471,7 +518,7 @@ defaults/valores protegidos, efeitos diretos, limites de capacidades, permissõe
 O diff cobre direção de contratos, renomeações, ordem posicional, metadados, impacto indeterminado de
 permissões e leitura de revisões/tags em repositórios temporários, sem executar o DSL ou alterar o checkout.
 A vinculação cobre assinatura/origem dos blocos, correspondência exata do registro, fontes e artefato
-antes/depois do carregamento e recusa de mudanças sem reconstrução automática. Primitivas CRUD são
+antes/depois do carregamento e recusa de mudanças sem reconstrução automática. Primitivas CRUD e de vínculo são
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 As sondas de PostgreSQL são executadas separadamente; a [sonda do ADR-008](sondas/adr008.md) verifica
@@ -479,7 +526,7 @@ intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
 e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 137 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 141 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

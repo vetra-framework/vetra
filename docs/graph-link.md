@@ -22,8 +22,9 @@ Avisos do grafo continuam em stderr. O comando não executa operações, abre co
 
 O pacote atual usa `Vetra::VERSION = "0.1.0-alpha.5"`. Ao atualizar o compilador, reconstrua os grafos dos
 exemplos com os lockfiles correspondentes: a versão do produtor também faz parte da integridade do link.
-A leitura dos formatos IR 0.1 e 0.2 continua suportada, mas isso não dispensa a correspondência da versão do
+A leitura dos formatos IR 0.1, 0.2 e 0.3 continua suportada, mas isso não dispensa a correspondência da versão do
 Vetra/Ruby registrada no artefato. A versão da gem e a versão da IR são contratos independentes.
+Novos builds usam a IR 0.4; cada artefato é validado e auditado com seu schema e sua semântica exatos.
 
 ## Ordem do carregamento
 
@@ -112,8 +113,13 @@ pública opcional, sem prometer um Ruby compilado sem o mecanismo interno de Rac
 operações concorrentes. O critério 11 do ADR-001 cobre os dados do compilador, e está registrado como
 coberto na [matriz da fase 0](fase-0-criterios.md).
 
-As primitivas CRUD são **reconhecidas**, mas não têm executor neste incremento. Um vínculo bem-sucedido
-não torna a aplicação pronta para servir tráfego. Autorização, transações, RLS, efeitos e despacho das
+As primitivas CRUD e de vínculo de `many_to_many` são **reconhecidas**, mas não têm executor neste incremento.
+As de vínculo exigem IR 0.4 e `vetra.relation_commands` e retornam o mesmo descritor `builtin` com `executor: "pending"`.
+A auditoria do link preserva a ausência de geração nos artefatos 0.1/0.2/0.3, inclusive nas consultas 0.3
+com retornos estruturados e live. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado
+antes de avaliar as declarações; os schemas publicados permanecem inalterados.
+Um vínculo bem-sucedido não torna a aplicação pronta para servir tráfego. Autorização, transações, RLS,
+efeitos e despacho das
 oito etapas do ADR-016 ainda precisam ser implementados e testados antes de executar comandos.
 
 Uma nova vinculação cria outra unidade. Se falhar, nenhuma unidade parcial é retornada; unidades

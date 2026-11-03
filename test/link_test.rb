@@ -101,8 +101,10 @@ class LinkTest < GraphTest
 
   def test_future_format_unknown_features_and_invalid_json_fail_before_registration
     mutations = [
-      ['ir_version', ->(document) { document['ir_version'] = '0.4' }],
+      ['ir_version', ->(document) { document['ir_version'] = '0.5' }],
       ['ir_feature', ->(document) { document['requires'] << 'vetra.future' }],
+      ['ir_feature', ->(document) { document['ir_version'] = '0.3'; document['requires'] << 'vetra.relation_commands' }],
+      ['ir_feature', ->(document) { document['ir_version'] = '0.3'; node(document, 'command', 'blog.publish_post')['implementation'] = { 'kind' => 'builtin', 'name' => 'many_to_many.add.tags' } }],
       ['schema', ->(document) { document['skip_authorization'] = true }],
       ['reference_missing', ->(document) { node(document, 'command', 'blog.publish_post')['uses'].first['id'] = 'blog.missing' }]
     ]

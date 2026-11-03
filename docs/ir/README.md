@@ -8,14 +8,15 @@ dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL 
 |---|---|
 | [v0.1.schema.json](v0.1.schema.json) | JSON Schema Draft 2020-12, fechado e autocontido, com 12 tipos de nó |
 | [v0.2.schema.json](v0.2.schema.json) | Geração de `created_at` e requisito `vetra.timestamps`; leitura preservada |
-| [v0.3.schema.json](v0.3.schema.json) | Build atual, com coleções e contratos compostos de consultas |
+| [v0.3.schema.json](v0.3.schema.json) | Coleções, contratos compostos de consultas e live; leitura preservada |
+| [v0.4.schema.json](v0.4.schema.json) | Build atual, com comandos de vínculo e requisito `vetra.relation_commands`; fechado e autocontido |
 | [mini-crm.v0.1.json](exemplos/mini-crm.v0.1.json) | Tenant, dinheiro, privacidade, transição, evento interno e handler com capacidade externa |
 | [blog.v0.1.json](exemplos/blog.v0.1.json) | Sem tenant, escopo do autor, relógio, `set_by`, `guarded` e evento público sem consumidor |
 
 Os exemplos têm envelope completo e referências resolvíveis, mas são **recortes didáticos**, não a
 compilação dos PDFs: omitem CRUD completo, revendas, autenticação, UI e demais entidades. O CRM usa um
 papel com acesso dentro do tenant; o escopo por revenda do exemplo da proposta não está reproduzido aqui, mas
-`examples/mini_crm_revendas/.vetra/graph.json` o compila hoje na IR 0.3, preservando a representação do escopo
+`examples/mini_crm_revendas/.vetra/graph.json` o compila hoje na IR 0.4, preservando a representação do escopo
 da 0.1 (veja o [escopo por vínculo](../fase-0.md#escopo-por-vínculo)). O significado de `through`, `local_fields`, `target_fields` e `include_on_create` em relações
 muitos-para-muitos, que o schema não define, está em [muitos-para-muitos](../fase-0.md#relações-muitos-para-muitos).
 O blog demonstra publicação com um evento explícito adicional. Não há fontes Ruby executáveis anexas.
@@ -34,9 +35,17 @@ autorização e vínculo aos fontes. Um documento que passa no schema ainda pode
 
 `requires` é uma lista de requisitos semânticos, não de plugins a carregar. As fixtures documentais exigem apenas
 `vetra.core`; os builds atuais exigem também `vetra.timestamps` e, quando necessário, `vetra.structured_outputs`.
-Uma consulta com `live` exige `vetra.live`: o consumidor 0.3 compila e valida o modo e as dependências de dados
+Uma consulta com `live` exige `vetra.live`: desde a IR 0.3, o consumidor compila e valida o modo e as dependências de dados
 e autorização, conforme o [ADR-029](../adr/029-declaracoes-live-e-dependencias.md). Os consumidores 0.1 e 0.2
 continuam recusando esse recurso. A execução das assinaturas e a entrega em tempo real permanecem pendentes.
+Comandos gerados de vínculo exigem `vetra.relation_commands`, exclusivo da IR 0.4. Usam o descritor
+`builtin` existente com nome `many_to_many.add.<relação>` ou `many_to_many.remove.<relação>`. O dono vem de
+`authorize.entity`; a relação resolve alvo, junção, chaves e vínculos protegidos por `include_on_create`.
+O [ADR-032 proposto](../adr/032-comandos-gerados-de-vinculo.md) define contratos, recusas e coexistência com
+comandos explícitos, sem executor e sem mudança estrutural nos nós. A evolução semântica exige nova MENOR e
+requisito, conforme o [ADR-001 §4](../adr/001-grafo-da-aplicacao-e-ir.md#4-compatibilidade-e-evolução).
+Os schemas publicados 0.1, 0.2 e 0.3 permanecem inalterados. Um documento 0.3 com o requisito ou com a
+primitiva de vínculo é recusado. O link preserva artefatos anteriores sem geração retroativa.
 Páginas, workflows e MCP não estão no formato 0.1; sua inclusão exige evolução explícita.
 `annotations` aceita metadados com chaves qualificadas e nunca pode alterar execução ou segurança.
 
@@ -56,9 +65,11 @@ comandos e eventos mantêm o formato plano. A classificação pessoal de um camp
 a do contrato referenciado. O [ADR-028](../adr/028-contratos-compostos-e-colecoes-de-consultas.md) registra
 os detalhes, incluindo o diff de mudanças nos campos aninhados.
 
-Build e check usam 0.3. Validação, diff e link aceitam 0.1, 0.2 e 0.3, cada uma com o schema e as regras exatas.
-O link audita declarações na versão do artefato sem converter ou regravar o documento. Os schemas 0.1/0.2 e as
-fixtures documentais abaixo permanecem inalterados. A atualização exige um build e revisão explícitos.
+Build e check usam 0.4. Validação, diff e link aceitam 0.1, 0.2, 0.3 e 0.4, cada uma com o schema e as regras
+exatas. O link audita declarações na versão do artefato sem converter ou regravar o documento. Os schemas
+0.1/0.2/0.3 e as fixtures documentais abaixo permanecem inalterados. Todos os schemas são distribuídos
+localmente na gem pelo glob `docs/ir/v*.schema.json`. A atualização exige um build e revisão explícitos;
+a mudança de `ir_version` aparece no diff como revisão, sem quebra.
 
 Consumidores executáveis aceitam somente versões e recursos explicitamente suportados, validando com o
 schema exato distribuído localmente. Uma MENOR futura não é ignorada. As mesmas regras valem antes de

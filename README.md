@@ -27,7 +27,7 @@ O compilador transforma declarações Ruby em uma **representação intermediár
 
 ```mermaid
 flowchart LR
-    A["DSL Ruby"] --> B["IR 0.3 validada"]
+    A["DSL Ruby"] --> B["IR 0.4 validada"]
     B --> C["Diff arquitetural"]
     B --> D["Vinculação Ruby"]
 ```
@@ -168,7 +168,7 @@ limites da análise.
 | [Diff arquitetural](docs/graph-diff.md) | Contratos, permissões, referências Git e relatório JSON |
 | [Vinculação de implementações](docs/graph-link.md) | Integridade do pacote, registro Ruby e dados compartilháveis |
 | [SQL de revisão de autorização](docs/db-authz-sql.md) | Gerador inicial, pré-condições e limites da instalação |
-| [IR 0.1, 0.2 e 0.3](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
+| [IR 0.1, 0.2, 0.3 e 0.4](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
 | [Índice de ADRs](docs/adr/README.md) | Decisões de arquitetura, resoluções e status de cada proposta |
 
 O [ADR-001](docs/adr/001-grafo-da-aplicacao-e-ir.md) define o contrato do grafo, e o

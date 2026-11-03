@@ -3,13 +3,15 @@ require "json_schemer"
 module Vetra
   module Graph
     class Schema
-      VERSION = "0.3"
+      VERSION = "0.4"
       LEGACY_VERSION = "0.1"
-      PREVIOUS_VERSION = "0.2"
-      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live].freeze
+      TIMESTAMP_VERSION = "0.2"
+      PREVIOUS_VERSION = "0.3"
+      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands].freeze
       CRUD_ACTIONS = %w[create read update delete].freeze
-      PATH = File.expand_path("../../../docs/ir/v0.3.schema.json", __dir__)
-      PREVIOUS_PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
+      PATH = File.expand_path("../../../docs/ir/v0.4.schema.json", __dir__)
+      PREVIOUS_PATH = File.expand_path("../../../docs/ir/v0.3.schema.json", __dir__)
+      TIMESTAMP_PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
       LEGACY_PATH = File.expand_path("../../../docs/ir/v0.1.schema.json", __dir__)
 
       def initialize
@@ -17,13 +19,14 @@ module Vetra
       end
 
       def validate!(document)
-        unless document.is_a?(Hash) && [LEGACY_VERSION, PREVIOUS_VERSION, VERSION].include?(document["ir_version"])
-          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{LEGACY_VERSION}, #{PREVIOUS_VERSION} e #{VERSION}.", pointer: "/ir_version")
+        unless document.is_a?(Hash) && [LEGACY_VERSION, TIMESTAMP_VERSION, PREVIOUS_VERSION, VERSION].include?(document["ir_version"])
+          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{LEGACY_VERSION}, #{TIMESTAMP_VERSION}, #{PREVIOUS_VERSION} e #{VERSION}.", pointer: "/ir_version")
         end
         version = document.fetch('ir_version')
         supported = case version
         when LEGACY_VERSION then ['vetra.core']
-        when PREVIOUS_VERSION then %w[vetra.core vetra.timestamps]
+        when TIMESTAMP_VERSION then %w[vetra.core vetra.timestamps]
+        when PREVIOUS_VERSION then %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live]
         else FEATURES
         end
         unknown = Array(document["requires"]) - supported
@@ -50,6 +53,7 @@ module Vetra
         @schemas[version] ||= begin
           path = case version
           when LEGACY_VERSION then LEGACY_PATH
+          when TIMESTAMP_VERSION then TIMESTAMP_PATH
           when PREVIOUS_VERSION then PREVIOUS_PATH
           else PATH
           end

@@ -287,7 +287,20 @@ module Vetra
         old = before.to_h { |item| [item['name'], item] }
         current = after.to_h { |item| [item['name'], item] }
         (old.keys | current.keys).sort.each do |name|
-          property(old, current, name, owner, "#{prefix}/#{escape(name)}", ['storage'], 'review')
+          categories = ['storage']
+          if prefix == '/relations' && relation_primitive?(owner['id'], name)
+            categories += %w[implementation permissions]
+          end
+          property(old, current, name, owner, "#{prefix}/#{escape(name)}", categories, 'review')
+        end
+      end
+
+      def relation_primitive?(owner_id, relation_name)
+        [@before, @after].any? do |document|
+          document['nodes'].any? do |node|
+            descriptor = RelationCommands.parse(node.dig('implementation', 'name').to_s)
+            node['kind'] == 'command' && node.dig('authorize', 'entity', 'id') == owner_id && descriptor && descriptor.last == relation_name
+          end
         end
       end
 

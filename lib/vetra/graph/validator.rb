@@ -107,8 +107,13 @@ module Vetra
         if implementation && implementation['kind'] == 'builtin'
           action = implementation['name'].delete_prefix('crud.')
           expected_kind = action == 'read' ? 'query' : 'command'
-          unless Schema::CRUD_ACTIONS.include?(action) && implementation['name'] == "crud.#{action}" && node['kind'] == expected_kind
+          crud = Schema::CRUD_ACTIONS.include?(action) && implementation['name'] == "crud.#{action}" && node['kind'] == expected_kind
+          relation = RelationCommands.parse(implementation['name']) && node['kind'] == 'command'
+          unless crud || relation
             issue('builtin_implementation', 'Primitiva interna desconhecida ou incompatível com o nó.', node, suffix: '/implementation')
+          end
+          if relation && (@document['ir_version'] != Schema::VERSION || !@document['requires'].include?(RelationCommands::FEATURE))
+            issue('ir_feature', 'Primitiva de vínculo exige IR 0.4 e vetra.relation_commands.', node, suffix: '/implementation')
           end
         end
         if implementation && implementation['kind'] == "ruby"
@@ -448,7 +453,13 @@ module Vetra
             issue('authorize_record', 'O id autorizado deve referenciar a entidade declarada.', node, suffix: '/authorize/record')
           end
         end
-        crud_contract(node) if node.dig('implementation', 'kind') == 'builtin'
+        if node.dig('implementation', 'kind') == 'builtin'
+          if RelationCommands.parse(node.dig('implementation', 'name'))
+            relation_command(node)
+          else
+            crud_contract(node)
+          end
+        end
         live(node) if node['kind'] == 'query' && node['live']
         node.fetch('emits', []).each do |emission|
           target = resolve(emission['from'])
@@ -479,6 +490,35 @@ module Vetra
         missing = LiveDependencies.required(node, nodes: @nodes, extra: declared) - declared
         unless missing.empty?
           issue('live_dependencies', "depends_on de live omite entidades conhecidas: #{missing.map { |reference| reference['id'] }.join(', ')}.", node, suffix: '/live/depends_on')
+        end
+      end
+
+      def relation_command(node)
+        verb, name = RelationCommands.parse(node.dig('implementation', 'name'))
+        owner = resolve(node.dig('authorize', 'entity'))
+        relation = owner['relations'].find { |item| item['kind'] == 'many_to_many' && item['name'] == name }
+        unless relation
+          issue('relation_command_contract', 'A primitiva deve identificar uma relação many_to_many do dono autorizado.', node, suffix: '/implementation')
+          return
+        end
+        target = resolve(relation['target'])
+        junction = relation['through'] && resolve(relation['through'])
+        reason = junction ? RelationCommands.junction_error(owner, relation, target, junction) : 'relação sem junção'
+        issue('relation_command_junction', reason, node, suffix: '/implementation') if reason
+        fields = RelationCommands.input_fields(owner, target)
+        input = resolve(node['input'])
+        output = resolve(node['output'])
+        expected_output = owner['fields'].map { |field| field.slice('name', 'type', 'nullable', 'privacy').merge('required' => true) }
+        authorization = { 'action' => RelationCommands.action(verb, relation), 'entity' => Data.reference('entity', owner['id']), 'record' => fields.first['name'] }
+        repositories = node['uses'].map { |reference| resolve(reference)['config'] }
+        valid = fields.map { |field| field['name'] }.uniq.size == 2 &&
+          input['fields'].sort_by { |field| field['name'] } == fields.sort_by { |field| field['name'] } && !input['collection'] &&
+          output['fields'].sort_by { |field| field['name'] } == expected_output.sort_by { |field| field['name'] } && !output['collection'] &&
+          node['authorize'] == authorization && node['generated_from'] == authorization['entity'] &&
+          repositories == [{ 'type' => 'repository', 'entity' => authorization['entity'], 'access' => 'read_write' }] &&
+          node['emits'].empty? && !node['unsafe_effect']
+        unless valid
+          issue('relation_command_contract', 'Primitiva de vínculo exige dois IDs tipados, retorno do dono, autorização por registro e somente seu repositório read_write, sem efeitos extras.', node)
         end
       end
 

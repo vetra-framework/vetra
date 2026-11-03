@@ -271,7 +271,7 @@ class DiffTest < GraphTest
 
   def test_invalid_unknown_and_tampered_graphs_cannot_receive_a_report
     original_version = @after['ir_version']
-    @after['ir_version'] = '0.4'
+    @after['ir_version'] = '0.5'
     error = assert_graph_error('ir_version') { compare }
     assert_includes error.message, 'Grafo posterior'
     @after['ir_version'] = original_version

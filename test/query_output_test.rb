@@ -28,7 +28,7 @@ class QueryOutputTest < GraphTest
   def test_root_collection_reuses_record_fields_and_read_only_capabilities
     with_app('chat') do |_root, compiler|
       document = compiler.build.document
-      assert_equal '0.3', document['ir_version']
+      assert_equal '0.4', document['ir_version']
       assert_equal %w[vetra.core vetra.live vetra.structured_outputs vetra.timestamps], document['requires']
       contract = output(document, 'my_rooms')
       assert contract['collection']
@@ -272,9 +272,9 @@ class QueryOutputTest < GraphTest
     end
   end
 
-  def test_both_previous_formats_still_link_without_conversion
+  def test_previous_formats_still_link_without_conversion
     with_app do |root, compiler|
-      %w[0.1 0.2].each do |version|
+      %w[0.1 0.2 0.3].each do |version|
         manifest = Vetra::Graph::Manifest.new(Pathname.new(root))
         registry = Vetra::Graph::DeclarationLoader.new(manifest).load
         document = Vetra::Graph::Normalizer.new(registry, manifest, ir_version: version).document

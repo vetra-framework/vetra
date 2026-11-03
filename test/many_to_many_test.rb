@@ -54,7 +54,7 @@ class ManyToManyTest < GraphTest
 
   def test_tenant_application_uses_composite_keys_and_same_tenant
     with_app('mini_crm_revendas') do |root, compiler|
-      edit(root, 'app/domains/crm/dealer.rb') { |text| text.sub("  has_many", "  many_to_many :staff, entity: :user, through: :membership\n  has_many") }
+      edit(root, 'app/domains/crm/dealer.rb') { |text| text.sub("  has_many", "  many_to_many :staff, entity: :user, through: :membership, commands: false\n  has_many") }
       relation = node(compiler.build.document, 'entity', 'crm.dealer')['relations'].find { |item| item['name'] == 'staff' }
       assert_equal %w[company_id id], relation['local_fields']
       assert_equal %w[company_id id], relation['target_fields']

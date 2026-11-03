@@ -85,7 +85,9 @@ module Vetra
       def builtin_binding(node)
         name = node.dig('implementation', 'name')
         action = name.delete_prefix('crud.')
-        unless Schema::CRUD_ACTIONS.include?(action) && name == "crud.#{action}" && node['kind'] == (action == 'read' ? 'query' : 'command')
+        crud = Schema::CRUD_ACTIONS.include?(action) && name == "crud.#{action}" && node['kind'] == (action == 'read' ? 'query' : 'command')
+        relation = RelationCommands.parse(name) && node['kind'] == 'command' && @document['ir_version'] == Schema::VERSION && @document['requires'].include?(RelationCommands::FEATURE)
+        unless crud || relation
           fail!('builtin_implementation', 'Primitiva desconhecida ou incompatível com a operação.', node)
         end
         { 'kind' => 'builtin', 'operation' => Data.reference(node['kind'], node['id']), 'name' => name, 'executor' => 'pending' }

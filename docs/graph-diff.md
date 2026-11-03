@@ -65,7 +65,7 @@ Contratos consideram seus consumidores nos dois grafos:
 - Se um contrato servir a entrada e saída, vale a direção mais restritiva. Se não houver consumidor
   conhecido, o impacto fica em revisão quando não houver uma quebra estrutural evidente.
 
-Na IR 0.3, o uso de saída é propagado pelos contratos referenciados por campos de registro ou coleção.
+Desde a IR 0.3, o uso de saída é propagado pelos contratos referenciados por campos de registro ou coleção.
 Perder uma garantia em um registro aninhado é quebra de saída, mesmo se o contrato não for referenciado
 diretamente por uma operação. Alterar `collection` na raiz também é quebra: muda objeto para lista ou o
 contrário.

@@ -6,6 +6,7 @@ module Vetra
       def initialize(registry, manifest, ir_version: Schema::VERSION)
         @registry, @manifest = registry, manifest
         @ir_version = ir_version
+        @relation_commands = ir_version == Schema::VERSION
         @raw = expand_implicit_junctions(registry.declarations)
         @entities = {}
         @nodes = {}
@@ -21,6 +22,7 @@ module Vetra
         raw('entity').each { |entry| entity(entry) }
         raw('capability').each { |entry| add(base(entry).merge(entry.slice('adapter', 'retry_safe', 'simulation', 'config'))) }
         raw('entity').each { |entry| entity_artifacts(entry) }
+        raw('entity').each { |entry| relation_commands(entry) } if @relation_commands
         raw('role').each { |entry| role(entry) }
         raw('event').each { |entry| event(entry) }
         %w[command query handler].each { |kind| raw(kind).each { |entry| operation(entry) } }
@@ -33,6 +35,7 @@ module Vetra
         }
         result['requires'] << 'vetra.structured_outputs' if @structured_outputs
         result['requires'] << 'vetra.live' if @live
+        result['requires'] << RelationCommands::FEATURE if @generated_relation_commands
         result['requires'].sort!
         result = Data.copy(result)
         sort_sets(result)
@@ -113,9 +116,7 @@ module Vetra
       # Inverso mínimo de plural: "ies" depois de consoante vira "y"; um "s" final cai, exceto em "ss". Quando não
       # acerta, o erro manda informar entity:.
       def singular(name)
-        return "#{name[0...-3]}y" if name.match?(/[^aeiou]ies\z/)
-        return name[0...-1] if name.end_with?('s') && !name.end_with?('ss')
-        name
+        RelationCommands.singular(name)
       end
 
       def fail!(code, message, entry)
@@ -262,6 +263,40 @@ module Vetra
         contract = add(base(entry, 'contract', "#{entry['id']}.record", generated: true).merge('fields' => output_fields(node['fields'])))
         @entities[entry['id']]['_contract'] = contract['id']
         crud(entry) if entry['crud']
+      end
+
+      def relation_commands(entry)
+        owner = @entities.fetch(entry['id'])
+        entry['relations'].select { |relation| relation['kind'] == 'many_to_many' && relation['commands'] }.each do |declaration|
+          relation = owner['relations'].find { |item| item['name'] == declaration['name'] }
+          target = @entities.fetch(relation.dig('target', 'id'))
+          junction = @entities.fetch(relation.dig('through', 'id'))
+          reason = RelationCommands.junction_error(owner, relation, target, junction)
+          if reason
+            fail!('relation_command_junction', "many_to_many :#{relation['name']}: #{reason}; declare comandos explícitos e commands: false.", entry)
+          end
+          fields = RelationCommands.input_fields(owner, target)
+          if fields.map { |field| field['name'] }.uniq.size != 2
+            fail!('relation_command_contract', 'Os nomes locais de dono e alvo coincidem; use comandos explícitos e commands: false.', entry)
+          end
+          repository = entry['options'].fetch(:repository, plural(entry['id'].split('.').last)).to_s
+          %w[add remove].each do |verb|
+            action = RelationCommands.action(verb, relation)
+            id = "#{entry['domain']}.#{action}"
+            if @raw.any? { |item| %w[command query handler].include?(item['kind']) && item['id'] == id } ||
+                %w[command query handler].any? { |kind| @nodes.key?([kind, id]) } || @nodes.key?(['contract', "#{id}.input"])
+              fail!('relation_command_collision', "O comando gerado #{id} colide com outra declaração; renomeie-a ou use commands: false em many_to_many :#{relation['name']}.", entry)
+            end
+            input = add(base(entry, 'contract', "#{id}.input", generated: true).merge('fields' => Data.copy(fields)))
+            add(base(entry, 'command', id, generated: true).merge(
+              'input' => Data.reference('contract', input['id']), 'output' => Data.reference('contract', owner.fetch('_contract')),
+              'authorize' => { 'action' => action, 'entity' => Data.reference('entity', owner['id']), 'record' => fields.first['name'] },
+              'uses' => [Data.reference('capability', "#{entry['domain']}.#{repository}")], 'emits' => [],
+              'implementation' => { 'kind' => 'builtin', 'name' => "many_to_many.#{verb}.#{relation['name']}" }
+            ))
+          end
+          @generated_relation_commands = true
+        end
       end
 
       def foreign_keys(owner, relation, target, entry)
@@ -571,7 +606,7 @@ module Vetra
       end
 
       def live(entry, node)
-        fail!('ir_feature', 'Este consumidor só compila live na IR 0.3.', entry) unless @ir_version == Schema::VERSION
+        fail!('ir_feature', 'Live exige IR 0.3 ou 0.4.', entry) unless [Schema::PREVIOUS_VERSION, Schema::VERSION].include?(@ir_version)
         if LiveDependencies.outside_boundary?(node, nodes: @nodes)
           fail!('live_boundary', 'Live aceita repositórios e capacidades determinísticas, sem unsafe_effect.', entry)
         end
@@ -599,7 +634,7 @@ module Vetra
           return Data.reference('contract', target.fetch('_contract'))
         end
         fail!('output_shape', 'Retornos compostos e coleções são suportados somente em consultas.', entry) unless entry['kind'] == 'query'
-        fail!('ir_feature', 'Retornos estruturados exigem IR 0.3.', entry) unless @ir_version == Schema::VERSION
+        fail!('ir_feature', 'Retornos estruturados exigem IR 0.3 ou 0.4.', entry) unless [Schema::PREVIOUS_VERSION, Schema::VERSION].include?(@ir_version)
         @structured_outputs = true
         output = base(entry, 'contract', "#{entry['id']}.output", generated: true)
         if declaration['collection']

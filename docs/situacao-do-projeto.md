@@ -4,7 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `75b7930`, com o gerador SQL inicial de revisão de autorização e o ADR-031 descritos neste commit.
+- **Atualizado em:** 2026-11-03, sobre `e761f05`, com a C1 do Codex aprovada pela auditoria do Claude na rodada 2:
+  ADR-032 proposto, IR 0.4 e geração declarativa dos comandos de vínculo, sem executor.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -14,11 +15,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; nenhum proposto |
-| Testes do compilador e exemplos | 328 testes e 2.532 asserções, sem falhas; 137/137 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; ADR-032 proposto, aguardando aceite do mantenedor |
+| Testes do compilador e exemplos | 351 testes e 2.906 asserções, sem falhas; 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
-| Verificação local desta continuação | Gerador SQL com 14 testes novos e aplicação do SQL gerado: 17/17 verificações no PostgreSQL 18.6. Quatro exemplos passaram; gate sem quebra. Versão alpha.5, IR preservada |
+| Verificação local da C1 | Rodada 2 após devolução: 23 testes de geração de vínculos e compatibilidade; quatro grafos reconstruídos na IR 0.4, chat com opt-out explícito. Check, validação com fontes e link passaram nos quatro exemplos; gate contra `origin/main` sem quebra, com revisão de `ir_version` nos quatro e um metadado no chat. Gem alpha.5 e schemas 0.1/0.2/0.3 preservados |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
 | Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
@@ -47,7 +48,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
 
-**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.3, leitura da 0.1/0.2, validação)
+**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.4, leitura da 0.1/0.2/0.3, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
@@ -84,6 +85,13 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
 - [x] `many_to_many` por entidade de junção declarada ou gerada (#13)
+- [x] C1 implementada, **em auditoria e sem commit, rodada 2 após devolução**: `many_to_many` gera `add_<singular>` e
+  `remove_<singular>`, contratos de IDs tipados, autorização pelo dono e descritores sem executor.
+  `commands: false` desliga por relação; colisões e junções incompatíveis são recusadas. Validação de
+  IR externa, link com semântica anterior e diff cobertos. Novos builds usam IR 0.4 com
+  `vetra.relation_commands` quando há geração; schemas 0.1/0.2/0.3 preservados, sem geração retroativa.
+  A IR 0.3 recusa o novo requisito e as novas primitivas. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
+  está proposto; o chat conserva seus comandos explícitos e os critérios 6/7 continuam parciais.
 - [x] Papéis, políticas, `crud`, `money`, `decimal`, `enum`, `slug`, privacidade, índices e chaves compostas por
   tenant
 - [x] `money` sem `scale` segue o expoente da moeda da aplicação; uma escala explícita inferior é recusada
@@ -99,8 +107,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **Exemplos**
 - [x] O chat declara `add_member` e `remove_member`, com IDs tipados, autorização pela sala, política do dono,
   rotas HTTP e recusa de remover o proprietário. Os nove testes de `chat_test.rb` cobrem a IR, a vinculação e
-  os corpos com duplos de memória. Comandos são explícitos, sem geração automática, executor ou revogação
-  live (`dbbd713`)
+  os corpos com duplos de memória. Comandos são explícitos, sem executor ou revogação live (`dbbd713`);
+  na C1 a relação usa `commands: false` para preservar esses corpos e suas exposições
 - [x] O chat declara `add_member_by_email` como comando interno, sem superfícies de exposição. A busca usa
   `users_read`, normalização `downcase` e e-mail pessoal com índice único declarado. Usuário ausente ou
   ambíguo falha com a mesma mensagem, sem alterar membros. A rota HTTP foi retirada para evitar descoberta
@@ -288,8 +296,15 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **031** Geração inicial de SQL de revisão de autorização: CLI sem aplicação automática, checagens de
   pacote/banco/papéis e sonda que aplica o SQL gerado; integrado nesta continuação
 
+**Proposto, com implementação em auditoria**
+- [ ] **032** Comandos gerados de vínculo de `many_to_many`: nomenclatura, opt-out, colisões explícitas,
+  contratos, autorização pelo dono e diff, na IR 0.4 conforme o ADR-001 §4. Aceite pelo mantenedor pendente;
+  implementação C1 sem commit, em auditoria, rodada 2 após devolução
+
 ## 3. Decisões e trabalho que dependem de quem revisa
 
+- [ ] Claude repetir a auditoria da C1 na árvore de trabalho (rodada 2 após devolução); mantenedor decidir o
+  aceite do ADR-032 e, separadamente, o padrão opt-out dos comandos de vínculo (`crud` é opt-in)
 - [ ] Decidir se a `sonda_adr015` ganha os quatro casos do ADR-025 (índice e chave em tabela particionada, chave
   composta por tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18
 - [ ] Decidir quais das questões em aberto dos demais ADRs aceitos merecem um ADR de resolução agora. Nenhuma
@@ -327,12 +342,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] SQL explícito e metadados de dependência por gem
 - [ ] Políticas por atributo do ator além de `id`
 
-**Nos exemplos**
-- [ ] Geração automática dos comandos de vínculo de `many_to_many`: o chat já declara `add_member` e
-  `remove_member` explicitamente; a geração prevista no PDF não existe
-
 **Runtime**
-- [ ] Execução das primitivas CRUD e dos comandos (hoje são descritores reconhecidos, sem executor)
+- [ ] Execução das primitivas CRUD, de vínculo de `many_to_many` e dos comandos (hoje são descritores
+  reconhecidos, sem executor), incluindo preservação de `include_on_create`, locks e idempotência dos vínculos
 - [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
   as exposições e a exigência de idempotência já são compiladas e validadas
 - [ ] Persistência e o Vetra Data
@@ -445,7 +457,8 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, e o aceite só vale 
    por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
    inclusão por e-mail, estão implementados, assim como o `created_at` implícito na IR 0.2. Os demais itens
    seguem pendentes nas seções 4 e 5. As consultas do chat já têm coleções e contratos compostos na IR 0.3.
-   No chat, `room_page` também declara live com dependências verificadas. Faltam a geração automática dos
-   comandos de vínculo, expansões de membros/autores, entrega live, autenticação, UI e realtime
+   No chat, `room_page` também declara live com dependências verificadas. A geração automática dos comandos
+   de vínculo está implementada na C1, em auditoria; o chat a desliga para conservar seus comandos explícitos.
+   Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir
