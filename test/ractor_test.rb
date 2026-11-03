@@ -3,12 +3,20 @@ require 'open3'
 require 'rbconfig'
 
 class RactorTest < GraphTest
+  def new_ractor(*arguments, &block)
+    previous = Warning[:experimental]
+    Warning[:experimental] = false
+    Ractor.new(*arguments, &block)
+  ensure
+    Warning[:experimental] = previous
+  end
+
   def test_compiled_results_are_shared_without_copy_and_remain_deeply_frozen
     %w[blog mini_crm mini_crm_revendas chat].each do |name|
       with_app(name) do |_root, compiler|
         result = compiler.build
         assert Ractor.shareable?(result), name
-        worker = Ractor.new(result) do |graph|
+        worker = new_ractor(result) do |graph|
           protected = [
             -> { graph.document['nodes'].clear },
             -> { graph.document['app']['name'].replace('changed') },
@@ -39,7 +47,7 @@ class RactorTest < GraphTest
       refute Ractor.shareable?(linked), 'A unidade com closures não pertence à cópia de dados.'
       data = [linked.document, linked.bindings, linked.warnings, linked.implementation_ids, linked.builtin_bindings].freeze
       assert Ractor.shareable?(data)
-      worker = Ractor.new(data) do |payload|
+      worker = new_ractor(data) do |payload|
         document, bindings, _warnings, ids, _builtins = payload
         ruby_binding = bindings.find { |binding| binding['kind'] == 'ruby' }
         protected = [

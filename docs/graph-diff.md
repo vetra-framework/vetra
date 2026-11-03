@@ -121,3 +121,34 @@ interpretado como autorização para prosseguir.
 
 `--fail-on-breaking` reage somente ao impacto `breaking`; não aprova mudanças de permissão ou outros itens
 em revisão. Relatórios com mudanças apenas de metadados também não garantem equivalência do código.
+
+## CI e revisão antes da integração
+
+O workflow executa o diff em PRs, contra `pull_request.base.sha`, e em pushes da `main`, contra `push.before`.
+Um SHA ausente, uma base ilegível ou um artefato removido faz o gate falhar. O primeiro push, com SHA anterior
+zerado, é tratado explicitamente; os exemplos continuam passando por check, validação com fontes e link.
+Uma base legítima sem grafos é diferente de uma referência inexistente.
+
+Para reproduzir o gate na raiz:
+
+```sh
+bundle exec ruby script/check_graph_compatibility.rb --base origin/main
+script/simular_gate_ci.sh
+```
+
+O gate imprime os diffs e lista mudanças que exigem revisão no resumo do job. Quebras potenciais falham
+por padrão. Uma quebra intencional precisa constar em [.github/graph-compatibility.json](../.github/graph-compatibility.json),
+com `artifact`, `before_digest`, `after_digest` e `reason`, dentro de `changes` e `format_version: "1"`.
+Somente o par exato de grafos é coberto; outra alteração, mesmo de fonte, exige uma nova revisão dos digests.
+Declarações inválidas, duplicadas, sem motivo ou com wildcard nos digests são recusadas. Remover o próprio artefato
+continua sendo erro. A opção `graph:diff --fail-on-breaking` conserva seu comportamento original.
+
+Essa declaração registra uma mudança intencional e sua migração; a aprovação é a revisão do PR. A proteção
+da `main`, descrita em [.github/main-protection.json](../.github/main-protection.json), exige uma aprovação
+de outra pessoa após o último push, descarta aprovações antigas, exige os três checks do workflow e a branch
+atualizada, e também vale para administradores. Force-push e exclusão da branch ficam desabilitados.
+Um push na `main` tem comparação adicional depois da integração; a revisão prévia acontece no PR.
+
+A correção do chat retira a rota HTTP de busca por e-mail e declara unicidade do e-mail normalizado.
+Essas duas quebras estão justificadas para os digests registrados. Em uma aplicação com dados, seria
+necessário normalizar e resolver duplicatas antes do índice único. O protótipo não executa essa migração.
