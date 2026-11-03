@@ -3,32 +3,36 @@ require "json_schemer"
 module Vetra
   module Graph
     class Schema
-      VERSION = "0.4"
-      LEGACY_VERSION = "0.1"
-      TIMESTAMP_VERSION = "0.2"
-      PREVIOUS_VERSION = "0.3"
-      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands].freeze
+      VERSION = "0.5"
+      VERSIONS = Data.freeze({
+        '0.1' => %w[vetra.core],
+        '0.2' => %w[vetra.core vetra.timestamps],
+        '0.3' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live],
+        '0.4' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands],
+        '0.5' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands vetra.money_rounding]
+      })
       CRUD_ACTIONS = %w[create read update delete].freeze
-      PATH = File.expand_path("../../../docs/ir/v0.4.schema.json", __dir__)
-      PREVIOUS_PATH = File.expand_path("../../../docs/ir/v0.3.schema.json", __dir__)
-      TIMESTAMP_PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
-      LEGACY_PATH = File.expand_path("../../../docs/ir/v0.1.schema.json", __dir__)
+      PATH = File.expand_path("../../../docs/ir/v0.5.schema.json", __dir__)
+
+      def self.supports?(version, feature)
+        VERSIONS.fetch(version, []).include?(feature)
+      end
+
+      def self.path(version)
+        VERSIONS.fetch(version)
+        version == VERSION ? PATH : File.expand_path("../../../docs/ir/v#{version}.schema.json", __dir__)
+      end
 
       def initialize
         @schemas = {}
       end
 
       def validate!(document)
-        unless document.is_a?(Hash) && [LEGACY_VERSION, TIMESTAMP_VERSION, PREVIOUS_VERSION, VERSION].include?(document["ir_version"])
-          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{LEGACY_VERSION}, #{TIMESTAMP_VERSION}, #{PREVIOUS_VERSION} e #{VERSION}.", pointer: "/ir_version")
+        unless document.is_a?(Hash) && VERSIONS.key?(document["ir_version"])
+          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{VERSIONS.keys.join(', ')}.", pointer: "/ir_version")
         end
         version = document.fetch('ir_version')
-        supported = case version
-        when LEGACY_VERSION then ['vetra.core']
-        when TIMESTAMP_VERSION then %w[vetra.core vetra.timestamps]
-        when PREVIOUS_VERSION then %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live]
-        else FEATURES
-        end
+        supported = VERSIONS.fetch(version)
         unknown = Array(document["requires"]) - supported
         unless unknown.empty?
           raise Error.single("ir_feature", "Recursos não implementados: #{unknown.join(', ')}.", pointer: "/requires")
@@ -51,12 +55,7 @@ module Vetra
 
       def validators(version)
         @schemas[version] ||= begin
-          path = case version
-          when LEGACY_VERSION then LEGACY_PATH
-          when TIMESTAMP_VERSION then TIMESTAMP_PATH
-          when PREVIOUS_VERSION then PREVIOUS_PATH
-          else PATH
-          end
+          path = self.class.path(version)
           definition = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
           properties = definition.fetch('properties')
           envelope = definition.merge('properties' => properties.merge('nodes' => properties.fetch('nodes').merge('items' => { 'type' => 'object' })))

@@ -14,6 +14,9 @@ module Vetra
         @warnings, @errors = [], []
         @document = document
         @schema.validate!(document)
+        if document['app'].key?('rounding') && !document['requires'].include?(Currency::ROUNDING_FEATURE)
+          issue('ir_feature', 'app.rounding exige vetra.money_rounding em requires.', pointer: '/app/rounding')
+        end
         Canonical.dump(document)
         @nodes = {}
         @positions = {}
@@ -112,8 +115,8 @@ module Vetra
           unless crud || relation
             issue('builtin_implementation', 'Primitiva interna desconhecida ou incompatível com o nó.', node, suffix: '/implementation')
           end
-          if relation && (@document['ir_version'] != Schema::VERSION || !@document['requires'].include?(RelationCommands::FEATURE))
-            issue('ir_feature', 'Primitiva de vínculo exige IR 0.4 e vetra.relation_commands.', node, suffix: '/implementation')
+          if relation && (!Schema.supports?(@document['ir_version'], RelationCommands::FEATURE) || !@document['requires'].include?(RelationCommands::FEATURE))
+            issue('ir_feature', 'Primitiva de vínculo exige IR 0.4 ou posterior com vetra.relation_commands.', node, suffix: '/implementation')
           end
         end
         if implementation && implementation['kind'] == "ruby"

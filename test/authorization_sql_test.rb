@@ -204,13 +204,18 @@ class AuthorizationSQLTest < GraphTest
   end
 
   def test_older_ir_formats_can_generate_without_conversion
-    with_app('mini_crm_revendas') do |root, _compiler|
-      %w[0.1 0.2].each do |version|
+    with_app('mini_crm_revendas') do |root, compiler|
+      current_sql = generate(compiler.build.document).sql.lines.reject { |line| line.start_with?('-- Grafo ') }
+      # As fontes anteriores à C3 não declaravam rounding: explicitamente.
+      edit(root, 'config/app.rb') { |text| text.sub(', rounding: :half_up', '') }
+      %w[0.1 0.2 0.3 0.4].each do |version|
         manifest = Vetra::Graph::Manifest.new(Pathname.new(root))
         registry = Vetra::Graph::DeclarationLoader.new(manifest).load
         document = Vetra::Graph::Normalizer.new(registry, manifest, ir_version: version).document
-        assert_equal 5, generate(document).tables.size
+        result = generate(document)
+        assert_equal 5, result.tables.size
         assert_equal version, document['ir_version']
+        assert_equal current_sql, result.sql.lines.reject { |line| line.start_with?('-- Grafo ') }
       end
     end
   end

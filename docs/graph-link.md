@@ -22,9 +22,15 @@ Avisos do grafo continuam em stderr. O comando não executa operações, abre co
 
 O pacote atual usa `Vetra::VERSION = "0.1.0-alpha.5"`. Ao atualizar o compilador, reconstrua os grafos dos
 exemplos com os lockfiles correspondentes: a versão do produtor também faz parte da integridade do link.
-A leitura dos formatos IR 0.1, 0.2 e 0.3 continua suportada, mas isso não dispensa a correspondência da versão do
+A leitura dos formatos IR 0.1 a 0.4 continua suportada, mas isso não dispensa a correspondência da versão do
 Vetra/Ruby registrada no artefato. A versão da gem e a versão da IR são contratos independentes.
-Novos builds usam a IR 0.4; cada artefato é validado e auditado com seu schema e sua semântica exatos.
+Novos builds usam a IR 0.5; cada artefato é validado e auditado com seu schema e sua semântica exatos.
+
+O link preserva a omissão de arredondamento nos artefatos 0.1 a 0.4 (`half_up` implícito), sem
+acrescentar campo nem requisito. Na 0.5, o build emite `app.rounding` e `vetra.money_rounding` somente
+quando a aplicação declara `rounding:`, inclusive `half_up`; sem declaração, ambos ficam ausentes.
+Uma declaração explícita de `rounding:` não é descartada para auditar uma versão anterior; reconstrua
+para adotar o recurso. O [ADR-033 proposto](adr/033-arredondamento-monetario-e-ir-0-5.md) descreve o contrato.
 
 ## Ordem do carregamento
 
@@ -114,7 +120,7 @@ operações concorrentes. O critério 11 do ADR-001 cobre os dados do compilador
 coberto na [matriz da fase 0](fase-0-criterios.md).
 
 As primitivas CRUD e de vínculo de `many_to_many` são **reconhecidas**, mas não têm executor neste incremento.
-As de vínculo exigem IR 0.4 e `vetra.relation_commands` e retornam o mesmo descritor `builtin` com `executor: "pending"`.
+As de vínculo exigem IR 0.4 ou posterior e `vetra.relation_commands` e retornam o mesmo descritor `builtin` com `executor: "pending"`.
 A auditoria do link preserva a ausência de geração nos artefatos 0.1/0.2/0.3, inclusive nas consultas 0.3
 com retornos estruturados e live. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado
 antes de avaliar as declarações; os schemas publicados permanecem inalterados.

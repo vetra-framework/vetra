@@ -86,7 +86,7 @@ module Vetra
         name = node.dig('implementation', 'name')
         action = name.delete_prefix('crud.')
         crud = Schema::CRUD_ACTIONS.include?(action) && name == "crud.#{action}" && node['kind'] == (action == 'read' ? 'query' : 'command')
-        relation = RelationCommands.parse(name) && node['kind'] == 'command' && @document['ir_version'] == Schema::VERSION && @document['requires'].include?(RelationCommands::FEATURE)
+        relation = RelationCommands.parse(name) && node['kind'] == 'command' && Schema.supports?(@document['ir_version'], RelationCommands::FEATURE) && @document['requires'].include?(RelationCommands::FEATURE)
         unless crud || relation
           fail!('builtin_implementation', 'Primitiva desconhecida ou incompatível com a operação.', node)
         end

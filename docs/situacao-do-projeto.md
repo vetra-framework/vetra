@@ -4,7 +4,9 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `a835d6d`. O mantenedor delegou ao Claude as decisões pendentes: ADR-032
+- **Atualizado em:** 2026-11-03, sobre `ea03024`, com a C3 do Codex aprovada pela auditoria do Claude na rodada 2 e o
+  ADR-033 aceito: `currency` aceita `rounding:` e o build passa à IR 0.5, que só exige `vetra.money_rounding` quando
+  a aplicação declara o modo; schemas anteriores preservados. O mantenedor delegou ao Claude as decisões pendentes: ADR-032
   aceito com os comandos de vínculo ligados por padrão, ADRs 028 a 031 confirmados e a rodada 2 do
   [quadro dos agentes](tarefas-dos-agentes.md) definida. Antes, a C2 (`4588b78`) passou a recusar rotinas
   `SECURITY DEFINER` preexistentes que levam a donos com poderes perigosos.
@@ -17,12 +19,13 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 32 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031 e os comandos de vínculo 032 |
-| Testes do compilador e exemplos | 355 testes e 2.984 asserções, sem falhas (com a C2); 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 33 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 |
+| Testes do compilador e exemplos | 371 testes e 3.482 asserções, sem falhas (com a C3); 142/142 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C1 | Rodada 2 após devolução: 23 testes de geração de vínculos e compatibilidade; quatro grafos reconstruídos na IR 0.4, chat com opt-out explícito. Check, validação com fontes e link passaram nos quatro exemplos; gate contra `origin/main` sem quebra, com revisão de `ir_version` nos quatro e um metadado no chat. Gem alpha.5 e schemas 0.1/0.2/0.3 preservados |
 | Verificação da C2 | 18 testes e 228 asserções do gerador; suíte, gate e quatro exemplos em check/validate/link passaram. Sonda ADR-031 59/59 no PostgreSQL 18.6, contra 35/59 no gerador de `fb41921`; o 17 é coberto pela CI |
+| Verificação local da C3 | 16 testes de arredondamento, 487 asserções; emissão condicionada à declaração, com e sem `money`. Quatro grafos reconstruídos em 0.5 e aprovados em check/validate com fontes/link (27, 36, 49 e 64 nós). Gate contra `origin/main` (`ea03024`) com zero quebras, cinco mudanças para revisão e um metadado. Só mini_crm_revendas declara o modo e exige o recurso; blog, chat e mini_crm mantêm o padrão implícito. Schemas 0.1 a 0.4 e quadro de tarefas intactos; diff sem erros ou mudanças de modo. SQL preservado, exceto pelo comentário de digest. |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
 | Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
@@ -51,7 +54,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
 
-**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.4, leitura da 0.1/0.2/0.3, validação)
+**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.5, leitura da 0.1/0.2/0.3/0.4, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
@@ -88,10 +91,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
 - [x] `many_to_many` por entidade de junção declarada ou gerada (#13)
-- [x] C1 implementada, **em auditoria e sem commit, rodada 2 após devolução**: `many_to_many` gera `add_<singular>` e
+- [x] C1 (`58993e2`): `many_to_many` gera `add_<singular>` e
   `remove_<singular>`, contratos de IDs tipados, autorização pelo dono e descritores sem executor.
   `commands: false` desliga por relação; colisões e junções incompatíveis são recusadas. Validação de
-  IR externa, link com semântica anterior e diff cobertos. Novos builds usam IR 0.4 com
+  IR externa, link com semântica anterior e diff cobertos. Recurso introduzido na IR 0.4 com
   `vetra.relation_commands` quando há geração; schemas 0.1/0.2/0.3 preservados, sem geração retroativa.
   A IR 0.3 recusa o novo requisito e as novas primitivas. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
   está aceito; o chat conserva seus comandos explícitos e os critérios 6/7 continuam parciais.
@@ -101,6 +104,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   (`money_scale`), e uma superior permite precisão estendida. A tabela ISO 4217 é local; moedas sem expoente
   definido falham com `money_currency`. Entidades, entradas de operações, contratos CRUD e payloads de eventos
   estão cobertos por 12 testes novos (`635d926`; fonte da tabela no ADR-026 aceito)
+- [x] C3: `currency` aceita `rounding: :half_up` ou `:half_even`,
+  com padrão `half_up`. O build 0.5 emite `app.rounding` e `vetra.money_rounding` somente quando a opção
+  é declarada, inclusive `half_up`; omissão mantém ambos ausentes. Os schemas 0.1 a 0.4
+  ficam intactos e o link preserva suas semânticas. O diff marca troca efetiva como quebra potencial de
+  valores, com revisão. O mini CRM com revendas declara a opção da proposta. O ADR-033 está aceito;
+  cálculos, moeda e arredondamento por tenant continuam pendentes
 - [x] `expose http:`, `cli:`, `job:` e `webhook:` no DSL, conforme o ADR-007, mantendo uma única operação,
   contrato e autorização. Nomes são únicos por superfície; HTTP e webhook compartilham a detecção de rotas
   ambíguas; webhook exige comando com `idempotency: :required` explícito. Consultas recusam POST, job e
@@ -310,6 +319,10 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   contratos, autorização pelo dono e diff, na IR 0.4; integrado em `58993e2`, aceito em 2026-11-03 pelo Claude
   por delegação do mantenedor, mantendo a geração ligada por padrão
 
+- [x] **033** Arredondamento monetário da aplicação e IR 0.5: `half_up`/`half_even`, padrão comercial,
+  requisito semântico só com declaração e diff de valores; aceito em 2026-11-03 pelo Claude por delegação do
+  mantenedor, após a auditoria da C3
+
 ## 3. Decisões e trabalho que dependem de quem revisa
 
 - [x] Em 2026-11-03, por delegação do mantenedor, o Claude decidiu:
@@ -321,8 +334,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
     persistência, e cada uma será tratada quando o componente correspondente começar;
   - manter recusada a consulta sem `returns` nem `authorize`: contrato e autorização explícitos são regra de
     desenho, e o critério 7 continua parcial por isso.
-- [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5 depois da C3, porque a publicação fixa o schema 0.4 e o que
-  a C3 acrescentar.
+- [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5: a C3 já está integrada, e a publicação fixa os schemas 0.4 e
+  0.5.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -335,7 +348,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [x] **5** Versão suportada, MENOR ou MAIOR futura, recurso não implementado
 - [ ] **6** Produção recusa IR ausente, adulterada ou incompatível. Parcial: não há servidor de produção
 - [ ] **7** Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta. Parcial por desenho: o
-  DSL recusa 4 construtos de 14 no blog, 4 de 6 no mini CRM e 4 de 9 no chat
+  DSL recusa 4 construtos de 14 no blog, 3 de 6 no mini CRM e 4 de 9 no chat
 - [x] **8** Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização
 - [x] **9** O diff distingue remoção, renomeação, capacidade nova, permissão e só origem
 - [x] **10** Registro congelado, implementação ausente ou duplicada, recarga como unidade. Coberto, com uma
@@ -349,7 +362,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] `auth` e a geração de usuários e vínculos
 - [ ] `ui`, MCP e workflows
 - [ ] Configuração `realtime` (a declaração `live` já é compilada e validada)
-- [ ] `rate_limit:` em `can` e `rounding:` em `currency`
+- [ ] `rate_limit:` em `can`
 - [ ] Moeda por tenant (a conferência do `scale` contra a moeda da aplicação já está implementada)
 - [ ] O titular (`subject`) e a retenção (`retention`) de dado pessoal
 - [ ] Consulta sem `returns` e sem `authorize`: os exemplos da proposta as omitem, e o compilador exige as duas
@@ -423,8 +436,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
 - [ ] **ADR-017:** a escala por moeda da aplicação e a precisão estendida estão implementadas e testadas em
   `635d926`, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte definida no ADR-026). A
-  aritmética, o rateio, o arredondamento, a formatação e a validação HTTP ainda dependem do runtime; a moeda por
-  tenant exige uma nova MENOR da IR
+  aritmética, o rateio, o arredondamento, a formatação e a validação HTTP ainda dependem do runtime. A
+  declaração de arredondamento da aplicação está na IR 0.5 (C3); a moeda por tenant exige uma nova MENOR da IR
 - [ ] **ADR-007:** as quatro superfícies são declaradas no DSL e validadas na IR 0.1. O teste de aceitação 6
   cobre comando por GET e consulta por POST. Nomes únicos por superfície, colisões entre HTTP e webhook,
   idempotência obrigatória de webhook e vínculo único ao comando estão cobertos em `exposure_test.rb`.
@@ -474,6 +487,7 @@ fecha lacunas declarativas pequenas e a sonda do ADR-025; a persistência é o p
    seguem pendentes nas seções 4 e 5. As consultas do chat já têm coleções e contratos compostos na IR 0.3.
    No chat, `room_page` também declara live com dependências verificadas. A geração automática dos comandos
    de vínculo está implementada (C1, ADR-032); o chat a desliga para conservar seus comandos explícitos.
+   A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
    Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

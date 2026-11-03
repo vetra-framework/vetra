@@ -28,7 +28,7 @@ class QueryOutputTest < GraphTest
   def test_root_collection_reuses_record_fields_and_read_only_capabilities
     with_app('chat') do |_root, compiler|
       document = compiler.build.document
-      assert_equal '0.4', document['ir_version']
+      assert_equal Vetra::Graph::Schema::VERSION, document['ir_version']
       assert_equal %w[vetra.core vetra.live vetra.structured_outputs vetra.timestamps], document['requires']
       contract = output(document, 'my_rooms')
       assert contract['collection']
@@ -131,6 +131,8 @@ class QueryOutputTest < GraphTest
       assert_graph_error('ir_feature') { validate(document) }
       document['requires'].delete('vetra.structured_outputs')
       document['requires'].delete('vetra.live')
+      document['requires'].delete('vetra.money_rounding')
+      document['app'].delete('rounding')
       assert_graph_error('schema') { validate(document) }
     end
   end

@@ -197,8 +197,13 @@ module Vetra
 
       def compare_application
         owner = { 'kind' => 'application', 'id' => @after.dig('app', 'name') }
-        old_app = rewrite_references(@before['app'])
-        compare_properties(old_app, @after['app'], owner, '/app')
+        old_app = rewrite_references(@before['app']).reject { |key, _| key == 'rounding' }
+        compare_properties(old_app, @after['app'].reject { |key, _| key == 'rounding' }, owner, '/app')
+        old_rounding = @before['app'].fetch('rounding', Currency::DEFAULT_ROUNDING)
+        new_rounding = @after['app'].fetch('rounding', Currency::DEFAULT_ROUNDING)
+        if old_rounding != new_rounding
+          emit(owner, '/app/rounding', 'modified', old_rounding, new_rounding, ['values'], 'breaking', 'Modo de arredondamento monetário alterado; pode mudar valores de conversão e divisão')
+        end
         property(@before, @after, 'ir_version', owner, '/ir_version', ['contract'], 'review')
         property(@before, @after, 'requires', owner, '/requires', ['dependencies'], 'review')
         %w[producer annotations].each { |key| property(@before, @after, key, owner, "/#{key}", ['build'], 'metadata') }

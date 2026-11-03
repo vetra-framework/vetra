@@ -82,6 +82,15 @@ com revisão obrigatória e impacto de permissão indeterminado. Adicionar live 
 declaração é quebra de contrato para os futuros consumidores de assinaturas. Essa classificação não indica
 que o runtime de tempo real já esteja implementado.
 
+Desde a IR 0.5, o diff compara `app.rounding` pelo modo efetivo: ausência significa `half_up`, inclusive
+nos formatos anteriores. Explicitar ou omitir esse padrão não gera mudança de valores. Trocar para
+`half_even`, ou retirá-lo para voltar ao padrão, é `breaking`, categoria `values`, com revisão obrigatória:
+pode alterar valores de conversão e divisão. O relatório mostra os dois modos efetivos em `/app/rounding`,
+mesmo quando o campo está ausente em um documento e mesmo sem campos `money`. O build emite campo e
+requisito somente quando há declaração de `rounding:`, inclusive `half_up`.
+Versão e requisitos continuam sendo revisados separadamente
+([ADR-033 proposto](adr/033-arredondamento-monetario-e-ir-0-5.md)).
+
 Mudar somente o hash de um arquivo é mudança de build, não prova de equivalência de implementação:
 o diff não distingue comentário, helper alterado ou lógica Ruby diferente apenas pelo digest. Essas
 mudanças aparecem em metadados e a saída textual explicita esse limite quando fontes/build mudam.

@@ -140,6 +140,8 @@ class TimestampTest < GraphTest
       document['ir_version'] = '0.1'
       assert_graph_error('ir_feature') { validate(document) }
       document['requires'].delete('vetra.timestamps')
+      document['requires'].delete('vetra.money_rounding')
+      document['app'].delete('rounding')
       assert_graph_error('schema') { validate(document) }
     end
   end

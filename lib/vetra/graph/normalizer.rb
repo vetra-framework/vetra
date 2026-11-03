@@ -6,7 +6,7 @@ module Vetra
       def initialize(registry, manifest, ir_version: Schema::VERSION)
         @registry, @manifest = registry, manifest
         @ir_version = ir_version
-        @relation_commands = ir_version == Schema::VERSION
+        @relation_commands = Schema.supports?(ir_version, RelationCommands::FEATURE)
         @raw = expand_implicit_junctions(registry.declarations)
         @entities = {}
         @nodes = {}
@@ -16,6 +16,9 @@ module Vetra
       def document
         app = @registry.application
         raise Error.single('app_missing', 'Declare Vetra.app em config/app.rb.') unless app
+        if app.key?('rounding') && !Schema.supports?(@ir_version, Currency::ROUNDING_FEATURE)
+          raise Error.single('ir_feature', 'rounding: exige IR 0.5 ou posterior com vetra.money_rounding; reconstrua e revise o grafo.', pointer: '/app/rounding', source: app['source'])
+        end
         @currency = app['currency']
         @application_tenant = application_tenant(app['tenant'])
         domains
@@ -36,6 +39,10 @@ module Vetra
         result['requires'] << 'vetra.structured_outputs' if @structured_outputs
         result['requires'] << 'vetra.live' if @live
         result['requires'] << RelationCommands::FEATURE if @generated_relation_commands
+        if app.key?('rounding')
+          result['app']['rounding'] = app.fetch('rounding')
+          result['requires'] << Currency::ROUNDING_FEATURE
+        end
         result['requires'].sort!
         result = Data.copy(result)
         sort_sets(result)
@@ -46,7 +53,7 @@ module Vetra
       private
 
       def timestamps?
-        @ir_version != Schema::LEGACY_VERSION
+        Schema.supports?(@ir_version, 'vetra.timestamps')
       end
 
       def raw(kind)
@@ -606,7 +613,7 @@ module Vetra
       end
 
       def live(entry, node)
-        fail!('ir_feature', 'Live exige IR 0.3 ou 0.4.', entry) unless [Schema::PREVIOUS_VERSION, Schema::VERSION].include?(@ir_version)
+        fail!('ir_feature', 'Live exige IR 0.3 ou posterior com vetra.live.', entry) unless Schema.supports?(@ir_version, 'vetra.live')
         if LiveDependencies.outside_boundary?(node, nodes: @nodes)
           fail!('live_boundary', 'Live aceita repositórios e capacidades determinísticas, sem unsafe_effect.', entry)
         end
@@ -634,7 +641,7 @@ module Vetra
           return Data.reference('contract', target.fetch('_contract'))
         end
         fail!('output_shape', 'Retornos compostos e coleções são suportados somente em consultas.', entry) unless entry['kind'] == 'query'
-        fail!('ir_feature', 'Retornos estruturados exigem IR 0.3 ou 0.4.', entry) unless [Schema::PREVIOUS_VERSION, Schema::VERSION].include?(@ir_version)
+        fail!('ir_feature', 'Retornos estruturados exigem IR 0.3 ou posterior com vetra.structured_outputs.', entry) unless Schema.supports?(@ir_version, 'vetra.structured_outputs')
         @structured_outputs = true
         output = base(entry, 'contract', "#{entry['id']}.output", generated: true)
         if declaration['collection']

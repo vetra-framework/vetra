@@ -1,6 +1,10 @@
 module Vetra
   module Graph
     module Currency
+      ROUNDING_MODES = %w[half_up half_even].freeze
+      DEFAULT_ROUNDING = 'half_up'.freeze
+      ROUNDING_FEATURE = 'vetra.money_rounding'.freeze
+
       # ISO 4217 List One (SIX), published 2026-09-17; checked 2026-10-31.
       # https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
       # Source SHA-256: 33139b438657d1cee116ba737807ea71d19d6de4b90f799a09c56f0cc6a1b0ff

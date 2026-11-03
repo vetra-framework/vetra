@@ -59,7 +59,16 @@ module Vetra
         end
 
         def currency(value, **options)
-          options!(options, [])
+          options!(options, [:rounding])
+          if options.key?(:rounding)
+            mode = options[:rounding]
+            unless (mode.is_a?(::Symbol) || mode.is_a?(::String)) && Currency::ROUNDING_MODES.include?(mode.to_s)
+              ::Kernel.raise Error.single('money_rounding', 'rounding: aceita somente half_up ou half_even; omita a opção para usar half_up.', pointer: '/app/rounding', source: source(nil))
+            end
+            @attributes['rounding'] = mode.to_s
+          else
+            @attributes.delete('rounding')
+          end
           @attributes["currency"] = value.to_s
         end
 

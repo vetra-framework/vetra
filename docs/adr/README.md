@@ -8,6 +8,9 @@ há seis ADRs de resolução aceitos (022 a 026 e 030), duas evoluções de form
 declarativo a live (029), além da geração inicial de SQL de revisão (031). O ADR-032, também aceito, gera os
 comandos de vínculo de `many_to_many`. O runtime segue pendente.
 
+O [ADR-033](033-arredondamento-monetario-e-ir-0-5.md), também aceito, declara o arredondamento monetário da
+aplicação e evolui o build para a IR 0.5.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -44,6 +47,7 @@ comandos de vínculo de `many_to_many`. O runtime segue pendente.
 | [030](030-tenants-da-revisao-de-autorizacao.md) | Tenants da revisão de autorização | aceito |
 | [031](031-geracao-de-sql-de-revisao-de-autorizacao.md) | Geração de SQL de revisão de autorização | aceito |
 | [032](032-comandos-gerados-de-vinculo.md) | Comandos gerados de vínculo de many_to_many | aceito |
+| [033](033-arredondamento-monetario-e-ir-0-5.md) | Arredondamento monetário da aplicação e IR 0.5 | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

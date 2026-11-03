@@ -127,7 +127,7 @@ class DiagnosticsTest < GraphTest
   def test_unimplemented_options_are_named_instead_of_leaking_a_ruby_argument_error
     {
       'rate_limit' => ['app/domains/blog/roles.rb', ->(text) { text.sub('scope: :author', 'scope: :author, rate_limit: "5/min"') }],
-      'rounding' => ['config/app.rb', ->(text) { text.sub('currency "BRL"', 'currency "BRL", rounding: :half_up') }]
+      'unknown_currency_option' => ['config/app.rb', ->(text) { text.sub('currency "BRL"', 'currency "BRL", unknown_currency_option: true') }]
     }.each do |option, (path, change)|
       with_app('blog') do |root, compiler|
         edit(root, path, &change)

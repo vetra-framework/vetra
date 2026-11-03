@@ -36,12 +36,29 @@ o Claude e as de compilador podem ir para os dois.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | em andamento | — | Auditoria pelo Claude |
+| C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | concluída | este commit | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-033 aceito por delegação ([auditoria](#auditoria-c3)) |
 | K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | a fazer | — | Auditoria pelo Codex |
 | C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | a fazer | — | — |
 
 Depois desta rodada: a gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a
 persistência.
+
+## Auditoria C3
+
+Implementado pelo Codex sobre `ea03024`; auditado pelo Claude; decisão do Claude.
+
+**Rodada 1 — devolvida.** ADR-033 proposto, IR 0.5 com `app.rounding` e `vetra.money_rounding`, tabela única de
+recursos por versão em `Schema::VERSIONS`. Verificado: 371 testes, 3.414 asserções, 142/142; gate sem quebra;
+quatro exemplos em check, validação com fontes e link.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Todo build materializava `half_up` e exigia `vetra.money_rounding`, até no blog e no chat, sem `money`: todo consumidor teria de implementar arredondamento para ler qualquer grafo, ao contrário do padrão da C1 | sim | Ajustar: campo e requisito só quando a aplicação declara `rounding:` |
+| Trocar o modo é quebra potencial mesmo sem campo `money` | não | Não ajustar: conservador e justificado no ADR |
+
+**Rodada 2 — aprovada.** Só o mini CRM com revendas tem o campo e o requisito. Suíte com 371 testes e 3.482
+asserções, 142/142; gate sem quebra; quatro exemplos passam; `git diff --check` limpo, sem mudança de modo. O
+Claude aceitou o ADR-033 por delegação do mantenedor e tirou dos docs a narrativa de entrega sem commit.
 
 ## Auditoria C1
 

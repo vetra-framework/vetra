@@ -21,7 +21,7 @@ class RelationCommandsTest < GraphTest
   def test_generates_typed_commands_authorized_by_the_owner_without_routes_or_grants
     with_generated_chat do |_root, compiler|
       document = compiler.build.document
-      assert_equal '0.4', document['ir_version']
+      assert_equal Vetra::Graph::Schema::VERSION, document['ir_version']
       assert_includes document['requires'], 'vetra.relation_commands'
       assert_equal %w[chat.add_member chat.remove_member], generated(document).map { |entry| entry['id'] }
       generated(document).each do |command|
@@ -209,6 +209,8 @@ class RelationCommandsTest < GraphTest
       %w[0.1 0.2 0.3].each do |version|
         document = Vetra::Graph::Data.copy(original)
         document['ir_version'] = version
+        document['requires'].delete('vetra.money_rounding')
+        document['app'].delete('rounding')
         assert_graph_error('ir_feature') { validate(document) }
       end
     end
@@ -294,6 +296,8 @@ class RelationCommandsTest < GraphTest
       document = Vetra::Graph::Data.copy(compiler.build.document)
       document['ir_version'] = '0.3'
       document['requires'].delete('vetra.relation_commands')
+      document['requires'].delete('vetra.money_rounding')
+      document['app'].delete('rounding')
       error = assert_graph_error('ir_feature') { validate(document) }
       assert_equal 2, error.diagnostics.count { |diagnostic| diagnostic.pointer.end_with?('/implementation') }
       assert_graph_error('ir_feature') { Vetra::Graph::Diff.new.compare(document, document) }
@@ -323,10 +327,13 @@ class RelationCommandsTest < GraphTest
   def test_diff_reviews_ir_0_3_to_0_4_in_all_examples_without_breaking_changes
     %w[blog mini_crm mini_crm_revendas chat].each do |name|
       with_app(name) do |root, compiler|
+        # A comparação da C1 usa as declarações anteriores ao rounding: da C3.
+        edit(root, 'config/app.rb') { |text| text.sub(', rounding: :half_up', '') }
         manifest = Vetra::Graph::Manifest.new(root)
         registry = Vetra::Graph::DeclarationLoader.new(manifest).load
         before = Vetra::Graph::Normalizer.new(registry, manifest, ir_version: '0.3').document
-        report = Vetra::Graph::Diff.new.compare(before, compiler.build.document)
+        after = Vetra::Graph::Normalizer.new(registry, manifest, ir_version: '0.4').document
+        report = Vetra::Graph::Diff.new.compare(before, after)
         refute report.breaking?, name
         version = report.data['changes'].find { |change| change['path'] == '/ir_version' }
         assert_equal '0.3', version['before']

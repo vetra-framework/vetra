@@ -1,14 +1,15 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.4 → validação**, o diff arquitetural
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.5 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
-O compilador continua validando e vinculando as IRs 0.1, 0.2 e 0.3 com seus schemas e semânticas originais.
-Novos builds usam 0.4, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
+O compilador continua validando e vinculando as IRs 0.1 a 0.4 com seus schemas e semânticas originais.
+Novos builds usam 0.5, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
 retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
 live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
-descreve os comandos gerados de `many_to_many`, exclusivos da IR 0.4 e sem executor; a versão da gem
-permanece alpha.5.
+descreve os comandos gerados de `many_to_many`, disponíveis desde a IR 0.4 e sem executor. O
+[ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md) declara o arredondamento em `currency`
+na IR 0.5; a versão da gem permanece alpha.5.
 
 ## Executar
 
@@ -77,7 +78,7 @@ locks e limites. O comando exige tenant e tabelas comuns; não é o planejador d
 
 ## DSL implementado
 
-- `Vetra.app`, com `tenant`, `currency` e `locale`.
+- `Vetra.app`, com `tenant`, `currency` (incluindo `rounding:`) e `locale`.
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
 - `entity`, com `id` e `created_at` implícitos, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
   `belongs_to`, incluindo chaves compostas para `same_tenant`, `has_many` como inverso de um `belongs_to` e
@@ -106,7 +107,7 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI, MCP,
 workflows, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
-`realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos materializados do
+`realtime`, `rate_limit:` em `can` e políticas baseadas em atributos materializados do
 ator além de `id`. Uma palavra-chave desconhecida em qualquer declaração falha com `unsupported_option`, e uma
 obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. Os schemas
 possuem algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
@@ -253,6 +254,20 @@ decimal que caiba em `precision`/`scale`. Valores excedentes falham com `field_d
 A moeda por tenant, o arredondamento, a formatação e a validação HTTP em execução continuam pendentes. As IRs
 0.1 e 0.2 guardam `scale` numérico explícito com a mesma representação monetária.
 
+`currency "BRL", rounding: :half_up` declara o modo da aplicação. Os modos aceitos são `half_up`
+(empate para longe de zero) e `half_even` (empate para o último algarismo par), como símbolo ou string.
+O padrão é `half_up`, inclusive sem `currency` declarado. O build 0.5 emite `app.rounding` e exige
+`vetra.money_rounding` somente quando há declaração de `rounding:`, inclusive `half_up` e mesmo sem
+campos `money`. Sem a declaração, campo e requisito ficam ausentes. Nome ou tipo inválido falha com
+`money_rounding`. O modo governa somente conversão
+e divisão cujo resultado exceda a escala de destino, nunca soma ou subtração; defaults excedentes
+continuam recusados. A execução dos cálculos continua pendente.
+
+O [ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md) detalha os desempates e o alcance.
+Na IR externa 0.5, omissão significa `half_up`; campo presente exige o requisito. Os schemas 0.1 a 0.4
+não mudam e recusam campo/requisito novos. O diff compara modos efetivos: explicitar o padrão não muda
+valores, mas trocar o modo é quebra potencial com revisão obrigatória, na categoria `values`.
+
 ## Data de criação implícita
 
 Novos builds geram `created_at` em todas as entidades, incluindo a raiz do tenant e as junções implícitas.
@@ -271,7 +286,7 @@ operação. Persistência, preenchimento de linhas antigas e `updated_at` contin
 
 O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
 0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
-novo build 0.4; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
+novo build 0.5; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
 aparece no diff para revisão, além dos campos e índices.
 
 ## Escopo por vínculo
@@ -406,7 +421,7 @@ a ação `add_<singular>` ou `remove_<singular>` pelo ID dele. Usa somente seu r
 respeitando `repository:` customizado. Nenhuma rota, política ou emissão de evento é gerada. A aplicação
 precisa conceder a ação pela política do dono; a mera declaração da relação não concede acesso.
 
-A IR 0.4 exige `vetra.relation_commands` ao gerar esses comandos e registra `implementation: { kind: "builtin", name:
+Desde a IR 0.4, o grafo exige `vetra.relation_commands` ao gerar esses comandos e registra `implementation: { kind: "builtin", name:
 "many_to_many.add.tags" }` (ou `many_to_many.remove.tags`). O nome da relação e a entidade autorizada
 identificam a junção, os dois lados e as chaves. `generated_from` aponta o dono. O link retorna
 `executor: "pending"`, sem closure Ruby e sem executar operações. O futuro executor deverá autorizar e
@@ -430,7 +445,7 @@ capacidades; desligar a geração remove contratos/comandos e produz quebras pot
 por Ruby no mesmo ID exige revisão de implementação, sem inferir equivalência. Alterar a relação usada
 pela primitiva também destaca implementação e permissões, inclusive ao mudar `through` ou `include:`.
 As IRs 0.1/0.2/0.3 continuam validando, comparando e vinculando sem geração retroativa, com seus schemas
-publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.4
+publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.5
 adota o padrão e exige revisão. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md) está aceito.
 
 ### Comandos de membros no chat
@@ -525,7 +540,7 @@ intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
 e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 141 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 142 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
