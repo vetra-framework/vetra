@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `0beb473`, com a sonda de revisão de autorização e o ADR-030 descritos neste commit.
+- **Atualizado em:** 2026-11-03, sobre `75b7930`, com o gerador SQL inicial de revisão de autorização e o ADR-031 descritos neste commit.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -14,14 +14,14 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 30 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028 e as declarações live 029; nenhum proposto |
-| Testes do compilador e exemplos | 314 testes e 2.382 asserções, sem falhas; 133/133 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; nenhum proposto |
+| Testes do compilador e exemplos | 328 testes e 2.532 asserções, sem falhas; 137/137 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
-| CI registrada | Três checks verdes no push direto de `0beb473`, incluindo a sonda ADR-008 no PostgreSQL 17 e 18 ([execução 41608168151](https://github.com/vetra-framework/vetra/actions/runs/41608168151)) |
-| Verificação local desta continuação | Sonda ADR-020: 13/13 verificações no PostgreSQL 18.6 e quatro falhas introduzidas detectadas, com limpeza conferida. Suíte do compilador verde; grafos, IR e versão alpha.4 preservados |
+| CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
+| Verificação local desta continuação | Gerador SQL com 14 testes novos e aplicação do SQL gerado: 17/17 verificações no PostgreSQL 18.6. Quatro exemplos passaram; gate sem quebra. Versão alpha.5, IR preservada |
 | PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
-| Sondas | 10 em `script/`, mais o simulador do gate da CI; 8 rodam na CI (002, 003, 008, 009, 011, 015, 019 e 020) |
-| Runtime | Não existe. Só o compilador da fase 0 foi implementado |
+| Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
+| Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -44,7 +44,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
-- [x] Versão do compilador preparada como `0.1.0-alpha.4`, com lockfiles e quatro grafos reconstruídos.
+- [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
 
 **Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.3, leitura da 0.1/0.2, validação)
@@ -115,6 +115,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   de sala, mensagem, vínculo e usuário. Não há execução HTTP, entrega live ou expansão de membros/autores.
 
 **CI e sondas**
+- [x] `db:authz:sql`: gera SQL determinístico da IR validada, sem conectar ou aplicar mudanças.
+  Seleciona leituras das políticas e a raiz do tenant, usa armazenamento físico e gera três triggers por
+  tabela, revisão transacional, privilégios restritos e preenchimento inicial. O SQL recusa schema existente,
+  tipos/colunas incompatíveis, partições/herança e poderes perigosos, inclusive privilégios padrão herdados.
+  A CLI confere o pacote sem reavaliar o DSL. Quatorze testes novos e 17 verificações do SQL aplicado em
+  PostgreSQL 18.6; sonda ADR-031 na CI 17/18. [Guia e limites](db-authz-sql.md).
 - [x] `sonda_adr020.rb`: treze verificações de revisão por tenant, sem depender do contexto da escrita;
   inclui lotes, troca de tenant, atomicidade e notificações, concorrência, privilégios, objetos temporários,
   decisão strict após revogação, falha fechada, snapshot antigo, evento sem conteúdo pessoal e releitura
@@ -143,7 +149,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   contra o catálogo extraído com Prism. Código literal sem emissão, ou emissão sem literal reconhecido,
   faz a tarefa falhar; códigos faltantes incluem as origens. Seis testes verificam o instrumento e seu status
   de falha; a CI foi configurada para a nova tarefa (`6263777`). Cobertura por código, não por ramo
-- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 008, 009, 011, 015, 019 e 020). A 011 (o `FOR SHARE` da revogação da
+- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 008, 009, 011, 015, 019, 020 e 031). A 011 (o `FOR SHARE` da revogação da
   delegação, que só estava conferido à mão no 16.15) entrou em #35
 - [x] Verdicts das sondas por contagem de varreduras e por relógio do servidor, não por tempo de parede (#7)
 - [x] Lista de revisão dos ADRs (#7) e auditoria dos critérios do ADR-001 (#8)
@@ -265,7 +271,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **024** Resolução das questões em aberto do ADR-014 (#32)
 - [x] **025** Resolução das questões em aberto do ADR-015 (#33)
 - [x] **030** Origem dos tenants no trigger de revisão do ADR-020: tabelas de transição e união de
-  tenants antigos e novos, com incremento transacional. Resolvido nesta continuação, sem gerador de persistência
+  tenants antigos e novos, com incremento transacional (`ebed54a`)
 
 **Aceitos nesta revisão**
 - [x] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
@@ -279,6 +285,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   classificação pessoal derivada e preservação dos schemas anteriores; integrado em `cb7c0b5`
 - [x] **029** Declarações live e dependências verificáveis, incluindo leituras de autorização; integrado
   em `ed0d90f`, sem runtime de assinaturas
+- [x] **031** Geração inicial de SQL de revisão de autorização: CLI sem aplicação automática, checagens de
+  pacote/banco/papéis e sonda que aplica o SQL gerado; integrado nesta continuação
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
@@ -345,9 +353,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-008:** a sonda de intervalos e `_v` já existe e entra na CI do PostgreSQL 17 e 18. O distribuidor,
   checkpoints persistidos, retenção e ressincronização por mudança de cluster/timeline continuam pendentes.
   As sessões da sonda não exercitam múltiplos processos de aplicação, carga ou transações preparadas
-- [ ] **ADR-020:** a sonda e a resolução da origem do tenant (ADR-030) já existem. Gerador de triggers,
-  assinaturas autenticadas, RLS, entrega, modo balanced, auditoria e os 12 critérios integrados continuam
-  pendentes do runtime; o agrupamento e a decisão strict da sonda são demonstrações
+- [ ] **ADR-020:** a sonda e a resolução da origem do tenant (ADR-030) já existem. O gerador de triggers
+  de revisão tem uma primeira versão (ADR-031); assinaturas autenticadas, RLS, entrega, modo balanced,
+  auditoria e os 12 critérios integrados continuam pendentes do runtime. O agrupamento e a decisão strict
+  da sonda são demonstrações
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
   `uses` inexistente não foi conferido
 - [ ] **ADR-009:** o motor de workflows, o histórico e a sintaxe não existem, e o schema 0.1 não representa
@@ -360,8 +369,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   `sonda_adr011` (5 itens, rodando na CI no 17 e no 18). O piso cobre só o que a IR enxerga, porque o `call` não é
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
 - [ ] **ADR-018:** os módulos de UI, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no protótipo), a
-  representação na IR (nova MENOR com `vetra.ui`), o `vetra doctor` e `vetra ui:resync` não existem; a CLI só tem
-  `graph:*`. O ERB da biblioteca padrão (4.0.3) não escapa a saída, conferido à mão, sem sonda versionada: o motor
+  representação na IR (nova MENOR com `vetra.ui`), o `vetra doctor` e `vetra ui:resync` não existem; a CLI tem
+  `graph:*` e `db:authz:sql`. O ERB da biblioteca padrão (4.0.3) não escapa a saída, conferido à mão, sem sonda versionada: o motor
   precisa ser outro ou configurado para isso. Como o `can?` é avaliado e o mecanismo do token anti-CSRF estão em
   aberto. A garantia de que a tela não ultrapassa a autorização vale para o código que usa o runtime; uma página
   com conexão própria escapa
@@ -422,7 +431,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   o índice do pai estão por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
   tem protótipo, e nada do `db:plan`, do retrato `db/schema.sql` e do mapa de `enum` para `text` com `CHECK`
   existe
-- [ ] **ADR-030/020:** gerar os triggers a partir do grafo; definir a chave de revisão de aplicações sem
+- [ ] **ADR-030/020/031:** integrar o bootstrap SQL a planos de migração e gerar upgrades; definir a chave de revisão de aplicações sem
   tenant; exercitar particionamento, cascatas, combinações de eventos e deadlocks entre instruções.
   O custo de reler campos pessoais por grupo continua por medir no gate G4
 

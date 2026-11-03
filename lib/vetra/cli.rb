@@ -6,20 +6,35 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
         flags.on('--fail-on-breaking', 'Sair com código 3 se o diff apontar quebra potencial') { options[:fail_on_breaking] = true }
+        flags.on('--sql-schema NAME', 'Schema novo do SQL de revisão de autorização') { |value| options[:schema] = value }
+        flags.on('--owner-role NAME', 'Papel proprietário já existente') { |value| options[:owner_role] = value }
+        flags.on('--app-role NAME', 'Papel da aplicação já existente') { |value| options[:app_role] = value }
         flags.on('-h', '--help', 'Mostrar ajuda') { out.puts(flags); return 0 }
         flags.on('--version', 'Mostrar versão do protótipo') { out.puts(VERSION); return 0 }
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff graph:link].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql].include?(command)
         err.puts(parser)
         return 2
       end
+      sql_options = options.slice(:schema, :owner_role, :app_role)
+      if command == 'db:authz:sql'
+        unless args.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
+          raise OptionParser::InvalidArgument, 'db:authz:sql aceita somente --root e opções de schema/papéis'
+        end
+        result = Graph::Compiler.new(root: options[:root]).read_artifact
+        generated = SQL::Authorization.new(result.document, **sql_options).generate
+        generated.warnings.each { |diagnostic| err.puts(diagnostic) }
+        out.write(generated.sql)
+        return 0
+      end
+      raise OptionParser::InvalidArgument, 'opções de SQL exigem db:authz:sql' unless sql_options.empty?
       if command == 'graph:diff'
         raise OptionParser::InvalidArgument, 'graph:diff exige duas entradas e não aceita --sources' unless args.size == 2 && !options[:sources]
         source = Graph::DiffSource.new(root: options[:root])

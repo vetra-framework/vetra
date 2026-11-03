@@ -18,6 +18,7 @@ require_relative "vetra/graph/linker"
 require_relative "vetra/graph/compiler"
 require_relative "vetra/graph/diff_source"
 require_relative "vetra/graph/diff"
+require_relative "vetra/sql/authorization"
 
 module Vetra
   def self.app(name, &block)

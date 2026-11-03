@@ -62,6 +62,7 @@ compartilham dados imutáveis de verdade; não executam operações da aplicaç�
 | `graph:validate --root APP --sources` | Também confere arquivos e hashes; usa o grafo padrão quando não recebe arquivo |
 | `graph:diff ANTERIOR POSTERIOR` | Compara arquivos/revisões Git validados; aceita texto ou JSON e sinaliza quebras potenciais |
 | `graph:link --root APP` | Confere o artefato/pacote, recria o registro e vincula blocos Ruby; não executa operações |
+| `db:authz:sql --root APP` | Confere o pacote sem avaliar o DSL e escreve SQL inicial de revisão por tenant; não conecta nem aplica |
 
 Saída 0 significa sucesso, 1 indica erro de compilação/validação/arquivo e 2 indica uso incorreto da CLI.
 Avisos vão para stderr e não mudam o código de sucesso. `graph:validate` sem `--sources` também aceita as
@@ -69,6 +70,8 @@ Avisos vão para stderr e não mudam o código de sucesso. `graph:validate` sem 
 No diff, `--fail-on-breaking` adiciona a saída 3 quando houver quebra potencial; o
 [guia de comparação](graph-diff.md) explica categorias, renomeações, limites e formato JSON.
 O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a API de metadados.
+O [guia de SQL de autorização](db-authz-sql.md) descreve a instalação inicial gerada, seus privilégios,
+locks e limites. O comando exige tenant e tabelas comuns; não é o planejador de migrações.
 
 ## DSL implementado
 
@@ -449,7 +452,8 @@ Normalização mantém arrays posicionais e a ordem dos enums. O schema local é
 O compilador verifica referências, namespaces, fronteiras/ciclos entre domínios, origens e hashes de
 implementação, campos/defaults, donos de transição, dependências declarativas de políticas, capacidades,
 payloads, consumidores obrigatórios, rotas e renomeações explícitas. Não aplica políticas SQL, não instala
-triggers e não chama serviços. `transitions enforce: :db` é apenas metadado até existir o gerador SQL.
+triggers no banco da aplicação e não chama serviços. `transitions enforce: :db` continua sendo metadado:
+o gerador SQL inicial cobre somente revisões de autorização, sem triggers de transição.
 Nem toda relação semântica possível no schema tem uma implementação; recursos fora do subconjunto
 suportado devem ser recusados, não tratados como seguros.
 
@@ -475,7 +479,7 @@ intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
 e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 133 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 137 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

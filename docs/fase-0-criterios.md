@@ -52,6 +52,12 @@ CI do 17/18. Quatro falhas introduzidas foram detectadas. A [medição](sondas/a
 autorização e protótipos de decisão strict e releitura agrupada; não fecha os critérios de runtime ou o
 gate G4. A suíte e o catálogo do compilador permanecem com 314 testes e 133 códigos.
 
+Com o gerador SQL do ADR-031: 328 testes e 2.532 asserções, sem falhas; 137/137 códigos exercitados.
+Os quatro exemplos passaram em check, validação com fontes e link; o diff tem somente metadados de
+produtor/lockfile, sem quebra. A sonda aplica o SQL gerado e passou em 17/17 verificações no PostgreSQL 18.6,
+com inclusão na CI do 17/18. O compilador passa a alpha.5, preservando a IR. O [guia](db-authz-sql.md)
+registra os limites do bootstrap; os critérios 6 e 7 continuam parciais.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes
@@ -61,7 +67,7 @@ encontrados nos pontos de emissão de `lib/`.
 
 A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
 literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
-cada ocorrência. São 133 códigos em 215 pontos de emissão. O carregador de teste
+cada ocorrência. São 137 códigos em 220 pontos de emissão. O carregador de teste
 `diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
 e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
 reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
@@ -83,7 +89,7 @@ continua sendo o caminho de teste para elas.
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb` e `live_test.rb`, emite os 133 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb`, `live_test.rb` e `authorization_sql_test.rb`, emite os 137 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration` e `timestamp_test.rb` e `query_output_test.rb`: leitura e link de 0.1/0.2 com semântica antiga, rebuild em 0.3 e diff explícito da versão. O schema exato impede que formatos antigos aceitem a representação nova; 0.4, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |

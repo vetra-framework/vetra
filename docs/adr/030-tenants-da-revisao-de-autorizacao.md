@@ -1,6 +1,7 @@
 # ADR-030: Tenants da revisão de autorização
 
 - Status: aceito
+- Implementação posterior: ADR-031 (geração inicial de SQL, sem executor de migrações).
 - Aceite: integração direta na main, após validação da sonda e revisão dos limites nesta continuação.
 - Data: 2026-11-03
 - Resolve: ADR-020, questão 6 (origem do tenant no trigger de instrução)

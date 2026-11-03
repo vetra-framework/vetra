@@ -41,6 +41,7 @@ flowchart LR
 | Exposições | Declarações de HTTP, CLI, job e webhook, com conferência de rotas, destinos e idempotência exigida |
 | Revisão | Diff de contratos, permissões, capacidades, privacidade, transições e metadados |
 | Vinculação | Conferência do artefato, dos fontes e dos blocos Ruby, sem executar operações |
+| SQL de autorização | Geração inicial de revisões por tenant e triggers, para revisão, com verificação em PostgreSQL descartável |
 
 O [guia da fase 0](docs/fase-0.md) detalha o DSL suportado e o alcance da análise estática dos blocos Ruby.
 
@@ -166,6 +167,7 @@ limites da análise.
 | [Critérios da fase 0](docs/fase-0-criterios.md) | Cobertura e evidências de aceitação |
 | [Diff arquitetural](docs/graph-diff.md) | Contratos, permissões, referências Git e relatório JSON |
 | [Vinculação de implementações](docs/graph-link.md) | Integridade do pacote, registro Ruby e dados compartilháveis |
+| [SQL de revisão de autorização](docs/db-authz-sql.md) | Gerador inicial, pré-condições e limites da instalação |
 | [IR 0.1, 0.2 e 0.3](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
 | [Índice de ADRs](docs/adr/README.md) | Decisões de arquitetura, resoluções e status de cada proposta |
 

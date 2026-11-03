@@ -65,10 +65,10 @@ module Vetra
         root.join('.vetra/graph.json')
       end
 
-      def link
+      def read_artifact
         bytes = artifact_bytes
         document = Canonical.parse(bytes)
-        Validator.new.validate!(document)
+        warnings = Validator.new.validate!(document)
         unless bytes == "#{Canonical.dump(document)}\n"
           raise Error.single('graph_not_canonical', 'O artefato deve usar JSON canônico seguido de LF; execute graph:build no pipeline.')
         end
@@ -78,7 +78,16 @@ module Vetra
         end
         manifest = Manifest.new(root)
         manifest.verify!(document)
-        Data.freeze(document)
+        unless artifact_bytes == bytes
+          raise Error.single('graph_changed', 'O artefato mudou durante a leitura; use um pacote imutável.')
+        end
+        Data.freeze(Result.new(document: document, warnings: warnings, implementation_ids: []))
+      end
+
+      def link
+        result = read_artifact
+        document, bytes = result.document, result.bytes
+        manifest = Manifest.new(root)
 
         # Registration is needed to recreate Ruby closures in this process. The
         # normalized declaration is an audit only: it never replaces the artifact.

@@ -5,7 +5,7 @@ os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito ante
 componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
 há seis ADRs de resolução aceitos (022 a 026 e 030), duas evoluções de formato aceitas (027 e 028) e o suporte
-declarativo a live (029). Nenhum componente além do compilador da fase 0 foi implementado.
+declarativo a live (029), além da geração inicial de SQL de revisão (031). O runtime segue pendente.
 
 ## Escritos
 
@@ -41,6 +41,7 @@ declarativo a live (029). Nenhum componente além do compilador da fase 0 foi im
 | [028](028-contratos-compostos-e-colecoes-de-consultas.md) | Contratos compostos e coleções de consultas, IR 0.3 | aceito |
 | [029](029-declaracoes-live-e-dependencias.md) | Declarações live e dependências verificáveis | aceito |
 | [030](030-tenants-da-revisao-de-autorizacao.md) | Tenants da revisão de autorização | aceito |
+| [031](031-geracao-de-sql-de-revisao-de-autorizacao.md) | Geração de SQL de revisão de autorização | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
@@ -63,7 +64,8 @@ na IR 0.3, incluindo dependências de autorização. A execução e a entrega do
 
 O [ADR-030](030-tenants-da-revisao-de-autorizacao.md) resolve a origem dos tenants no trigger de revisão
 do ADR-020. A sonda valida tabelas de transição e demonstra revogação strict e releitura agrupada;
-o gerador e o runtime permanecem pendentes.
+o runtime permanece pendente. O [ADR-031](031-geracao-de-sql-de-revisao-de-autorizacao.md) implementa o
+primeiro gerador de SQL desses triggers, sem aplicar migrações.
 
 ## Sondas
 
@@ -84,6 +86,7 @@ com as versões efetivamente medidas e os limites; a lista não implica que toda
 | `script/sonda_adr015.rb` | [015](015-migracoes-expand-contract.md) | Nível de lock e custo de cada DDL, e a fila de locks |
 | `script/sonda_adr019.rb` | [019](019-sinais-efemeros.md) | Limites do `NOTIFY` e o volume de WAL de tabelas `UNLOGGED` |
 | `script/sonda_adr020.rb` | [020](020-entrega-live-incremental.md), [030](030-tenants-da-revisao-de-autorizacao.md) | Treze verificações de revisão por tenant, privilégios, revogação strict, falha fechada, eventos sem conteúdo pessoal e releitura agrupada; [relatório e limites](../sondas/adr020.md) |
+| `script/sonda_adr031.rb` | [031](031-geracao-de-sql-de-revisao-de-autorizacao.md) | Aplica o SQL gerado da IR e verifica instalação, mapeamento, atomicidade, concorrência, privilégios e recusas; [guia e resultados](../db-authz-sql.md) |
 | `script/sonda_pooler.rb` | [003](003-sequel-e-camada-fina-de-repositorios.md), [005](005-rls-e-contexto-assinado.md), [008](008-ordem-e-continuidade-dos-eventos.md) | O que um pooler em modo de transação faz com contexto, statements nomeados e `LISTEN` (precisa de um PgBouncer à parte) |
 
 Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais recente (ADR-002), aponte
@@ -114,7 +117,7 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 | [024](024-resolucao-das-questoes-do-adr-014.md) | 014 | 1 padrões (valor inicial); 2 cursor por handler (já resolvida e adiada); 3 partição (decidida); 4 `authorize` do ator de sistema (decidida); 5 versões de evento (decidida); 6 eventos públicos (decidida e adiada) |
 | [025](025-resolucao-das-questoes-do-adr-015.md) | 015 | 1 esquema atual do `db:plan` (decidida); 2 lote, pausa e `lock_timeout` (valor inicial); 3 tabelas particionadas (decidida e medição); 4 FK composta por tenant (decidida e medição); 5 contract e deploy (decidida); 6 mudança de `enum` (decidida) |
 | [026](026-tabela-de-expoentes-iso-4217.md) | 017 | 4 tabela de expoentes (decidida); biblioteca de formatação (adiada) |
-| [030](030-tenants-da-revisao-de-autorizacao.md) | 020 | 6 tenant do trigger de revisão (decidida); validação por sonda, sem gerador de persistência |
+| [030](030-tenants-da-revisao-de-autorizacao.md) | 020 | 6 tenant do trigger de revisão (decidida); sonda e geração inicial de SQL pelo ADR-031, sem executor |
 
 ## Convenção
 
