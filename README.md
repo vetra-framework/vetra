@@ -112,7 +112,7 @@ operação. O compilador registra e verifica essas relações; a execução depe
 | [examples/blog](examples/blog) | Aplicação sem tenant, escopo do autor, publicação e campos protegidos |
 | [examples/mini_crm](examples/mini_crm) | Tenant, `money`, transição, evento, handler e quatro superfícies de exposição |
 | [examples/mini_crm_revendas](examples/mini_crm_revendas) | Revendas, vendedores e papéis com escopo por vínculo |
-| [examples/chat](examples/chat) | Salas, relação muitos-para-muitos e comandos explícitos de inclusão por ID ou e-mail e remoção de membros |
+| [examples/chat](examples/chat) | Salas, relação muitos-para-muitos, inclusão e remoção por ID e inclusão por e-mail como comando interno |
 
 Os diretórios contêm recortes compiláveis da fase 0. Autenticação, telas, persistência e entrega em tempo
 real continuam pendentes. Troque `--root examples/blog` pelo diretório desejado para inspecionar outro exemplo.
@@ -147,7 +147,9 @@ bundle exec rake test:diagnostics
 ```
 
 Essa também é a tarefa padrão de `bundle exec rake`. A [CI](.github/workflows/ci.yml) verifica os testes,
-os artefatos dos exemplos, a vinculação e o diff arquitetural, além das sondas de banco no PostgreSQL 17 e 18.
+os artefatos dos exemplos, a vinculação e o diff arquitetural em PRs e pushes na `main`, além das sondas de
+banco no PostgreSQL 17 e 18. O [gate de compatibilidade](docs/graph-diff.md#ci-e-revisão-antes-da-integração)
+registra quebras intencionais por digest e exige revisão antes da integração pela proteção da branch.
 
 Ao alterar o modelo de um exemplo, reconstrua seu grafo com `graph:build`, revise o `graph:diff` e inclua
 o artefato atualizado na mudança. Acrescente casos de erro às novas regras e mantenha a documentação e a

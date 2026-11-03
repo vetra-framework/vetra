@@ -1,6 +1,7 @@
 # ADR-027: `created_at` implícito e IR 0.2
 
-- Status: proposto
+- Status: aceito
+- Aceite: 2026-11-02, na revisão e correções solicitadas pelo mantenedor; código já integrado na main.
 - Data: 2026-11-02
 - Depende de: ADR-001 (IR e compatibilidade), ADR-003 (repositórios), ADR-004 (relógio determinístico)
 
@@ -10,8 +11,8 @@ O chat da proposta usa `index :room_id, :created_at` e ordena mensagens pela dat
 esse campo. O compilador não o gera. A IR 0.1 só representa geração de slug; acrescentar uma regra de
 relógio por convenção de nome deixaria parte do comportamento fora do grafo.
 
-Esta proposta acompanha a implementação para revisão. O aceite depende da integração; nenhum runtime
-é implementado nesta continuação.
+A implementação foi integrada e o aceite foi registrado nesta revisão. Nenhum runtime é implementado
+nesta continuação.
 
 ## Decisão
 

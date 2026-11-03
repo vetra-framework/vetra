@@ -4,8 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-02, sobre `bb340ea`, com as continuações locais da inclusão por e-mail no chat,
-  da recusa de escrita por repositório de leitura e do `created_at` na IR 0.2, ainda sem PR.
+- **Atualizado em:** 2026-11-02, sobre `694b34d`, com as correções da revisão em `fix/review-priorities` ([PR #36](https://github.com/vetra-framework/vetra/pull/36)).
+  A inclusão por e-mail e a IR 0.2 já foram integradas; esta rodada ativou a proteção de branch e prepara o próximo pacote.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -13,12 +13,12 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 e ADR-027 continuam propostos |
-| Testes do compilador e exemplos | 259 testes e 2.065 asserções, sem falhas; 127/127 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 27 aceitos: os 21 fundadores, 5 ADRs de resolução (022 a 026) e a evolução de formato 027; nenhum proposto |
+| Testes do compilador e exemplos | 268 testes e 2.107 asserções, sem falhas; 127/127 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
-| CI registrada | Último resultado registrado neste documento: verde no PR #33; a sonda 011 entrou na matriz no #35 |
-| Verificação local em 2026-11-02 | Suíte completa e check/validate com fontes/link/diff contra HEAD nos quatro exemplos passaram; nenhuma quebra potencial. A gem inclui os schemas 0.1 e 0.2 |
-| PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 ainda sem PR |
+| CI registrada | Confirmados os três checks verdes de `694b34d`; a CI desta rodada está vinculada ao [PR #36](https://github.com/vetra-framework/vetra/pull/36) |
+| Verificação local em 2026-11-02 | Suíte completa, os quatro exemplos e 17 cenários do gate passaram. O chat tem duas quebras intencionais, declaradas por digest; 0.1.0-alpha.2 inclui os schemas 0.1 e 0.2 |
+| PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -42,6 +42,9 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Versão do compilador preparada como `0.1.0-alpha.2`, com lockfiles e quatro grafos reconstruídos.
+  Publicação da gem continua sendo uma etapa separada.
+
 **Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.2, leitura da 0.1, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
@@ -54,13 +57,13 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   (`6263777`)
 - [x] Gravações literais por repositório exigem `access: read_write`, inclusive dentro de comandos. A revisão
   encontrou que a capacidade explícita `users_read` aceitava `create!`; agora falha com `write_boundary`, com
-  teste de regressão no chat (continuação local, ainda sem PR)
+  teste de regressão no chat (`694b34d`)
 - [x] IR 0.2 com `vetra.timestamps`: cada entidade tem `created_at` gerado, obrigatório e não nulo,
   incluindo raiz do tenant e junções implícitas. O campo sai das entradas CRUD e aceita índice e projeção em
   evento. Nomes reservados, atribuições literais e IR externa incompatível são recusados. O schema 0.1 é
   preservado e artefatos antigos continuam validando e vinculando sem conversão; check pede novo build.
   Quatorze testes novos cobrem determinismo, contratos, falhas, compatibilidade e diff. Os quatro exemplos
-  foram reconstruídos e o chat usa `index :room_id, :created_at` (ADR-027 proposto; continuação local)
+  foram reconstruídos e o chat usa `index :room_id, :created_at` (ADR-027 aceito; implementação em `694b34d`)
 
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
@@ -70,7 +73,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `money` sem `scale` segue o expoente da moeda da aplicação; uma escala explícita inferior é recusada
   (`money_scale`), e uma superior permite precisão estendida. A tabela ISO 4217 é local; moedas sem expoente
   definido falham com `money_currency`. Entidades, entradas de operações, contratos CRUD e payloads de eventos
-  estão cobertos por 12 testes novos (`635d926`; fonte da tabela no ADR-026 proposto)
+  estão cobertos por 12 testes novos (`635d926`; fonte da tabela no ADR-026 aceito)
 - [x] `expose http:`, `cli:`, `job:` e `webhook:` no DSL, conforme o ADR-007, mantendo uma única operação,
   contrato e autorização. Nomes são únicos por superfície; HTTP e webhook compartilham a detecção de rotas
   ambíguas; webhook exige comando com `idempotency: :required` explícito. Consultas recusam POST, job e
@@ -82,13 +85,23 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   rotas HTTP e recusa de remover o proprietário. Os nove testes de `chat_test.rb` cobrem a IR, a vinculação e
   os corpos com duplos de memória. Comandos são explícitos, sem geração automática, executor ou revogação
   live (`dbbd713`)
-- [x] O chat declara `add_member_by_email`, com autorização pela ação `add_member` do dono, retorno da sala,
-  rota HTTP própria, e-mail pessoal e normalização declarada em `downcase`. Trava a sala antes de consultar
-  `users_read` e recusa usuário ausente ou e-mail ambíguo sem alterar membros. Seis testes novos e a ampliação
-  dos anteriores cobrem contrato, busca, falhas e vínculo; `chat_test.rb` tem 15 testes. Não há executor nem
-  normalização em execução (continuação local, ainda sem PR)
+- [x] O chat declara `add_member_by_email` como comando interno, sem superfícies de exposição. A busca usa
+  `users_read`, normalização `downcase` e e-mail pessoal com índice único declarado. Usuário ausente ou
+  ambíguo falha com a mesma mensagem, sem alterar membros. A rota HTTP foi retirada para evitar descoberta
+  de cadastros; convites com aceite e a política de descoberta continuam pendentes. Os 16 testes do chat
+  cobrem contratos, corpos, falhas e ausência de rota; não há executor nem índice real no banco.
 
 **CI e sondas**
+- [x] Diff em PRs contra o SHA da base e em pushes da main contra o SHA anterior. Falha audível em base
+  ausente, tratamento explícito do primeiro push e relatório de revisão no resumo do job. Quebras
+  intencionais exigem justificativa para o par exato de digests em `.github/graph-compatibility.json`.
+  Oito testes do gate e 17 cenários de simulação passaram nesta revisão.
+- [x] `sonda_adr011.rb` executável; os demais modos do Git foram preservados. O aviso experimental é
+  silenciado apenas durante a criação de Ractors no teste, com restauração da configuração anterior.
+- [x] Proteção da main ajustada em 2026-11-02 para mantenedor único: PR obrigatório, zero aprovações
+  externas, três checks obrigatórios, branch atualizada, aplicação a admins e sem force-push ou exclusão.
+  O mantenedor revisa o diff e as quebras intencionais antes de integrar. Configuração em
+  `.github/main-protection.json`, conferida por leitura da API.
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
   quando não consegue ler a base, #6)
 - [x] `test:diagnostics` executa a suíte uma vez e confere os códigos realmente criados em `Diagnostic.new`
@@ -217,20 +230,16 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **024** Resolução das questões em aberto do ADR-014 (#32)
 - [x] **025** Resolução das questões em aberto do ADR-015 (#33)
 
-**Propostos nestas continuações**
-- [ ] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
-  da biblioteca de formatação até a implementação da borda de UI/API. A implementação e os testes acompanham
-  a proposta; o aceite depende de quem integra
-- [ ] **027** `created_at` implícito e IR 0.2: geração pelo relógio do futuro repositório, exclusão das
-  entradas CRUD e compatibilidade com artefatos 0.1. A implementação e os testes acompanham a proposta;
-  o aceite depende de quem integra
+**Aceitos nesta revisão**
+- [x] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
+  da biblioteca de formatação até a implementação da borda de UI/API. Implementação integrada; aceite
+  registrado em 2026-11-02 por solicitação do mantenedor
+- [x] **027** `created_at` implícito e IR 0.2: geração pelo relógio do futuro repositório, exclusão das
+  entradas CRUD e compatibilidade com artefatos 0.1. Implementação integrada; aceite registrado em
+  2026-11-02 por solicitação do mantenedor
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
-- [ ] Revisar a continuação de `money` e o ADR-026 proposto, incluindo a tabela local derivada da SIX e seus
-  limites (códigos sem expoente numérico não são aceitos em `money`)
-- [ ] Revisar a IR 0.2 e o ADR-027 proposto, incluindo a regra de criação de timestamps, a compatibilidade
-  do link 0.1 e os limites de migração e runtime
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
   ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
@@ -336,7 +345,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   `sequel-activerecord_connection`. A transação e o contexto de RLS compartilhados e os cinco testes do ADR-003 são
   hipótese até rodarem contra um Rails real. O protótipo não tem ponte com Rails
 - [ ] **ADR-017:** a escala por moeda da aplicação e a precisão estendida estão implementadas e testadas em
-  `635d926`, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte proposta no ADR-026). A
+  `635d926`, com tabela local de expoentes (SIX, publicação de 2026-09-17; fonte definida no ADR-026). A
   aritmética, o rateio, o arredondamento, a formatação e a validação HTTP ainda dependem do runtime; a moeda por
   tenant exige uma nova MENOR da IR
 - [ ] **ADR-007:** as quatro superfícies são declaradas no DSL e validadas na IR 0.1. O teste de aceitação 6

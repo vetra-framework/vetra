@@ -102,6 +102,8 @@ class ChatTest < GraphTest
       assert_equal ['downcase'], email['normalize']
       user_email = node(document, 'entity', 'chat.user')['fields'].find { |field| field['name'] == 'email' }
       assert_equal email['normalize'], user_email['normalize']
+      assert user_email.dig('constraints', 'unique')
+      assert node(document, 'entity', 'chat.user')['indexes'].any? { |index| index['unique'] && index['fields'] == ['email'] }
     end
   end
 
@@ -152,7 +154,6 @@ class ChatTest < GraphTest
       document = compiler.build.document
       {
         'add_member' => ['POST', '/rooms/:room_id/members'],
-        'add_member_by_email' => ['POST', '/rooms/:room_id/members/by_email'],
         'remove_member' => ['DELETE', '/rooms/:room_id/members/:user_id']
       }.each do |name, (method, path)|
         route = node(document, 'route', "chat.#{name}.http_1")
@@ -160,6 +161,17 @@ class ChatTest < GraphTest
         assert_equal({ 'method' => method, 'path' => path }, route['config'])
         assert_equal({ 'kind' => 'command', 'id' => "chat.#{name}" }, route['target'])
       end
+    end
+  end
+
+  def test_email_lookup_is_internal_and_cannot_be_reached_through_any_surface
+    with_app('chat') do |_root, compiler|
+      document = compiler.build.document
+      routes = document['nodes'].select do |entry|
+        entry['kind'] == 'route' && entry.dig('target', 'id') == 'chat.add_member_by_email'
+      end
+      assert_empty routes
+      assert node(document, 'command', 'chat.add_member_by_email')
     end
   end
 
@@ -204,7 +216,7 @@ class ChatTest < GraphTest
       input = EmailInput.new(room_id: room.id, email: 'missing@example.com')
       error = assert_raises(BodyFailure) { run_body(root, 'add_member_by_email', input, rooms, users) }
       assert_equal :email, error.field
-      assert_equal 'usuário não encontrado', error.message
+      assert_equal 'não foi possível adicionar o membro', error.message
       assert_equal [input.email], users.lookups
       assert_equal [room.owner_id], rooms.members
       assert_empty rooms.mutations
@@ -231,7 +243,7 @@ class ChatTest < GraphTest
       users = MemoryUsers.new(User.new(id: 'guest-1', email: input.email), User.new(id: 'guest-2', email: input.email))
       error = assert_raises(BodyFailure) { run_body(root, 'add_member_by_email', input, rooms, users) }
       assert_equal :email, error.field
-      assert_equal 'e-mail corresponde a mais de um usuário', error.message
+      assert_equal 'não foi possível adicionar o membro', error.message
       assert_equal [room.owner_id], rooms.members
       assert_empty rooms.mutations
     end

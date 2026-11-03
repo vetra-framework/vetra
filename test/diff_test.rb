@@ -76,7 +76,7 @@ class DiffTest < GraphTest
 
   def test_only_source_and_build_changes_remain_metadata_and_code_is_not_certified_equivalent
     node(@after, 'entity')['source']['line'] += 1
-    @after['producer']['version'] = '0.1.0-alpha.2'
+    @after['producer']['version'] = '0.1.0-alpha.99'
     @after['annotations'] = { 'example.note' => 'review info' }
     implementation = node(@after, 'command', 'blog.publish_post')['implementation']
     implementation['digest'] = 'sha256:' + '1' * 64

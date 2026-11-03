@@ -4,7 +4,7 @@ O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.2 �
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
 O compilador continua validando e vinculando a IR 0.1 com seu schema e semântica originais. Novos builds
-usam 0.2, com o `created_at` proposto no [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
+usam 0.2, com o `created_at` definido no [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
 
 ## Executar
 
@@ -166,7 +166,7 @@ money :preco_unitario, scale: 4     # precisão estendida
 ```
 
 A tabela de expoentes é local e distribuída com o compilador, derivada da List One da SIX, publicada em
-2026-09-17. Sua origem, manutenção e limites estão no [ADR-026 proposto](adr/026-tabela-de-expoentes-iso-4217.md).
+2026-09-17. Sua origem, manutenção e limites estão no [ADR-026](adr/026-tabela-de-expoentes-iso-4217.md).
 Se houver campo `money`, uma moeda da aplicação desconhecida ou sem expoente definido falha com `money_currency`,
 mesmo com `scale:` explícito. Não há consulta à rede nem suposição de duas casas.
 
@@ -179,7 +179,7 @@ A moeda por tenant, o arredondamento, a formatação e a validação HTTP em exe
 
 Novos builds geram `created_at` em todas as entidades, incluindo a raiz do tenant e as junções implícitas.
 O campo é um `timestamp` obrigatório e não nulo, com `generate: { kind: "timestamp", on: "create" }` na
-entidade. O documento usa IR 0.2 e exige `vetra.timestamps`, conforme o [ADR-027 proposto](adr/027-created-at-implicito-e-ir-0-2.md).
+entidade. O documento usa IR 0.2 e exige `vetra.timestamps`, conforme o [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
 
 O campo participa do contrato de registro, pode ser projetado em eventos e pode ser usado em índices.
 Não aparece nas entradas CRUD de criação e atualização. O nome é reservado nas entidades; redeclará-lo
@@ -333,19 +333,25 @@ política do dono. Usa `rooms` e a capacidade de somente leitura `users_read`: t
 consulta até dois usuários pelo e-mail e inclui o ID apenas se houver um resultado. Nenhum resultado ou um
 e-mail ambíguo falha no campo `email`, sem alterar membros. O contrato da entrada e a entidade `user` declaram
 normalização `downcase` e classificação pessoal do e-mail; a normalização ainda depende do futuro runtime.
-Como o exemplo não tem `auth` nem unicidade do e-mail, a recusa da ambiguidade evita escolher um usuário
-arbitrariamente.
+O e-mail do usuário declara unicidade e gera um índice único sobre o valor normalizado. A checagem de
+ambiguidade permanece como defesa para dados inconsistentes; ausência e ambiguidade usam a mesma mensagem.
+
+Esse comando é **interno, sem exposição HTTP, CLI, job ou webhook**. A política de dono da sala não é
+autorização para descobrir quem tem cadastro: qualquer autenticado pode criar uma sala. Uma resposta
+genérica também não esconderia a inclusão observável na lista de membros. Reexpor a busca depende de um
+fluxo de convite e aceite do destinatário ou de uma política explícita de descoberta de usuários, junto
+com autenticação e limites de uso. Nenhum desses fluxos foi implementado neste protótipo.
 
 As exposições são:
 
 | Comando | Método | Caminho |
 |---|---|---|
 | `chat.add_member` | POST | `/rooms/:room_id/members` |
-| `chat.add_member_by_email` | POST | `/rooms/:room_id/members/by_email` |
 | `chat.remove_member` | DELETE | `/rooms/:room_id/members/:user_id` |
 
 `test/chat_test.rb` confere contratos, política do dono, rotas, vínculo dos blocos e a recusa dessas escritas
-quando declaradas como consulta. Testes unitários dos corpos usam um repositório em memória e um contexto de
+quando declaradas como consulta, além da ausência de qualquer superfície para a busca por e-mail.
+Testes unitários dos corpos usam um repositório em memória e um contexto de
 `fail!` de teste para conferir inclusão, remoção, retorno da sala, recusa de remover o dono e falhas da busca
 por e-mail. A vinculação confere também a ordem dos parâmetros de `rooms` e `users_read`. Esses testes não
 implementam o executor do framework, autorização em execução, transações, RLS ou revogação live. Build e link

@@ -1,6 +1,7 @@
 # ADR-026: Tabela de expoentes ISO 4217 no compilador
 
-- Status: proposto
+- Status: aceito
+- Aceite: 2026-11-02, na revisão e correções solicitadas pelo mantenedor; código já integrado na main.
 - Data: 2026-10-31
 - Resolve: ADR-017 (questão 4: origem e teste da tabela de expoentes; formatação adiada)
 - Depende de: ADR-017 (tipo money), ADR-001 (IR e determinismo)
@@ -12,15 +13,15 @@ explícita maior permite precisão estendida e que uma menor é erro. A IR 0.1 j
 mas o compilador usava sempre 2. Aplicar essa decisão exige escolher a fonte dos expoentes, parte da quarta
 questão em aberto do ADR-017.
 
-Esta proposta acompanha a implementação para revisão. Seu aceite depende da integração, conforme a
-convenção do índice; as outras questões do ADR-017 continuam abertas.
+A implementação foi integrada e o aceite foi registrado nesta revisão. As outras questões do ADR-017
+continuam abertas.
 
 ## Questões
 
 ### 4. De onde vem a tabela de expoentes ISO 4217 e como é testada
 
 - Tratamento: **decidida** (tabela) e **adiada** (biblioteca de formatação).
-- **Fonte proposta:** a lista oficial de moedas e fundos correntes, List One, publicada pela
+- **Fonte:** a lista oficial de moedas e fundos correntes, List One, publicada pela
   [SIX, agência de manutenção da ISO 4217](https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html).
   O [XML](https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml)
   consultado em 2026-10-31 tem `Pblshd="2026-09-17"` e SHA-256

@@ -4,8 +4,7 @@ A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
 componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
-há quatro ADRs de resolução aceitos (022 a 025), um proposto (026) e uma proposta adicional de evolução
-de formato (027). Nenhum componente além do compilador da fase 0 foi implementado.
+há cinco ADRs de resolução aceitos (022 a 026) e uma evolução de formato aceita (027). Nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -36,8 +35,8 @@ de formato (027). Nenhum componente além do compilador da fase 0 foi implementa
 | [023](023-resolucao-das-questoes-do-adr-005.md) | Resolução das questões em aberto do ADR-005 | aceito |
 | [024](024-resolucao-das-questoes-do-adr-014.md) | Resolução das questões em aberto do ADR-014 | aceito |
 | [025](025-resolucao-das-questoes-do-adr-015.md) | Resolução das questões em aberto do ADR-015 | aceito |
-| [026](026-tabela-de-expoentes-iso-4217.md) | Tabela de expoentes ISO 4217 no compilador | proposto |
-| [027](027-created-at-implicito-e-ir-0-2.md) | `created_at` implícito e IR 0.2 | proposto |
+| [026](026-tabela-de-expoentes-iso-4217.md) | Tabela de expoentes ISO 4217 no compilador | aceito |
+| [027](027-created-at-implicito-e-ir-0-2.md) | `created_at` implícito e IR 0.2 | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
@@ -48,8 +47,9 @@ O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DS
 Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
 transacionais continuam pendentes.
 
-A continuação do [ADR-027 proposto](027-created-at-implicito-e-ir-0-2.md) produz IR 0.2 com `created_at`
-implícito, mantendo leitura e vinculação da 0.1. O aceite dessa proposta continua pendente de integração.
+A implementação do [ADR-027](027-created-at-implicito-e-ir-0-2.md) produz IR 0.2 com `created_at`
+implícito, mantendo leitura e vinculação da 0.1 com as versões do produtor exigidas pelo pacote. Os ADRs
+026 e 027 tiveram seu aceite registrado na revisão de 2026-11-02 solicitada pelo mantenedor.
 
 ## Sondas
 
@@ -96,7 +96,7 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 | [023](023-resolucao-das-questoes-do-adr-005.md) | 005 | 1 custo do HMAC (medição); 2 vínculos múltiplos (decidida, medição e adiada); 3 relatórios entre tenants (adiada); 4 SSO (já resolvida); 5 versão do PostgreSQL (já resolvida) |
 | [024](024-resolucao-das-questoes-do-adr-014.md) | 014 | 1 padrões (valor inicial); 2 cursor por handler (já resolvida e adiada); 3 partição (decidida); 4 `authorize` do ator de sistema (decidida); 5 versões de evento (decidida); 6 eventos públicos (decidida e adiada) |
 | [025](025-resolucao-das-questoes-do-adr-015.md) | 015 | 1 esquema atual do `db:plan` (decidida); 2 lote, pausa e `lock_timeout` (valor inicial); 3 tabelas particionadas (decidida e medição); 4 FK composta por tenant (decidida e medição); 5 contract e deploy (decidida); 6 mudança de `enum` (decidida) |
-| [026](026-tabela-de-expoentes-iso-4217.md) (proposto) | 017 | 4 tabela de expoentes (decidida na proposta); biblioteca de formatação (adiada na proposta) |
+| [026](026-tabela-de-expoentes-iso-4217.md) | 017 | 4 tabela de expoentes (decidida); biblioteca de formatação (adiada) |
 
 ## Convenção
 

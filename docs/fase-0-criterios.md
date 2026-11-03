@@ -24,6 +24,12 @@ Com `created_at` e IR 0.2: 259 testes e 2.065 asserções, sem falhas, com 127/1
 Os quatro exemplos foram reconstruídos e passaram em check, validação com fontes e link; o diff contra
 `bb340ea` não apontou quebras potenciais. Leitura, vínculo e diff da IR 0.1 continuam cobertos.
 
+Na revisão das prioridades: 268 testes e 2.107 asserções, sem falhas, com 127/127 códigos exercitados.
+Os quatro exemplos passaram em check, validação com fontes e link. Os 17 cenários do simulador do CI
+passaram para PR e push, incluindo bases inválidas, primeiro push e quebras não declaradas. O chat tem
+uma retirada intencional de rota e uma restrição de unicidade; ambas estão declaradas pelos digests
+exatos, para revisão, sem alterar a classificação do `graph:diff`. A versão do compilador é 0.1.0-alpha.2.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes
@@ -169,12 +175,14 @@ métodos HTTP, consulta por POST, idempotência obrigatória de webhook, diagnó
 declara as quatro superfícies; o `graph:diff` contra `635d926` mostra três rotas adicionadas, todas para
 revisão, e nenhuma quebra potencial. Os adaptadores ainda não existem, e o critério 7 continua parcial.
 
-Os 15 testes de `chat_test.rb` cobrem os comandos explícitos `add_member`, `add_member_by_email` e
+Os 16 testes de `chat_test.rb` cobrem os comandos explícitos `add_member`, `add_member_by_email` e
 `remove_member`, incluindo contratos tipados, política do dono, rotas, alteração de membros em duplos de
 memória e busca por e-mail ausente ou ambíguo. Build e link apenas registram os três blocos. O compilador
 também recusa uma gravação literal por `users_read` em um comando (`write_boundary`), além das escritas em
 consultas. Isso preenche a ausência dos comandos no exemplo; a geração automática, a autorização em execução,
-a normalização da entrada no runtime e a revogação live continuam pendentes. O critério 7 segue parcial.
+a normalização da entrada no runtime e a revogação live continuam pendentes. A busca por e-mail ficou
+interna, sem superfícies, e o e-mail declara unicidade; convites com aceite continuam pendentes. O critério 7
+segue parcial.
 
 Os 14 testes de `timestamp_test.rb` cobrem `created_at` em entidades e junções, contratos CRUD e de registro,
 o índice composto do chat, projeções em evento, determinismo sem relógio e recusas de geração inválida ou

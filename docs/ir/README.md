@@ -40,7 +40,7 @@ Desde a IR 0.2, `generate` também aceita `{ "kind": "timestamp", "on": "create"
 `vetra.timestamps`, só vale no `created_at` obrigatório e não nulo de entidade, e não pode ser combinada com
 outras regras de atribuição. O requisito exige esse campo em todas as entidades. Contratos de registro e
 payloads carregam o valor, sem copiar a geração; entradas CRUD não podem permitir sua escrita. O
-[ADR-027 proposto](../adr/027-created-at-implicito-e-ir-0-2.md) registra o contrato e seus limites.
+[ADR-027](../adr/027-created-at-implicito-e-ir-0-2.md) registra o contrato e seus limites.
 
 Build e check usam 0.2. Validação, diff e link aceitam 0.1 e 0.2, cada uma com o schema e as regras exatas.
 O link audita declarações na versão do artefato sem converter ou regravar o documento. O schema 0.1 e as

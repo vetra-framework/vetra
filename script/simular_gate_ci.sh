@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Simula o gate de compatibilidade da CI sem precisar do GitHub. Extrai os passos "graph:check", "graph:validate",
 # "Diff arquitetural" e "graph:link" do próprio .github/workflows/ci.yml, clona o estado commitado do repositório
-# numa pasta temporária e roda os passos em dez cenários, conferindo o resultado esperado de cada um.
+# numa pasta temporária e roda os passos em cenários de PR e push, conferindo o resultado esperado de cada um.
 # Não faz parte da suíte do compilador e não altera a sua árvore de trabalho.
 #
 #   script/simular_gate_ci.sh
@@ -17,12 +17,27 @@ trap 'rm -rf "$work"' EXIT
 LANG=C.UTF-8 LC_ALL=C.UTF-8 ruby -ryaml -e '
   steps = YAML.load_file(File.join(ARGV[0], ".github/workflows/ci.yml")).dig("jobs", "test", "steps")
   { "check" => "graph:check em todos os exemplos", "validate" => "graph:validate em todos os exemplos",
-    "diff" => "Diff arquitetural contra a base do PR", "link" => "graph:link em todos os exemplos" }.each do |file, name|
+    "diff" => "Diff arquitetural contra a base do evento", "link" => "graph:link em todos os exemplos" }.each do |file, name|
     step = steps.find { |entry| entry["name"] == name } or abort("passo não encontrado no YAML: #{name}")
     File.write(File.join(ARGV[1], "#{file}.sh"), step["run"])
   end' "$repo" "$work" || exit 2
 
-git clone -q "$repo" "$work/ci" && cd "$work/ci" || exit 2
+git clone -q "$repo" "$work/ci" || exit 2
+# Inclui a implementação local para testar antes de criar o commit do PR.
+git -C "$repo" diff --binary HEAD > "$work/local.patch" || exit 2
+if [ -s "$work/local.patch" ]; then
+  git -C "$work/ci" apply --index "$work/local.patch" || exit 2
+fi
+for file in script/check_graph_compatibility.rb .github/graph-compatibility.json; do
+  if [ -f "$repo/$file" ]; then
+    mkdir -p "$work/ci/$(dirname "$file")"
+    cp -p "$repo/$file" "$work/ci/$file" || exit 2
+    git -C "$work/ci" add "$file" || exit 2
+  fi
+done
+cd "$work/ci" || exit 2
+git config user.name simulacao && git config user.email simulacao@example.com
+if ! git diff --cached --quiet; then git commit -qm "Snapshot local para simulação" || exit 2; fi
 git checkout -q -b pr
 git update-ref refs/remotes/origin/main HEAD # a base do PR é o estado clonado
 git config user.name simulacao && git config user.email simulacao@example.com
@@ -30,7 +45,15 @@ bundle install --quiet || exit 2
 
 failures=0
 reset() { git reset -q --hard origin/main && git clean -fdq; }
-step() { BASE_REF="${2-main}" bash -e "$work/$1.sh" > "$work/saida.txt" 2>&1; }
+step() {
+  ref="${2-main}"
+  if [ -n "$ref" ]; then
+    sha=$(git rev-parse --verify "origin/$ref" 2>/dev/null) || sha="$ref"
+  else
+    sha=
+  fi
+  BASE_SHA="$sha" EVENT_NAME="${event_name-pull_request}" bash -e "$work/$1.sh" > "$work/saida.txt" 2>&1
+}
 expect() { # expect "descrição" esperado(zero|falha) passo [base [trecho que a saída deve conter]]
   step "$3" "${4-main}"; code=$?; problem=
   case $2 in
@@ -84,18 +107,28 @@ expect "mudança só de metadados não derruba o gate" zero diff
 
 # Falha ao ler a base não pode virar "nenhum grafo para comparar".
 reset
-expect "base inexistente faz o gate falhar" falha diff nao-existe "Base do PR não encontrada"
-expect "referência da base vazia faz o gate falhar" falha diff "" "Base do PR não encontrada"
+expect "base inexistente faz o gate falhar" falha diff nao-existe "SHA de base válido"
+expect "referência da base vazia faz o gate falhar" falha diff "" "SHA de base válido"
 
 mkdir "$work/fakebin" # um git que resolve a referência, mas falha ao listar a árvore
-printf '#!/bin/sh\n[ "$1" = ls-tree ] && { echo "fatal: falha simulada" >&2; exit 128; }\nexec %s "$@"\n' "$(command -v git)" > "$work/fakebin/git"
+printf '#!/bin/sh\nfor arg do\n  [ "$arg" = ls-tree ] && { echo "fatal: falha simulada" >&2; exit 128; }\ndone\nexec %s "$@"\n' "$(command -v git)" > "$work/fakebin/git"
 chmod +x "$work/fakebin/git"
 path_original=$PATH PATH="$work/fakebin:$PATH"
-expect "falha do git ao listar a base faz o gate falhar" falha diff main "Falha ao listar os arquivos"
+expect "falha do git ao listar a base faz o gate falhar" falha diff main "Falha ao ler a base (git ls-tree)"
 PATH=$path_original
 
 git update-ref refs/remotes/origin/sem-grafos "$(git commit-tree "$(git mktree < /dev/null)" -m "sem grafos")"
 expect "base legítima, sem nenhum grafo, não derruba o gate" zero diff sem-grafos "nada a comparar"
+
+reset
+event_name=push
+expect "push normal compara com o SHA anterior" zero diff
+expect "primeiro push sem commit anterior passa pelos checks normais" zero diff 0000000000000000000000000000000000000000 "Primeiro push"
+expect "push sem SHA de base falha" falha diff "" "SHA de base válido"
+sed -i '/expose http:/d' examples/mini_crm_revendas/app/domains/crm/win_lead.rb
+bundle exec bin/vetra graph:build --root examples/mini_crm_revendas > /dev/null 2>&1
+git commit -qam "remove rota no push"
+expect "push com quebra não declarada falha" falha diff main "Quebra sem declaração"
 
 echo
 if [ $failures -eq 0 ]; then echo "Resultado: o gate se comporta como esperado."; else echo "Resultado: $failures cenário(s) com falha."; fi
