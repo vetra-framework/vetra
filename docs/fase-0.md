@@ -1,15 +1,16 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.5 → validação**, o diff arquitetural
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.6 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
-O compilador continua validando e vinculando as IRs 0.1 a 0.4 com seus schemas e semânticas originais.
-Novos builds usam 0.5, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
+O compilador continua validando e vinculando as IRs 0.1 a 0.5 com seus schemas e semânticas originais.
+Novos builds usam 0.6, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
 retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
 live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
 descreve os comandos gerados de `many_to_many`, disponíveis desde a IR 0.4 e sem executor. O
 [ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md) declara o arredondamento em `currency`
-na IR 0.5; a versão da gem permanece alpha.5.
+desde a IR 0.5. O [ADR-034](adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md) declara
+`rate_limit:` por permissão na IR 0.6; a versão da gem permanece alpha.5.
 
 ## Executar
 
@@ -89,6 +90,7 @@ locks e limites. O comando exige tenant e tabelas comuns; não é o planejador d
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
   `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
+  `rate_limit: "5/min"` declara limite por permissão, ator e tenant, sem executor.
 - `command` e `query`, com `input`, `returns :entidade`, `authorize`, `uses`, `call`, `unsafe_effect` e
   `expose http:`, `cli:`, `job:` e `webhook:`. Consultas também aceitam coleções, blocos de saída compostos
   e declarações `live` com dependências verificadas.
@@ -107,7 +109,7 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI, MCP,
 workflows, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
-`realtime`, `rate_limit:` em `can` e políticas baseadas em atributos materializados do
+`realtime` e políticas baseadas em atributos materializados do
 ator além de `id`. Uma palavra-chave desconhecida em qualquer declaração falha com `unsupported_option`, e uma
 obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. Os schemas
 possuem algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
@@ -227,6 +229,37 @@ Este suporte é declarativo: `graph:link` vincula o bloco uma única vez. O prot
 HTTP, terminal para executar comandos de negócio, fila de jobs nem recebimento de webhooks; a exigência de
 idempotência é metadado validado, sem deduplicação em execução.
 
+## Limite de taxa por permissão
+
+`can :create, on: :comment, rate_limit: "5/min"` reproduz a permissão visitante do blog da proposta.
+O DSL aceita strings `"N/unidade"` ou `"N/J<unidade>"`, com limite e janela inteiros positivos,
+sem espaços ou zeros à esquerda; unidades `s`, `min` e `h`. Por exemplo, `"5/2min"` declara cinco
+admissões em uma janela móvel de 120 segundos. Limite e duração em segundos cabem no inteiro seguro
+positivo da IR. Tipos, valores ou unidades inválidos falham com `rate_limit`, origem de `can` e
+ponteiro `/rate_limit`.
+
+Na IR 0.6, a política recebe `rate_limit: { limit: 5, window_seconds: 60, key: "actor_tenant" }`.
+O requisito `vetra.rate_limit` só entra quando alguma política usa o recurso. A contagem é por política,
+ator e tenant confiáveis, compartilhada pelas ações e superfícies que usam a permissão. Sem tenant,
+usa-se o marcador de ausência da aplicação. O visitante requer identidade anônima estável verificada
+pelo futuro runtime; sem ela, a operação limitada deve ser recusada.
+
+O limite não concede acesso, não altera predicados, campos ou dependências e não substitui os controles
+adicionais do MCP (ADR-011) ou dos sinais por tópico (ADR-019). Ele qualifica a concessão em que foi
+declarado: se alguma política aplicável autoriza a operação sem limite, ela é admitida sem verificar
+nem consumir cotas dessas políticas. Só quando todas as políticas que a autorizam têm limite, todas
+precisam permitir a admissão, que conta em todas; alternar entre elas não multiplica cotas. No blog,
+a concessão administrativa sem limite preserva esse acesso mesmo que a permissão limitada do visitante
+também se aplique ao ator. O blog inclui comentários com `approved` protegido por
+`set_by: :approve_comment`, sem UI. O compilador e o link apenas declaram e conferem o contrato;
+não há executor, relógio ou armazenamento de contadores.
+
+O [ADR-034](adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md) fixa o contrato. Os schemas 0.1
+a 0.5 não mudam e recusam campo e requisito novos. O link preserva os formatos anteriores e não pode
+descartar um limite explícito para auditar um grafo antigo. O diff exige revisão para adicionar ou
+apertar; afrouxar, remover ou mudar de forma inconclusiva é quebra potencial de segurança, inclusive
+quando a política limitada inteira é removida.
+
 ## Dinheiro e escala por moeda
 
 `money :valor` usa precisão 19 e a escala da moeda da aplicação: 2 para BRL/USD, 0 para JPY, 3 para BHD e
@@ -256,7 +289,7 @@ A moeda por tenant, o arredondamento, a formatação e a validação HTTP em exe
 
 `currency "BRL", rounding: :half_up` declara o modo da aplicação. Os modos aceitos são `half_up`
 (empate para longe de zero) e `half_even` (empate para o último algarismo par), como símbolo ou string.
-O padrão é `half_up`, inclusive sem `currency` declarado. O build 0.5 emite `app.rounding` e exige
+O padrão é `half_up`, inclusive sem `currency` declarado. Desde a IR 0.5, o build emite `app.rounding` e exige
 `vetra.money_rounding` somente quando há declaração de `rounding:`, inclusive `half_up` e mesmo sem
 campos `money`. Sem a declaração, campo e requisito ficam ausentes. Nome ou tipo inválido falha com
 `money_rounding`. O modo governa somente conversão
@@ -286,7 +319,7 @@ operação. Persistência, preenchimento de linhas antigas e `updated_at` contin
 
 O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
 0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
-novo build 0.5; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
+novo build 0.6; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
 aparece no diff para revisão, além dos campos e índices.
 
 ## Escopo por vínculo
@@ -445,7 +478,7 @@ capacidades; desligar a geração remove contratos/comandos e produz quebras pot
 por Ruby no mesmo ID exige revisão de implementação, sem inferir equivalência. Alterar a relação usada
 pela primitiva também destaca implementação e permissões, inclusive ao mudar `through` ou `include:`.
 As IRs 0.1/0.2/0.3 continuam validando, comparando e vinculando sem geração retroativa, com seus schemas
-publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.5
+publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.6
 adota o padrão e exige revisão. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md) está aceito.
 
 ### Comandos de membros no chat
@@ -540,7 +573,7 @@ intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
 e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 142 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 143 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

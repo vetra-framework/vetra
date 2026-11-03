@@ -15,7 +15,7 @@ class ValidatorTest < GraphTest
   end
 
   def test_future_versions_features_and_unknown_properties_are_rejected
-    %w[0.6 1.0].each do |version|
+    %w[0.7 1.0].each do |version|
       original = @document['ir_version']
       @document['ir_version'] = version
       assert_graph_error('ir_version') { validate }

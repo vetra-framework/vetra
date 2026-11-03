@@ -89,7 +89,18 @@ pode alterar valores de conversão e divisão. O relatório mostra os dois modos
 mesmo quando o campo está ausente em um documento e mesmo sem campos `money`. O build emite campo e
 requisito somente quando há declaração de `rounding:`, inclusive `half_up`.
 Versão e requisitos continuam sendo revisados separadamente
-([ADR-033 proposto](adr/033-arredondamento-monetario-e-ir-0-5.md)).
+([ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md)).
+
+Desde a IR 0.6, `policy.rate_limit` aparece em `/rate_limit`, categoria `permissions`, com revisão
+obrigatória e impacto de permissão indeterminado. Adicionar ou apertar o limite é `review`;
+remover ou afrouxar é `breaking`, como quebra potencial de segurança, inclusive ao remover a política
+limitada inteira. Só se demonstra aperto quando o número de admissões não aumenta e a janela não diminui. Mudanças em direções opostas também são
+`breaking`: a mesma taxa média pode admitir rajadas diferentes. Durações equivalentes, como `5/min`
+e `5/60s`, normalizam para o mesmo campo e não geram mudança semântica. O descritor pertence à
+concessão e não altera a avaliação do predicado. Acrescentar uma política sem limite que autoriza
+a mesma operação de uma limitada continua aparecendo como permissão adicionada; o diff não prova
+a sobreposição nem o efeito sobre a admissão. O runtime continua pendente
+([ADR-034 proposto](adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md)).
 
 Mudar somente o hash de um arquivo é mudança de build, não prova de equivalência de implementação:
 o diff não distingue comentário, helper alterado ou lógica Ruby diferente apenas pelo digest. Essas

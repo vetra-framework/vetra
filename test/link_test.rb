@@ -35,7 +35,7 @@ class LinkTest < GraphTest
         assert_equal expected.bytes, compiler.artifact.binread
         assert_equal expected.implementation_ids, linked.implementation_ids
         assert_empty linked.warnings
-        assert_equal 4, linked.builtin_bindings.size
+        assert_equal name == 'blog' ? 8 : 4, linked.builtin_bindings.size
         assert linked.builtin_bindings.all? { |binding| binding['executor'] == 'pending' }
         assert linked.frozen?
         refute linked.respond_to?(:call)
@@ -101,7 +101,7 @@ class LinkTest < GraphTest
 
   def test_future_format_unknown_features_and_invalid_json_fail_before_registration
     mutations = [
-      ['ir_version', ->(document) { document['ir_version'] = '0.6' }],
+      ['ir_version', ->(document) { document['ir_version'] = '0.7' }],
       ['ir_feature', ->(document) { document['requires'] << 'vetra.future' }],
       ['ir_feature', ->(document) { document['ir_version'] = '0.3'; document['requires'] << 'vetra.relation_commands' }],
       ['ir_feature', ->(document) { document['ir_version'] = '0.3'; document['requires'].delete('vetra.money_rounding'); document['app'].delete('rounding'); node(document, 'command', 'blog.publish_post')['implementation'] = { 'kind' => 'builtin', 'name' => 'many_to_many.add.tags' } }],

@@ -276,6 +276,7 @@ class QueryOutputTest < GraphTest
 
   def test_previous_formats_still_link_without_conversion
     with_app do |root, compiler|
+      omit_blog_rate_limit(root)
       %w[0.1 0.2 0.3].each do |version|
         manifest = Vetra::Graph::Manifest.new(Pathname.new(root))
         registry = Vetra::Graph::DeclarationLoader.new(manifest).load

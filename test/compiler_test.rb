@@ -76,7 +76,7 @@ class CompilerTest < GraphTest
   def test_call_metadata_and_registration_remain_outside_ir
     with_app do |_root, compiler|
       result = compiler.build
-      assert_equal %w[blog.find_post#call blog.publish_post#call], result.implementation_ids
+      assert_equal %w[blog.approve_comment#call blog.find_post#call blog.publish_post#call], result.implementation_ids
       assert_equal 'ruby', node(result.document, 'command', 'blog.publish_post').dig('implementation', 'kind')
       assert_raises(FrozenError) { result.document['nodes'] << {} }
       assert_raises(FrozenError) { result.document['app']['name'].replace('changed') }

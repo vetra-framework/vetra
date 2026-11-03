@@ -54,7 +54,7 @@ class DiffTest < GraphTest
       %w[fields uses reads actions].each { |key| entry[key].reverse! if entry[key].is_a?(Array) }
     end
     refute compare.changed?
-    status = node(@after, 'entity')['fields'].find { |field| field['name'] == 'status' }
+    status = node(@after, 'entity', 'blog.post')['fields'].find { |field| field['name'] == 'status' }
     status['type']['values'].reverse!
     report = compare
     change = change_at(report, 'entity', 'blog.post', '/fields/status/type')
@@ -64,7 +64,7 @@ class DiffTest < GraphTest
   end
 
   def test_positional_index_keys_and_literal_arrays_are_not_treated_as_sets
-    node(@after, 'entity')['indexes'].first['fields'].reverse!
+    node(@after, 'entity', 'blog.post')['indexes'].first['fields'].reverse!
     report = compare
     assert_equal ['storage'], change_at(report, 'entity', 'blog.post', '/indexes/posts_idx_1')['categories']
     node(@before, 'policy')['predicate'] = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['title'] }, 'right' => { 'kind' => 'literal', 'value' => %w[a b] } }
@@ -75,7 +75,7 @@ class DiffTest < GraphTest
   end
 
   def test_only_source_and_build_changes_remain_metadata_and_code_is_not_certified_equivalent
-    node(@after, 'entity')['source']['line'] += 1
+    node(@after, 'entity', 'blog.post')['source']['line'] += 1
     @after['producer']['version'] = '0.1.0-alpha.99'
     @after['annotations'] = { 'example.note' => 'review info' }
     implementation = node(@after, 'command', 'blog.publish_post')['implementation']
@@ -105,7 +105,7 @@ class DiffTest < GraphTest
   end
 
   def test_policy_and_anonymous_role_additions_are_flagged_for_review
-    role = Vetra::Graph::Data.copy(node(@after, 'role')).merge('id' => 'blog.visitor', 'anonymous' => true)
+    role = Vetra::Graph::Data.copy(node(@after, 'role')).merge('id' => 'blog.guest', 'anonymous' => true)
     policy = Vetra::Graph::Data.copy(node(@after, 'policy')).merge('id' => 'blog.visitor_posts', 'role' => { 'kind' => 'role', 'id' => role['id'] })
     @after['nodes'].concat([role, policy])
     report = compare
@@ -212,7 +212,7 @@ class DiffTest < GraphTest
   def test_capabilities_transitions_privacy_routes_and_isolation_are_visible
     command = node(@after, 'command', 'blog.publish_post')
     command['uses'].reject! { |reference| reference['id'] == 'blog.clock' }
-    node(@after, 'entity')['transitions']['enforce'] = 'db'
+    node(@after, 'entity', 'blog.post')['transitions']['enforce'] = 'db'
     node(@after, 'contract', 'blog.post.record')['fields'].find { |field| field['name'] == 'title' }['privacy'] = { 'personal' => true, 'classification' => 'personal' }
     route = node(@after, 'route', 'blog.publish_post.http_1')
     route['config']['path'] = '/posts/:post_id/publish_now'
@@ -271,7 +271,7 @@ class DiffTest < GraphTest
 
   def test_invalid_unknown_and_tampered_graphs_cannot_receive_a_report
     original_version = @after['ir_version']
-    @after['ir_version'] = '0.6'
+    @after['ir_version'] = '0.7'
     error = assert_graph_error('ir_version') { compare }
     assert_includes error.message, 'Grafo posterior'
     @after['ir_version'] = original_version
@@ -303,7 +303,7 @@ class DiffTest < GraphTest
 
   def test_required_event_payload_addition_is_breaking_for_persisted_history
     field = text_field('note', required: true)
-    node(@after, 'entity')['fields'] << field.merge('default' => { 'kind' => 'literal', 'value' => 'new' })
+    node(@after, 'entity', 'blog.post')['fields'] << field.merge('default' => { 'kind' => 'literal', 'value' => 'new' })
     payload = node(@after, 'contract', 'blog.post.published.payload')
     payload['fields'] << field
     node(@after, 'command', 'blog.publish_post')['emits'].first['fields'] << 'note'

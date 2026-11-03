@@ -3,16 +3,17 @@ require "json_schemer"
 module Vetra
   module Graph
     class Schema
-      VERSION = "0.5"
+      VERSION = "0.6"
       VERSIONS = Data.freeze({
         '0.1' => %w[vetra.core],
         '0.2' => %w[vetra.core vetra.timestamps],
         '0.3' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live],
         '0.4' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands],
-        '0.5' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands vetra.money_rounding]
+        '0.5' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands vetra.money_rounding],
+        '0.6' => %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live vetra.relation_commands vetra.money_rounding vetra.rate_limit]
       })
       CRUD_ACTIONS = %w[create read update delete].freeze
-      PATH = File.expand_path("../../../docs/ir/v0.5.schema.json", __dir__)
+      PATH = File.expand_path("../../../docs/ir/v0.6.schema.json", __dir__)
 
       def self.supports?(version, feature)
         VERSIONS.fetch(version, []).include?(feature)

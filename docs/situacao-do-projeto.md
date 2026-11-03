@@ -4,14 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `ea03024`, com a C3 do Codex aprovada pela auditoria do Claude na rodada 2 e o
-  ADR-033 aceito: `currency` aceita `rounding:` e o build passa à IR 0.5, que só exige `vetra.money_rounding` quando
-  a aplicação declara o modo; schemas anteriores preservados. O mantenedor delegou ao Claude as decisões pendentes: ADR-032
-  aceito com os comandos de vínculo ligados por padrão, ADRs 028 a 031 confirmados e a rodada 2 do
-  [quadro dos agentes](tarefas-dos-agentes.md) definida. Antes, a C2 (`4588b78`) passou a recusar rotinas
-  `SECURITY DEFINER` preexistentes que levam a donos com poderes perigosos.
-  O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
-  force-push e exclusão.
+- **Atualizado em:** 2026-11-03, sobre `6b371d3`, com a rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
+  concluída. A C4 declara `rate_limit:` em `can`, com limite por política, ator e tenant na IR 0.6 e requisito
+  emitido somente quando usado; o ADR-034 foi aceito pelo Claude, por delegação do mantenedor, como antes o 032 e
+  o 033. Os schemas 0.1 a 0.5 continuam preservados; contadores e runtime permanecem pendentes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -19,13 +15,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 33 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 |
-| Testes do compilador e exemplos | 371 testes e 3.482 asserções, sem falhas (com a C3); 142/142 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 34 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034 |
+| Testes do compilador e exemplos | 393 testes e 4.307 asserções, sem falhas; 143/143 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
-| Verificação local da C1 | Rodada 2 após devolução: 23 testes de geração de vínculos e compatibilidade; quatro grafos reconstruídos na IR 0.4, chat com opt-out explícito. Check, validação com fontes e link passaram nos quatro exemplos; gate contra `origin/main` sem quebra, com revisão de `ir_version` nos quatro e um metadado no chat. Gem alpha.5 e schemas 0.1/0.2/0.3 preservados |
-| Verificação da C2 | 18 testes e 228 asserções do gerador; suíte, gate e quatro exemplos em check/validate/link passaram. Sonda ADR-031 59/59 no PostgreSQL 18.6, contra 35/59 no gerador de `fb41921`; o 17 é coberto pela CI |
-| Verificação local da C3 | 16 testes de arredondamento, 487 asserções; emissão condicionada à declaração, com e sem `money`. Quatro grafos reconstruídos em 0.5 e aprovados em check/validate com fontes/link (27, 36, 49 e 64 nós). Gate contra `origin/main` (`ea03024`) com zero quebras, cinco mudanças para revisão e um metadado. Só mini_crm_revendas declara o modo e exige o recurso; blog, chat e mini_crm mantêm o padrão implícito. Schemas 0.1 a 0.4 e quadro de tarefas intactos; diff sem erros ou mudanças de modo. SQL preservado, exceto pelo comentário de digest. |
+| Verificação local da C4 | Rodada 2: 22 testes de taxa; suíte com 143/143 diagnósticos. Quatro grafos em 0.6 passam em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`6b371d3`): zero quebras, 27 mudanças para revisão e três metadados. Só o blog exige `vetra.rate_limit`; comentários incluem a permissão visitante da proposta e aprovação protegida. Schemas 0.1 a 0.5 e quadro de tarefas preservados, sem mudanças de modo. O SQL dos CRMs muda apenas no comentário de digest. |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
 | Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
@@ -54,7 +48,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
 
-**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.5, leitura da 0.1/0.2/0.3/0.4, validação)
+**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.6, leitura da 0.1/0.2/0.3/0.4/0.5, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
@@ -105,11 +99,19 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   definido falham com `money_currency`. Entidades, entradas de operações, contratos CRUD e payloads de eventos
   estão cobertos por 12 testes novos (`635d926`; fonte da tabela no ADR-026 aceito)
 - [x] C3: `currency` aceita `rounding: :half_up` ou `:half_even`,
-  com padrão `half_up`. O build 0.5 emite `app.rounding` e `vetra.money_rounding` somente quando a opção
+  com padrão `half_up`. Desde a IR 0.5, o build emite `app.rounding` e `vetra.money_rounding` somente quando a opção
   é declarada, inclusive `half_up`; omissão mantém ambos ausentes. Os schemas 0.1 a 0.4
   ficam intactos e o link preserva suas semânticas. O diff marca troca efetiva como quebra potencial de
   valores, com revisão. O mini CRM com revendas declara a opção da proposta. O ADR-033 está aceito;
   cálculos, moeda e arredondamento por tenant continuam pendentes
+- [x] C4: `can` aceita `rate_limit: "5/min"` e janelas como `"5/2min"`, com inteiros positivos e
+  unidades explícitas. A política recebe limite, duração em segundos e chave por ator/tenant na IR 0.6;
+  só grafos que usam o recurso exigem `vetra.rate_limit`. Validação de IR externa, link, preservação
+  das versões 0.1 a 0.5 e diff cobertos por 22 testes. Apertar exige revisão; afrouxar ou remover é
+  quebra potencial de segurança. Na rodada 2, o contrato preserva a admissão sem consumo de cotas
+  quando alguma concessão aplicável autoriza a operação sem limite. Quando todas as que autorizam
+  têm limite, a admissão exige e consome todas as cotas. O ADR-034 está aceito; contadores e execução
+  continuam pendentes
 - [x] `expose http:`, `cli:`, `job:` e `webhook:` no DSL, conforme o ADR-007, mantendo uma única operação,
   contrato e autorização. Nomes são únicos por superfície; HTTP e webhook compartilham a detecção de rotas
   ambíguas; webhook exige comando com `idempotency: :required` explícito. Consultas recusam POST, job e
@@ -133,6 +135,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   são `GET /rooms` e `GET /rooms/:room_id/page`. Os 25 testes novos cobrem formas, privacidade, contextos,
   diffs, compatibilidade e corpos em memória (`cb7c0b5`). `room_page` agora declara live com dependências
   de sala, mensagem, vínculo e usuário. Não há execução HTTP, entrega live ou expansão de membros/autores.
+
+- [x] O blog declara a permissão visitante `can :create, on: :comment`, com os quatro campos da proposta
+  e `rate_limit: "5/min"`, além de leituras de posts publicados/comentários aprovados. Comentários têm
+  `author_email` pessoal, CRUD e `approved` protegido pelo comando interno `approve_comment`.
 
 **CI e sondas**
 - [x] `db:authz:sql`: gera SQL determinístico da IR validada, sem conectar ou aplicar mudanças.
@@ -323,6 +329,10 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   requisito semântico só com declaração e diff de valores; aceito em 2026-11-03 pelo Claude por delegação do
   mantenedor, após a auditoria da C3
 
+- [x] **034** Limite de taxa por permissão e IR 0.6: sintaxe, unidade, janela móvel, chave por
+  política/ator/tenant, concessão sem limite que dispensa as cotas, compatibilidade e diff de segurança; aceito
+  em 2026-11-03 pelo Claude por delegação do mantenedor, após a auditoria da C4
+
 ## 3. Decisões e trabalho que dependem de quem revisa
 
 - [x] Em 2026-11-03, por delegação do mantenedor, o Claude decidiu:
@@ -334,8 +344,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
     persistência, e cada uma será tratada quando o componente correspondente começar;
   - manter recusada a consulta sem `returns` nem `authorize`: contrato e autorização explícitos são regra de
     desenho, e o critério 7 continua parcial por isso.
-- [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5: a C3 já está integrada, e a publicação fixa os schemas 0.4 e
-  0.5.
+- [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5: a rodada 2 do quadro terminou, e a publicação fixa os schemas
+  0.4 a 0.6.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -362,7 +372,6 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] `auth` e a geração de usuários e vínculos
 - [ ] `ui`, MCP e workflows
 - [ ] Configuração `realtime` (a declaração `live` já é compilada e validada)
-- [ ] `rate_limit:` em `can`
 - [ ] Moeda por tenant (a conferência do `scale` contra a moeda da aplicação já está implementada)
 - [ ] O titular (`subject`) e a retenção (`retention`) de dado pessoal
 - [ ] Consulta sem `returns` e sem `authorize`: os exemplos da proposta as omitem, e o compilador exige as duas
@@ -370,6 +379,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Políticas por atributo do ator além de `id`
 
 **Runtime**
+- [ ] Execução de `rate_limit:` por permissão: contadores compartilhados, janela móvel, reservas concorrentes
+  e identidade anônima confiável, conforme o ADR-034
 - [ ] Execução das primitivas CRUD, de vínculo de `many_to_many` e dos comandos (hoje são descritores
   reconhecidos, sem executor), incluindo preservação de `include_on_create`, locks e idempotência dos vínculos
 - [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
@@ -404,7 +415,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   está especificado; ramos concorrentes exigem um escalonador determinístico e um ADR novo
 - [ ] **ADR-011:** a IR 0.1 não representa a exposição MCP (o `surface` aceita `http`, `cli`, `job` e `webhook`;
   é preciso uma nova MENOR com `vetra.mcp`) e o DSL aceita as quatro superfícies, sem MCP. As delegações, as aprovações, o
-  adaptador, o limite de taxa e o piso de sensibilidade não existem. O `FOR SHARE` da revogação tem a
+  adaptador, os limites próprios de agente/delegação e o piso de sensibilidade não existem.
+  O limite do papel já é declarado em `can` na IR 0.6, sem executor (ADR-034). O `FOR SHARE` da revogação tem a
   `sonda_adr011` (5 itens, rodando na CI no 17 e no 18). O piso cobre só o que a IR enxerga, porque o `call` não é
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
 - [ ] **ADR-018:** os módulos de UI, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no protótipo), a
@@ -478,8 +490,8 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 ## 7. Próximos passos propostos
 
-Ordem sugerida; cada passo é um ou mais commits na `main`. A rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
-fecha lacunas declarativas pequenas e a sonda do ADR-025; a persistência é o passo seguinte.
+Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
+[quadro dos agentes](tarefas-dos-agentes.md). A persistência é o passo seguinte às lacunas declarativas.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
    por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
@@ -488,6 +500,7 @@ fecha lacunas declarativas pequenas e a sonda do ADR-025; a persistência é o p
    No chat, `room_page` também declara live com dependências verificadas. A geração automática dos comandos
    de vínculo está implementada (C1, ADR-032); o chat a desliga para conservar seus comandos explícitos.
    A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
-   Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
+   A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
+   comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

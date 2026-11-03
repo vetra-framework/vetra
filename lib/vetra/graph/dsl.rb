@@ -352,9 +352,12 @@ module Vetra
         end
 
         def can(*actions, on:, where: {}, fields: "*", scope: @scope, **options)
-          options!(options, [])
+          options!(options, [:rate_limit])
+          rate_limit = RateLimit.parse(options[:rate_limit], source: source(nil)) if options.key?(:rate_limit)
           ::Kernel.Array(on).each do |entity|
-            @permissions << { "entity" => entity.to_s, "actions" => actions.map(&:to_s), "where" => where, "fields" => fields == "*" ? "*" : fields.map(&:to_s), "scope" => scope&.to_s }
+            permission = { "entity" => entity.to_s, "actions" => actions.map(&:to_s), "where" => where, "fields" => fields == "*" ? "*" : fields.map(&:to_s), "scope" => scope&.to_s }
+            permission['rate_limit'] = rate_limit if rate_limit
+            @permissions << permission
           end
         end
       end

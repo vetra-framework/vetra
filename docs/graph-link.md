@@ -13,7 +13,8 @@ bundle exec bin/vetra graph:link --root examples/blog
 bundle exec bin/vetra graph:link --root examples/mini_crm
 ```
 
-Cada exemplo retorna dois blocos Ruby vinculados e quatro **descritores de primitivas sem executor**.
+O blog retorna três blocos Ruby vinculados e oito **descritores de primitivas sem executor**;
+o mini CRM retorna dois blocos e quatro descritores.
 O comando lê somente o `.vetra/graph.json` da aplicação informada; não aceita arquivo alternativo,
 `--sources`, `--format` ou `--fail-on-breaking`. As verificações de fontes são obrigatórias.
 
@@ -22,15 +23,22 @@ Avisos do grafo continuam em stderr. O comando não executa operações, abre co
 
 O pacote atual usa `Vetra::VERSION = "0.1.0-alpha.5"`. Ao atualizar o compilador, reconstrua os grafos dos
 exemplos com os lockfiles correspondentes: a versão do produtor também faz parte da integridade do link.
-A leitura dos formatos IR 0.1 a 0.4 continua suportada, mas isso não dispensa a correspondência da versão do
+A leitura dos formatos IR 0.1 a 0.5 continua suportada, mas isso não dispensa a correspondência da versão do
 Vetra/Ruby registrada no artefato. A versão da gem e a versão da IR são contratos independentes.
-Novos builds usam a IR 0.5; cada artefato é validado e auditado com seu schema e sua semântica exatos.
+Novos builds usam a IR 0.6; cada artefato é validado e auditado com seu schema e sua semântica exatos.
 
 O link preserva a omissão de arredondamento nos artefatos 0.1 a 0.4 (`half_up` implícito), sem
-acrescentar campo nem requisito. Na 0.5, o build emite `app.rounding` e `vetra.money_rounding` somente
+acrescentar campo nem requisito. Desde a 0.5, o build emite `app.rounding` e `vetra.money_rounding` somente
 quando a aplicação declara `rounding:`, inclusive `half_up`; sem declaração, ambos ficam ausentes.
 Uma declaração explícita de `rounding:` não é descartada para auditar uma versão anterior; reconstrua
-para adotar o recurso. O [ADR-033 proposto](adr/033-arredondamento-monetario-e-ir-0-5.md) descreve o contrato.
+para adotar o recurso. O [ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md) descreve o contrato.
+
+Na IR 0.6, políticas com `rate_limit` exigem `vetra.rate_limit`. Sem declaração, o build não acrescenta
+campo nem requisito. O link confere o descritor contra os fontes, sem executar contagem ou operações;
+adulterar um limite válido e recalcular o digest também impede o vínculo. Artefatos 0.1 a 0.5 são
+preservados com suas semânticas e bytes; uma declaração explícita de limite não pode ser descartada
+para auditar um formato antigo. O [ADR-034 proposto](adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md)
+define a chave por política, ator e tenant e os limites desta declaração sem runtime.
 
 ## Ordem do carregamento
 
@@ -64,7 +72,7 @@ require "vetra"
 
 graph = Vetra::Graph::Compiler.new(root: "examples/blog").link
 graph.implementation_ids
-# => ["blog.find_post#call", "blog.publish_post#call"]
+# => ["blog.approve_comment#call", "blog.find_post#call", "blog.publish_post#call"]
 
 binding = graph.binding_for("command", "blog.publish_post")
 binding["parameters"]

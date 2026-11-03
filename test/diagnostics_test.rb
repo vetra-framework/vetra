@@ -126,7 +126,7 @@ class DiagnosticsTest < GraphTest
   # ArgumentError do Ruby embrulhado em dsl_error (docs/fase-0-criterios.md, critério 7).
   def test_unimplemented_options_are_named_instead_of_leaking_a_ruby_argument_error
     {
-      'rate_limit' => ['app/domains/blog/roles.rb', ->(text) { text.sub('scope: :author', 'scope: :author, rate_limit: "5/min"') }],
+      'unknown_can_option' => ['app/domains/blog/roles.rb', ->(text) { text.sub('scope: :author', 'scope: :author, unknown_can_option: true') }],
       'unknown_currency_option' => ['config/app.rb', ->(text) { text.sub('currency "BRL"', 'currency "BRL", unknown_currency_option: true') }]
     }.each do |option, (path, change)|
       with_app('blog') do |root, compiler|

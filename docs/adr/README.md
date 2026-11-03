@@ -11,6 +11,9 @@ comandos de vínculo de `many_to_many`. O runtime segue pendente.
 O [ADR-033](033-arredondamento-monetario-e-ir-0-5.md), também aceito, declara o arredondamento monetário da
 aplicação e evolui o build para a IR 0.5.
 
+O [ADR-034](034-limite-de-taxa-por-permissao-e-ir-0-6.md), também aceito, declara `rate_limit:` por
+permissão, ator e tenant, com IR 0.6. O limite em execução e seus contadores continuam pendentes.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -48,6 +51,7 @@ aplicação e evolui o build para a IR 0.5.
 | [031](031-geracao-de-sql-de-revisao-de-autorizacao.md) | Geração de SQL de revisão de autorização | aceito |
 | [032](032-comandos-gerados-de-vinculo.md) | Comandos gerados de vínculo de many_to_many | aceito |
 | [033](033-arredondamento-monetario-e-ir-0-5.md) | Arredondamento monetário da aplicação e IR 0.5 | aceito |
+| [034](034-limite-de-taxa-por-permissao-e-ir-0-6.md) | Limite de taxa por permissão e IR 0.6 | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

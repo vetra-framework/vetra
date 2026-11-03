@@ -383,6 +383,9 @@ module Vetra
       end
 
       def policy(node)
+        if node.key?('rate_limit') && !@document['requires'].include?(RateLimit::FEATURE)
+          issue('ir_feature', 'policy.rate_limit exige vetra.rate_limit em requires.', node, suffix: '/rate_limit')
+        end
         target = resolve(node['entity'])
         check_names(node, node['fields'], field_map(target), '/fields') if node['fields'].is_a?(Array)
         dependencies = [node['entity']]

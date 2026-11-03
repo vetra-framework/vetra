@@ -38,10 +38,28 @@ o Claude e as de compilador podem ir para os dois.
 |---|---|---|---|---|---|
 | C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | concluída | `1a8ee02`, `3221157` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-033 aceito por delegação; CI verde ([auditoria](#auditoria-c3)) |
 | K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | concluída | `77685b0` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 31/31 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k6)) |
-| C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | em andamento | — | — |
+| C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | concluída | este commit | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-034 aceito por delegação ([auditoria](#auditoria-c4)) |
 
-Depois desta rodada: a gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a
-persistência.
+Rodada concluída. A gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a persistência.
+
+## Auditoria C4
+
+Implementado pelo Codex sobre `6b371d3`; auditado pelo Claude; decisão do Claude.
+
+**Rodada 1 — devolvida.** ADR-034 proposto, `rate_limit: "N/[J]unidade"` normalizado em `limit`, `window_seconds`
+e `key: actor_tenant`, IR 0.6 com `vetra.rate_limit` só quando usado, schemas 0.1 a 0.5 intactos, diff que trata
+afrouxar ou remover como quebra potencial. O blog reproduz a permissão do visitante da proposta. Suíte com 393
+testes, 143/143, e gate sem quebra.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A regra "todos os limites aplicáveis valem, mesmo com concessão sobreposta sem limite" faz uma permissão limitada reduzir o acesso já concedido por outra; no blog, o `admin` com `manage` em comentários ficaria a 5/min | sim | Ajustar: concessão sem limite admite sem consumir cotas; só quando todas as concessões são limitadas, todas precisam permitir e a admissão conta em todas |
+| IDs das políticas dependem da ordem das declarações, e a continuidade das cotas entre builds fica para o runtime | não | Não ajustar: registrado como questão em aberto |
+
+**Rodada 2 — aprovada.** A regra nova está no ADR, com a anterior entre as alternativas rejeitadas. Suíte com 393
+testes e 4.307 asserções, 143/143; gate sem quebra; quatro exemplos em check, validação com fontes e link;
+`git diff --check` limpo, sem mudança de modo. Os testes usam o exemplo do blog, por isso o formato e o exemplo vão
+num só commit, como na C1. O Claude aceitou o ADR-034 por delegação do mantenedor.
 
 ## Auditoria K6
 

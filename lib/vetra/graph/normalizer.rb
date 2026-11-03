@@ -39,6 +39,7 @@ module Vetra
         result['requires'] << 'vetra.structured_outputs' if @structured_outputs
         result['requires'] << 'vetra.live' if @live
         result['requires'] << RelationCommands::FEATURE if @generated_relation_commands
+        result['requires'] << RateLimit::FEATURE if @rate_limit
         if app.key?('rounding')
           result['app']['rounding'] = app.fetch('rounding')
           result['requires'] << Currency::ROUNDING_FEATURE
@@ -440,6 +441,12 @@ module Vetra
       def role(entry)
         add(base(entry).merge(entry.slice('anonymous')))
         entry['permissions'].each_with_index do |permission, i|
+          if permission.key?('rate_limit')
+            unless Schema.supports?(@ir_version, RateLimit::FEATURE)
+              raise Error.single('ir_feature', 'rate_limit: exige IR 0.6 ou posterior com vetra.rate_limit; reconstrua e revise o grafo.', pointer: '/rate_limit', source: entry['source'])
+            end
+            @rate_limit = true
+          end
           target_id = entity_id(permission['entity'], entry['domain'], entry)
           target = @entities.fetch(target_id)
           actions = permission['actions'].flat_map { |action| action == 'manage' ? ACTIONS : [action] }
@@ -461,7 +468,7 @@ module Vetra
             end
             predicate = predicate['op'] == 'true' ? scoped : { 'op' => 'and', 'terms' => [predicate, scoped] }
           end
-          add(base(entry, 'policy', "#{entry['id']}.permission_#{i + 1}", generated: true).merge(
+          add(base(entry, 'policy', "#{entry['id']}.permission_#{i + 1}", generated: true).merge(permission.slice('rate_limit')).merge(
             'role' => Data.reference('role', entry['id']), 'entity' => Data.reference('entity', target_id),
             'actions' => actions.uniq, 'fields' => permission['fields'], 'predicate' => predicate, 'reads' => reads.uniq
           ))

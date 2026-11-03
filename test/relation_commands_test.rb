@@ -327,8 +327,9 @@ class RelationCommandsTest < GraphTest
   def test_diff_reviews_ir_0_3_to_0_4_in_all_examples_without_breaking_changes
     %w[blog mini_crm mini_crm_revendas chat].each do |name|
       with_app(name) do |root, compiler|
-        # A comparação da C1 usa as declarações anteriores ao rounding: da C3.
+        # A comparação da C1 usa declarações sem os recursos das IRs 0.5 e 0.6.
         edit(root, 'config/app.rb') { |text| text.sub(', rounding: :half_up', '') }
+        omit_blog_rate_limit(root) if name == 'blog'
         manifest = Vetra::Graph::Manifest.new(root)
         registry = Vetra::Graph::DeclarationLoader.new(manifest).load
         before = Vetra::Graph::Normalizer.new(registry, manifest, ir_version: '0.3').document

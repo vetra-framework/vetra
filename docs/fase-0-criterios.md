@@ -4,94 +4,30 @@ O [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md) lista 11 testes de aceitação p
 cada um com a suíte atual e registra o que está coberto, o que está parcial e o que é lacuna. Ele não declara a
 fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 
-Medição de 2026-10-30 e 2026-10-31, com Ruby 4.0.9. Antes de `test/diagnostics_test.rb` (commit `03e7264`): 136
-testes e 1.007 asserções, sem falhas. Depois de `test/diagnostics_test.rb`: 180 testes e 1.217 asserções. Depois dos
-três testes do critério 1: 183 testes e 1.240 asserções. Depois do diagnóstico de `rate_limit:` e `rounding:`: 184
-testes e 1.256 asserções. Depois dos erros de palavra-chave: 186 testes e 1.285 asserções. Depois da junção
-implícita: 191 testes e 1.325 asserções. Depois do acesso direto ao banco como efeito direto e da categoria
-`permissions` para `calls`: 194 testes e 1.355 asserções, sem falhas. Depois da escala monetária por moeda
-(ADR-017, §6, com a fonte da tabela no ADR-026 proposto): 206 testes e 1.515 asserções, sem falhas. Depois das
-exposições CLI, job e webhook do ADR-007: 221 testes e 1.697 asserções, sem falhas. Com a verificação automática
-de diagnósticos e a passagem real entre Ractors: 230 testes e 1.769 asserções, sem falhas; 125 de 125 códigos
-de diagnóstico exercitados por `bundle exec rake test:diagnostics`.
-Com os comandos de membros declarados no chat: 239 testes e 1.844 asserções, sem falhas, mantendo 125/125
-códigos exercitados.
-Na continuação de 2026-11-02, com a inclusão por e-mail e a recusa de escrita por capacidade de leitura:
-245 testes e 1.896 asserções, sem falhas, mantendo 125/125 códigos exercitados. Os quatro exemplos passaram
-em `graph:check`, `graph:validate --sources`, `graph:link` e `graph:diff` contra HEAD com
-`--fail-on-breaking`; o chat tem quatro mudanças arquiteturais que exigem revisão e nenhuma quebra potencial.
-Com `created_at` e IR 0.2: 259 testes e 2.065 asserções, sem falhas, com 127/127 códigos exercitados.
-Os quatro exemplos foram reconstruídos e passaram em check, validação com fontes e link; o diff contra
-`bb340ea` não apontou quebras potenciais. Leitura, vínculo e diff da IR 0.1 continuam cobertos.
+Verificação da rodada 2 em 2026-11-03, Ruby 4.0.9, base `6b371d3031bfdb28ba49cc39601c5a86117401af`:
+**393 testes e 4.307 asserções**, sem falhas, erros ou testes ignorados; **143/143 códigos**
+exercitados em `bundle exec rake test:diagnostics`. São 34 ADRs aceitos.
 
-Na revisão das prioridades: 268 testes e 2.107 asserções, sem falhas, com 127/127 códigos exercitados.
-Os quatro exemplos passaram em check, validação com fontes e link. Os 17 cenários do simulador do CI
-passaram para PR e push, incluindo bases inválidas, primeiro push e quebras não declaradas. O chat tem
-uma retirada intencional de rota e uma restrição de unicidade; ambas estão declaradas pelos digests
-exatos, para revisão, sem alterar a classificação do `graph:diff`. A versão do compilador é 0.1.0-alpha.2.
+O build usa IR 0.6. `rate_limit:` em `can` declara limite por política, ator e tenant e só exige
+`vetra.rate_limit` quando usado. Os 22 testes de `rate_limit_test.rb` cobrem sintaxe positiva com unidade
+e janela, canonicalização em segundos, IR externa, compatibilidade das versões 0.1 a 0.5, link sem
+execução, adulterações e diff de segurança. O teste do blog também confere a concessão administrativa
+sem limite.
+O contrato da rodada 2 admite a operação sem consumir cotas se alguma concessão aplicável a autoriza
+sem limite; se todas as que autorizam têm limite, exige e consome todas as cotas. Essa admissão conjunta
+depende do futuro runtime e ainda não tem teste operacional. Schemas 0.1 a 0.5 permanecem idênticos à base.
 
+Os quatro exemplos foram reconstruídos e passam em check, validação com fontes e link:
+blog com 52 nós, mini CRM com 36, mini CRM com revendas com 49 e chat com 64. Só o blog exige o recurso;
+a permissão visitante de criar comentários reproduz `rate_limit: "5/min"` da proposta. A aprovação de
+comentários tem comando explícito, e `approved` fica protegido por `set_by` e fora das entradas CRUD.
+O gate contra `origin/main` (`6b371d3`) aponta **zero quebras**, 27 mudanças para revisão e três
+metadados. Não há quebra intencional nova a declarar. O SQL dos dois CRMs continua igual ao da base,
+exceto pelo comentário do digest; não há mudança de comportamento de banco nem sonda afetada.
 
-Com contratos compostos e coleções de consultas (IR 0.3): 293 testes e 2.229 asserções, sem falhas;
-130/130 códigos exercitados. Check, validação com fontes e link passaram nos quatro exemplos. O diff
-contra a base publicada `2cb2700` não encontrou quebra potencial; o chat tem oito nós novos, seis mudanças
-para revisão e 64 nós no total. A versão do compilador passa a 0.1.0-alpha.3.
-
-Com declarações live e dependências de autorização (2026-11-03): 314 testes e 2.382 asserções, sem falhas;
-133/133 códigos exercitados. O formato continua na IR 0.3, agora com suporte declarativo a `vetra.live`,
-e o compilador passa a 0.1.0-alpha.4. O chat conserva 64 nós; `room_page` declara live com quatro entidades
-de dependência. Check, validação com fontes, link e diff contra `cb7c0b5` passaram nos quatro exemplos,
-sem quebra potencial. As assinaturas em execução continuam pendentes.
-
-A continuação de ordem e continuidade acrescenta `script/sonda_adr008.rb`, com dez verificações fora da
-suíte do compilador e execução na CI do PostgreSQL 17 e 18. Localmente, todas passaram no 18.6.
-O [relatório](sondas/adr008.md) registra os mecanismos medidos e as lacunas de runtime. Os grafos e o
-catálogo de diagnósticos não mudam; os critérios 6 e 7 continuam parciais.
-
-Com a sonda ADR-020 e a resolução ADR-030: 13 verificações no PostgreSQL 18.6, fora da suíte, e inclusão na
-CI do 17/18. Quatro falhas introduzidas foram detectadas. A [medição](sondas/adr020.md) cobre revisão de
-autorização e protótipos de decisão strict e releitura agrupada; não fecha os critérios de runtime ou o
-gate G4. A suíte e o catálogo do compilador permanecem com 314 testes e 133 códigos.
-
-Com o gerador SQL do ADR-031: 328 testes e 2.532 asserções, sem falhas; 137/137 códigos exercitados.
-Os quatro exemplos passaram em check, validação com fontes e link; o diff tem somente metadados de
-produtor/lockfile, sem quebra. A sonda aplica o SQL gerado e passou em 17/17 verificações no PostgreSQL 18.6,
-com inclusão na CI do 17/18. Depois, a K5 estendeu as recusas aos papéis assumíveis por `SET ROLE`, a `ADMIN OPTION`, a
-`REFERENCES`, a subscriptions e aos papéis de acesso ao servidor, tornou os triggers `ENABLE ALWAYS`, e a
-sonda passou a 29/29. O compilador passa a alpha.5, preservando a IR. O [guia](db-authz-sql.md)
-registra os limites do bootstrap; os critérios 6 e 7 continuam parciais.
-
-Na C2, a guarda de rotinas `SECURITY DEFINER` leva a suíte a 355 testes e 2.984 asserções, sem falhas,
-com 141/141 diagnósticos. Um fecho recursivo alcança os donos por cadeias de definers e confere neles os
-mesmos poderes perigosos da aplicação, inclusive sobre a infraestrutura recém-criada; DML comum continua
-permitido, porque incrementa a revisão. A sonda ADR-031 passou 59/59 no PostgreSQL 18.6 (35/59 contra o
-gerador de `fb41921`). Rotinas criadas depois da instalação continuam um limite operacional; os critérios
-de runtime seguem parciais ([guia](db-authz-sql.md)).
-
-Com a C1 e o ADR-032 **proposto**, em 2026-11-03: 351 testes e 2.906 asserções, sem falhas;
-141/141 códigos exercitados. São 23 testes novos para comandos gerados de `many_to_many`, contratos,
-autorização, recusas, link sem executor, compatibilidade e diff. Na rodada 2 após devolução, a evolução
-semântica passa à IR 0.4 com `vetra.relation_commands`, conforme o ADR-001 §4; os schemas publicados
-0.1/0.2/0.3 permanecem inalterados e o link não gera comandos retroativamente. A IR 0.3 recusa tanto o
-novo requisito quanto a nova primitiva. Os quatro grafos foram reconstruídos; o chat usa `commands: false`
-para preservar os comandos explícitos. Check, validação com fontes e link passaram nos quatro exemplos;
-o gate contra `origin/main` (`61efbb8`) não encontrou quebra: revisão da versão nos quatro grafos e um
-metadado de fonte no chat. Gem alpha.5 preservada.
-
-Com a C3 e o [ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md), sobre `ea03024`,
-em 2026-11-03: **371 testes e 3.482 asserções**, sem falhas, erros ou testes ignorados; **142/142** códigos
-exercitados. Os 16 testes de `rounding_test.rb`, com 487 asserções, cobrem modos, padrão comercial, tipos
-inválidos, emissão somente com declaração de `rounding:` (inclusive `half_up`, com e sem `money`),
-requisito, IR externa, preservação das versões 0.1 a 0.4, link e diff de valores. A IR 0.5 tem schema
-novo autocontido; os quatro schemas anteriores ficam idênticos à base. O mini CRM com revendas declara
-`rounding: :half_up` da proposta. Todos os quatro grafos foram reconstruídos; check, validação com
-fontes e link passaram em 4/4 exemplos (27, 36, 49 e 64 nós). O gate contra `origin/main` (`ea03024`)
-passou com zero quebras, cinco alterações para revisão (quatro de versão e uma de requisito) e um
-metadado de configuração. Blog, chat e mini_crm ficam sem `app.rounding` e sem `vetra.money_rounding`;
-mini_crm_revendas declara `half_up` e exige o recurso.
-`git diff --check` e `git diff --summary` ficaram limpos, sem mudanças de modo. A geração SQL foi
-comparada nas cinco versões: só muda o comentário com o digest, sem alteração de comportamento de banco.
-Não há nova quebra intencional a declarar. O critério 7 continua parcial: mini CRM recusa 3 de 6,
-blog 4 de 14 e chat 4 de 9. Execução monetária e configuração por tenant continuam pendentes.
+`git diff --check` passa e não há mudanças de modo em scripts. Os critérios 6 e 7 continuam parciais:
+blog recusa 3 de 14 construtos conferidos, mini CRM 3 de 6 e chat 4 de 9. Contadores de taxa, identidades
+anônimas, execução de operações e demais componentes de runtime continuam pendentes.
 
 ## Como a lacuna do critério 2 foi medida
 
@@ -102,7 +38,7 @@ encontrados nos pontos de emissão de `lib/`.
 
 A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
 literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
-cada ocorrência. São 142 códigos em 231 pontos de emissão. O carregador de teste
+cada ocorrência. São 143 códigos em 234 pontos de emissão. O carregador de teste
 `diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
 e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
 reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
@@ -124,14 +60,14 @@ continua sendo o caminho de teste para elas.
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb`, `live_test.rb`, `authorization_sql_test.rb`, `relation_commands_test.rb` e `rounding_test.rb`, emite os 142 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb`, `live_test.rb`, `authorization_sql_test.rb`, `relation_commands_test.rb`, `rounding_test.rb` e `rate_limit_test.rb`, emite os 143 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
-| 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`, `timestamp_test.rb`, `query_output_test.rb`, `relation_commands_test.rb` e `rounding_test.rb`: leitura e link de 0.1/0.2/0.3/0.4 com semânticas antigas, incluindo retornos estruturados e live na 0.3; rebuild em 0.5 e revisão explícita da versão nos quatro exemplos, sem quebra. O schema e a validação semântica exatos recusam o requisito ou a primitiva de vínculo na 0.3 e o campo/requisito de arredondamento em 0.1 a 0.4; 0.6, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |
+| 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`, `timestamp_test.rb`, `query_output_test.rb`, `relation_commands_test.rb`, `rounding_test.rb` e `rate_limit_test.rb`: leitura e link de 0.1/0.2/0.3/0.4/0.5 com semânticas antigas, incluindo retornos estruturados e live na 0.3; rebuild em 0.6 e revisão explícita da versão nos quatro exemplos, sem quebra. O schema e a validação semântica exatos recusam o requisito ou a primitiva de vínculo na 0.3 e o campo/requisito de arredondamento em 0.1 a 0.4, além do campo/requisito de taxa em 0.1 a 0.5; 0.7, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão não suportada (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
-| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (52 e 65 mudanças no `graph:diff`, blog e mini CRM). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 3 de 6; no chat, 4 de 9. Todos falham de forma audível. |
+| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado. Conferidos construto a construto contra a proposta: no blog, 3 de 14 recusados; no mini CRM, 3 de 6; no chat, 4 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
-| 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
+| 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 26 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
 | 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Coberto para os dados do compilador | `ractor_test.rb` compartilha os resultados dos quatro exemplos e os dados da vinculação com identidade preservada, recalcula o digest no receptor e recusa mutações profundas. Um subprocesso remove `Ractor` antes de carregar o Vetra e executa build/check/validate/link/diff nos quatro exemplos. Closures ficam no processo dono; execução concorrente de operações não foi implementada. |
 
@@ -174,12 +110,12 @@ para o compilado (por exemplo, contratos `post_input` contra `*.input`, nenhum c
 esperada e não é defeito. A comparação possível é contra o DSL da proposta (`docs/exemplos/`). No blog, cada
 construto foi aplicado sozinho sobre `examples/blog`:
 
-- **Aceitos (10):** `slug` com `from:` e `unique:`, `text`, `belongs_to :author, entity: :user, default:
+- **Aceitos (11):** `slug` com `from:` e `unique:`, `text`, `belongs_to :author, entity: :user, default:
   :current_actor` (com uma entidade `user` declarada), `normalize: :downcase` com `unique:`, a entidade `comment`
   com `email` pessoal, `boolean` com default e `set_by:` de um comando declarado, o papel visitante com
   `where:`, `can ... fields:`, `role :admin` com `can :manage, on: %i[...]` e `many_to_many :tags` com a entidade
-  `tag` declarada (a junção é gerada; antes era recusado).
-- **Recusados (4):** `ui:` em `crud` e em `expose`, `rate_limit:` em `can` e uma consulta sem `returns` nem
+  `tag` declarada (a junção é gerada), além de `rate_limit: "5/min"` em `can :create, on: :comment` (C4, IR 0.6).
+- **Recusados (3):** `ui:` em `crud` e em `expose` e uma consulta sem `returns` nem
   `authorize`. Todos falham de forma audível, como o `fase-0.md` promete.
 
 No mini CRM, a base foi `examples/mini_crm_revendas`, que reproduz o exemplo da proposta. Cada diferença entre a
@@ -205,20 +141,11 @@ No chat, a base foi `examples/chat`:
 - **Recusados (4):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse` e uma consulta sem
   `returns` nem `authorize`.
 
-Os três exemplos juntos recusam seis famílias de construto. Três já constavam no `fase-0.md` como não
-implementadas: `auth`, `ui`, `returns` explícito (a obrigatoriedade de `authorize` só aparece no
-diagnóstico do compilador). O `created_at` implícito, antes recusado, passou a ser implementado na IR 0.2;
-`live true` passou a ser compilado na IR 0.3, sem implementar a entrega em tempo real.
-Uma é requisito de desenho que o `fase-0.md` só mostra por
-exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da documentação
-na primeira medição:**
-`realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do `fase-0.md`;
-`rounding:` saiu dessa lista com a C3. Naquela medição, as duas últimas falhavam com um `dsl_error` que
-repassava o `ArgumentError` do Ruby (`unknown keyword: :rate_limit` e `wrong number of arguments`), sem nomear o recurso. Isso foi corrigido, primeiro em `can` e `currency` e depois em todo o
-DSL: uma palavra-chave desconhecida falha com `unsupported_option` e uma obrigatória ausente com `missing_option`,
-nomeando o método e apontando a linha da declaração (antes era sempre a linha 1 do arquivo). A décima família da
-primeira medição, a junção implícita de `many_to_many`, deixou de ser recusada: o compilador a gera (`fase-0.md`,
-"Junção gerada").
+Os três exemplos juntos recusam cinco famílias: `auth`, UI, `realtime`, consulta sem contrato/autorização
+explícitos e escopo por vínculo sem o `has_many` inverso. O `created_at` implícito é compilado desde a
+IR 0.2, `live true` desde a 0.3, comandos de vínculo desde a 0.4, `rounding:` desde a 0.5 e `rate_limit:`
+desde a 0.6. Essas declarações não implementam o runtime. Palavras-chave desconhecidas falham com
+`unsupported_option`; obrigatórias ausentes, com `missing_option`, nomeando o método e a linha da declaração.
 
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
@@ -251,7 +178,7 @@ interna, sem superfícies, e o e-mail declara unicidade; convites com aceite con
 segue parcial.
 
 Os 16 testes de `rounding_test.rb` declaram `half_up` e `half_even` na aplicação, com padrão comercial
-preservado. Na IR 0.5, o build emite campo e requisito `vetra.money_rounding` somente quando há declaração
+preservado. Desde a IR 0.5, o build emite campo e requisito `vetra.money_rounding` somente quando há declaração
 de `rounding:`, inclusive `half_up`; omissão conserva ambos ausentes. O diff compara o modo efetivo e exige revisão de
 quebra potencial de valores quando ele muda; explicitar o padrão não altera valores. Defaults com casas
 excedentes continuam recusados. Campo/requisito novos são recusados em 0.1 a 0.4, e o link mantém as
@@ -264,7 +191,7 @@ contratos de dois IDs tipados, autorização pela entidade dona, repositório cu
 implícita, opt-out e colisões com comandos explícitos ou outras operações. Recusam opções inválidas,
 junções sem unicidade, chaves opcionais/incompatíveis, dados obrigatórios adicionais e IR adulterada.
 O link mantém `executor: pending` e preserva artefatos 0.1/0.2/0.3, incluindo retornos estruturados e live
-na 0.3, sem geração retroativa. A 0.3 recusa o requisito e as primitivas de vínculo; 0.6 é recusada como
+na 0.3, sem geração retroativa. A 0.3 recusa o requisito e as primitivas de vínculo; 0.7 é recusada como
 MENOR futura. Os quatro exemplos têm revisão de `ir_version` 0.3 → 0.4, sem quebra. O diff cobre adição com
 revisão de permissões, remoção como quebra, troca por Ruby e mudança da relação que altera a primitiva.
 O ADR-032 foi aceito em 2026-11-03. Inclusão, remoção, preservação dos vínculos de `include:` e suas garantias

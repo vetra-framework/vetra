@@ -10,14 +10,15 @@ dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL 
 | [v0.2.schema.json](v0.2.schema.json) | Geração de `created_at` e requisito `vetra.timestamps`; leitura preservada |
 | [v0.3.schema.json](v0.3.schema.json) | Coleções, contratos compostos de consultas e live; leitura preservada |
 | [v0.4.schema.json](v0.4.schema.json) | Comandos de vínculo e requisito `vetra.relation_commands`; leitura preservada |
-| [v0.5.schema.json](v0.5.schema.json) | Build atual, com `app.rounding` opcional e requisito `vetra.money_rounding` quando presente; fechado e autocontido |
+| [v0.5.schema.json](v0.5.schema.json) | `app.rounding` opcional e requisito `vetra.money_rounding` quando presente; leitura preservada |
+| [v0.6.schema.json](v0.6.schema.json) | Build atual, com `policy.rate_limit` opcional e requisito `vetra.rate_limit` quando presente; fechado e autocontido |
 | [mini-crm.v0.1.json](exemplos/mini-crm.v0.1.json) | Tenant, dinheiro, privacidade, transição, evento interno e handler com capacidade externa |
 | [blog.v0.1.json](exemplos/blog.v0.1.json) | Sem tenant, escopo do autor, relógio, `set_by`, `guarded` e evento público sem consumidor |
 
 Os exemplos têm envelope completo e referências resolvíveis, mas são **recortes didáticos**, não a
 compilação dos PDFs: omitem CRUD completo, revendas, autenticação, UI e demais entidades. O CRM usa um
 papel com acesso dentro do tenant; o escopo por revenda do exemplo da proposta não está reproduzido aqui, mas
-`examples/mini_crm_revendas/.vetra/graph.json` o compila hoje na IR 0.5, preservando a representação do escopo
+`examples/mini_crm_revendas/.vetra/graph.json` o compila hoje na IR 0.6, preservando a representação do escopo
 da 0.1 (veja o [escopo por vínculo](../fase-0.md#escopo-por-vínculo)). O significado de `through`, `local_fields`, `target_fields` e `include_on_create` em relações
 muitos-para-muitos, que o schema não define, está em [muitos-para-muitos](../fase-0.md#relações-muitos-para-muitos).
 O blog demonstra publicação com um evento explícito adicional. Não há fontes Ruby executáveis anexas.
@@ -50,12 +51,25 @@ primitiva de vínculo é recusado. O link preserva artefatos anteriores sem gera
 
 Desde a IR 0.5, `app.rounding` aceita `half_up` ou `half_even`. O campo é opcional: omissão significa
 `half_up`, preservando o significado dos grafos anteriores. Se presente, exige `vetra.money_rounding`;
-o requisito sem campo também conserva o padrão. Builds 0.5 emitem ambos somente quando a aplicação
+o requisito sem campo também conserva o padrão. Desde a IR 0.5, o build emite ambos somente quando a aplicação
 declara `rounding:`, inclusive `half_up` e mesmo sem campos `money`. Sem a declaração, campo e requisito
 ficam ausentes. O modo governa somente conversão e divisão que excedam a escala de destino; soma, subtração e
-literais não são arredondados. O [ADR-033 proposto](../adr/033-arredondamento-monetario-e-ir-0-5.md)
+literais não são arredondados. O [ADR-033](../adr/033-arredondamento-monetario-e-ir-0-5.md)
 define o contrato, sem executor. Documentos 0.1 a 0.4 com campo ou requisito novos são recusados.
 O diff compara o modo efetivo e classifica sua troca como quebra potencial de valores com revisão.
+
+Desde a IR 0.6, uma política pode declarar
+`rate_limit: { "limit": 5, "window_seconds": 60, "key": "actor_tenant" }`, exigindo
+`vetra.rate_limit`. Os números são inteiros positivos seguros da IR; a chave é fechada e não há campos
+extras. O build emite o requisito somente quando há política limitada. O limite é por política,
+ator e tenant, compartilhado entre ações e superfícies, sem alterar os predicados ou conceder acesso.
+Ele qualifica a concessão declarada: se alguma política aplicável autoriza a operação sem limite,
+a admissão não verifica nem consome cotas dessas políticas. Quando todas as que autorizam têm limite,
+todas precisam permitir a admissão, que conta em todas; alternar entre elas não multiplica cotas.
+O [ADR-034](../adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md) define janela móvel e a
+identidade anônima confiável necessária ao visitante do blog. IR externa sem requisito é recusada;
+0.1 a 0.5 recusam campo e requisito. Afrouxar ou remover é quebra potencial de segurança; apertar exige
+revisão. Contadores e execução continuam pendentes.
 
 Páginas, workflows e MCP não estão no formato 0.1; sua inclusão exige evolução explícita.
 `annotations` aceita metadados com chaves qualificadas e nunca pode alterar execução ou segurança.
@@ -76,9 +90,9 @@ comandos e eventos mantêm o formato plano. A classificação pessoal de um camp
 a do contrato referenciado. O [ADR-028](../adr/028-contratos-compostos-e-colecoes-de-consultas.md) registra
 os detalhes, incluindo o diff de mudanças nos campos aninhados.
 
-Build e check usam 0.5. Validação, diff e link aceitam 0.1, 0.2, 0.3, 0.4 e 0.5, cada uma com o schema e as regras
+Build e check usam 0.6. Validação, diff e link aceitam 0.1, 0.2, 0.3, 0.4, 0.5 e 0.6, cada uma com o schema e as regras
 exatas. O link audita declarações na versão do artefato sem converter ou regravar o documento. Os schemas
-0.1/0.2/0.3/0.4 e as fixtures documentais abaixo permanecem inalterados. Todos os schemas são distribuídos
+0.1/0.2/0.3/0.4/0.5 e as fixtures documentais abaixo permanecem inalterados. Todos os schemas são distribuídos
 localmente na gem pelo glob `docs/ir/v*.schema.json`. A atualização exige um build e revisão explícitos;
 a mudança de `ir_version` aparece no diff como revisão, sem quebra.
 

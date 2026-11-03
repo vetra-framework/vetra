@@ -141,6 +141,8 @@ class TimestampTest < GraphTest
       assert_graph_error('ir_feature') { validate(document) }
       document['requires'].delete('vetra.timestamps')
       document['requires'].delete('vetra.money_rounding')
+      document['requires'].delete('vetra.rate_limit')
+      document['nodes'].each { |entry| entry.delete('rate_limit') }
       document['app'].delete('rounding')
       assert_graph_error('schema') { validate(document) }
     end
@@ -148,6 +150,7 @@ class TimestampTest < GraphTest
 
   def test_old_artifacts_still_link_with_old_semantics_and_check_requires_rebuilding
     with_app do |root, compiler|
+      omit_blog_rate_limit(root)
       legacy = legacy_document(root)
       assert_empty validate(legacy)
       compiler.artifact.dirname.mkpath
@@ -166,6 +169,7 @@ class TimestampTest < GraphTest
 
   def test_diff_reports_version_and_generated_fields_without_breaking_inputs
     with_app do |root, compiler|
+      omit_blog_rate_limit(root)
       before = legacy_document(root)
       report = Vetra::Graph::Diff.new.compare(before, compiler.build.document)
       refute report.breaking?
@@ -175,7 +179,7 @@ class TimestampTest < GraphTest
       assert_equal 'review', version['impact']
       assert version['requires_review']
       field_changes = report.data['changes'].select { |change| change['path'] == '/fields/created_at' }
-      assert_equal %w[contract entity], field_changes.map { |change| change['kind'] }.sort
+      assert_equal %w[contract contract entity entity], field_changes.map { |change| change['kind'] }.sort
       assert field_changes.all? { |change| change['impact'] == 'additive' }
       refute report.data['changes'].any? { |change| change['id'].end_with?('.input') }
     end

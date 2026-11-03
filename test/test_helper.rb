@@ -31,6 +31,11 @@ class GraphTest < Minitest::Test
     document.fetch('nodes').find { |entry| entry['kind'] == kind && (!id || entry['id'] == id) } || raise('Nó não encontrado')
   end
 
+  # As fixtures de formatos anteriores representam o blog antes do recurso da IR 0.6.
+  def omit_blog_rate_limit(root)
+    edit(root, 'app/domains/blog/roles.rb') { |text| text.gsub(/,\s*rate_limit: "[^"]*"/, '') }
+  end
+
   def assert_graph_error(code)
     error = assert_raises(Vetra::Graph::Error) { yield }
     assert_includes error.diagnostics.map(&:code), code, error.message

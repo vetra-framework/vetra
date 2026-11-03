@@ -24,7 +24,7 @@ class RoundingTest < GraphTest
         [true, false].each do |with_currency|
           edit(root, 'config/app.rb') { |text| text.sub('  currency "BRL"', '') } unless with_currency
           document = compiler.write.document
-          assert_equal '0.5', document['ir_version']
+          assert_equal '0.6', document['ir_version']
           assert_equal 'BRL', document.dig('app', 'currency')
           refute document['app'].key?('rounding')
           refute_includes document['requires'], FEATURE
@@ -146,7 +146,7 @@ class RoundingTest < GraphTest
   end
 
   def test_previous_formats_refuse_the_field_and_feature_independently
-    with_app do |root, _compiler|
+    with_app('mini_crm') do |root, _compiler|
       %w[0.1 0.2 0.3 0.4].each do |version|
         original = normalize(root, version)
         document = Vetra::Graph::Data.copy(original)
@@ -242,7 +242,7 @@ class RoundingTest < GraphTest
   end
 
   def test_diff_handles_implicit_half_up_in_both_directions_and_removal_of_half_even
-    with_app do |root, compiler|
+    with_app('mini_crm') do |root, compiler|
       legacy = normalize(root, '0.4')
       current = Vetra::Graph::Data.copy(compiler.build.document)
       current['app']['rounding'] = 'half_even'

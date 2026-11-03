@@ -353,6 +353,12 @@ module Vetra
       end
 
       def impact(owner, key, before, after, contexts, prefix)
+        if owner['kind'] == 'policy' && key == 'rate_limit'
+          return 'review' unless before
+          return 'breaking' unless after
+          tighter = after['limit'] <= before['limit'] && after['window_seconds'] >= before['window_seconds']
+          return tighter ? 'review' : 'breaking'
+        end
         return before && !after ? 'breaking' : 'review' if owner['kind'] == 'query' && key == 'live'
         return 'breaking' if owner['kind'] == 'contract' && key == 'collection' && prefix.empty?
         return 'review' if %w[privacy guarded set_by transitions history tenant authorize calls uses domain depends_on implementation unsafe_effect].include?(key)
@@ -401,6 +407,7 @@ module Vetra
       def node_change(node, change)
         before, after = change == 'added' ? [nil, node_content(node).merge(node.slice('kind', 'id'))] : [node_content(node).merge(node.slice('kind', 'id')), nil]
         impact = change == 'removed' && CONTRACT_KINDS.include?(node['kind']) ? 'breaking' : (change == 'added' ? 'additive' : 'review')
+        impact = 'breaking' if change == 'removed' && node['kind'] == 'policy' && node.key?('rate_limit')
         emit(node, '/', change, before, after, node_categories(node), impact, change == 'added' ? 'Nó adicionado' : 'Nó removido', before_present: change != 'added', after_present: change != 'removed')
       end
 
