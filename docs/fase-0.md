@@ -470,6 +470,8 @@ A vinculação cobre assinatura/origem dos blocos, correspondência exata do reg
 antes/depois do carregamento e recusa de mudanças sem reconstrução automática. Primitivas CRUD são
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
+As sondas de PostgreSQL são executadas separadamente; a [sonda do ADR-008](sondas/adr008.md) verifica
+intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
 e registra o que foi fechado: os 133 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.

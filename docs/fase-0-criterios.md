@@ -42,6 +42,11 @@ e o compilador passa a 0.1.0-alpha.4. O chat conserva 64 nós; `room_page` decla
 de dependência. Check, validação com fontes, link e diff contra `cb7c0b5` passaram nos quatro exemplos,
 sem quebra potencial. As assinaturas em execução continuam pendentes.
 
+A continuação de ordem e continuidade acrescenta `script/sonda_adr008.rb`, com dez verificações fora da
+suíte do compilador e execução na CI do PostgreSQL 17 e 18. Localmente, todas passaram no 18.6.
+O [relatório](sondas/adr008.md) registra os mecanismos medidos e as lacunas de runtime. Os grafos e o
+catálogo de diagnósticos não mudam; os critérios 6 e 7 continuam parciais.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes

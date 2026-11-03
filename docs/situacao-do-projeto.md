@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `cb7c0b5`, com as declarações live e suas dependências descritas neste commit.
+- **Atualizado em:** 2026-11-03, sobre `ed0d90f`, com a sonda de ordem e continuidade dos eventos descrita neste commit.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -17,10 +17,10 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | ADRs | 29 aceitos: os 21 fundadores, 5 ADRs de resolução (022 a 026), as evoluções de formato 027/028 e as declarações live 029; nenhum proposto |
 | Testes do compilador e exemplos | 314 testes e 2.382 asserções, sem falhas; 133/133 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
-| CI registrada | Três checks verdes no push direto de `cb7c0b5`, incluindo as sondas no PostgreSQL 17 e 18 ([execução 41569363249](https://github.com/vetra-framework/vetra/actions/runs/41569363249)) |
-| Verificação local desta continuação | Suíte completa e os quatro exemplos passaram; o gate contra origin/main não aponta quebras. O chat mantém 64 nós e tem duas mudanças para revisão: recurso e declaração live. Alpha.4 inclui os schemas 0.1/0.2/0.3 |
+| CI registrada | Três checks verdes no push direto de `ed0d90f`, incluindo as sondas no PostgreSQL 17 e 18 ([execução 41602816769](https://github.com/vetra-framework/vetra/actions/runs/41602816769)) |
+| Verificação local desta continuação | Nova sonda ADR-008: 10/10 verificações no PostgreSQL 18.6, com detecção de falhas introduzidas no intervalo e no trigger. A suíte do compilador permanece verde; grafos, IR e versão alpha.4 preservados |
 | PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
-| Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
+| Sondas | 9 em `script/`, mais o simulador do gate da CI; 7 rodam na CI (002, 003, 008, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
 ## Como manter este arquivo
@@ -79,7 +79,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   políticas e junções. Listas explícitas não podem omitir dependências conhecidas; análise incompleta
   exige lista explícita. `unsafe_effect`, SQL e capacidades externas são recusados. O validador confere
   IR externa; o diff destaca permissões e trata retirada de live como quebra. Vinte e um testes novos;
-  ADR-029 nesta continuação. Assinaturas e entrega em tempo real continuam pendentes.
+  ADR-029 em `ed0d90f`. Assinaturas e entrega em tempo real continuam pendentes.
 
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
@@ -115,6 +115,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   de sala, mensagem, vínculo e usuário. Não há execução HTTP, entrega live ou expansão de membros/autores.
 
 **CI e sondas**
+- [x] `sonda_adr008.rb`: dez verificações em PostgreSQL real de intervalos `xid8`, commits invertidos,
+  rollback, polling após queda do LISTEN, duas sessões ouvintes, `_v` sob lock, SQL direto, savepoints,
+  snapshots novos e timeout. Passou localmente no PostgreSQL 18.6 e entrou na CI do 17 e 18.
+  Duas falhas introduzidas em cópias temporárias foram detectadas; a limpeza removeu o schema mesmo com
+  resultado negativo. [Relatório e limites](sondas/adr008.md). Não implementa o distribuidor nem a
+  ressincronização por retenção/failover.
 - [x] Diff em PRs contra o SHA da base e em pushes da main contra o SHA anterior. Falha audível em base
   ausente, tratamento explícito do primeiro push e relatório de revisão no resumo do job. Quebras
   intencionais exigem justificativa para o par exato de digests em `.github/graph-compatibility.json`.
@@ -131,7 +137,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   contra o catálogo extraído com Prism. Código literal sem emissão, ou emissão sem literal reconhecido,
   faz a tarefa falhar; códigos faltantes incluem as origens. Seis testes verificam o instrumento e seu status
   de falha; a CI foi configurada para a nova tarefa (`6263777`). Cobertura por código, não por ramo
-- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 009, 011, 015 e 019). A 011 (o `FOR SHARE` da revogação da
+- [x] Sondas de banco no PostgreSQL 17 e 18 (002, 003, 008, 009, 011, 015 e 019). A 011 (o `FOR SHARE` da revogação da
   delegação, que só estava conferido à mão no 16.15) entrou em #35
 - [x] Verdicts das sondas por contagem de varreduras e por relógio do servidor, não por tempo de parede (#7)
 - [x] Lista de revisão dos ADRs (#7) e auditoria dos critérios do ADR-001 (#8)
@@ -264,12 +270,10 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **028** Contratos compostos e coleções de consultas: IR 0.3, referência a contratos de registros,
   classificação pessoal derivada e preservação dos schemas anteriores; integrado em `cb7c0b5`
 - [x] **029** Declarações live e dependências verificáveis, incluindo leituras de autorização; integrado
-  nesta continuação, sem runtime de assinaturas
+  em `ed0d90f`, sem runtime de assinaturas
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
-- [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
-  ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
 - [ ] Decidir se a `sonda_adr015` ganha os quatro casos do ADR-025 (índice e chave em tabela particionada, chave
   composta por tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18
@@ -331,8 +335,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 
 ## 6. Lacunas de evidência e limites conhecidos
 
-- [ ] **ADR-008:** a regra de leitura por intervalo, o trigger `_v` e a ressincronização não têm sonda versionada.
-  Foram conferidos à mão só no PostgreSQL 16.15
+- [ ] **ADR-008:** a sonda de intervalos e `_v` já existe e entra na CI do PostgreSQL 17 e 18. O distribuidor,
+  checkpoints persistidos, retenção e ressincronização por mudança de cluster/timeline continuam pendentes.
+  As sessões da sonda não exercitam múltiplos processos de aplicação, carga ou transações preparadas
 - [ ] **ADR-020:** sem sonda; a declaração e as dependências de live já são compiladas pelo ADR-029, mas
   os 12 critérios de entrega ainda dependem do runtime
 - [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de

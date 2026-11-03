@@ -50,8 +50,8 @@ A coluna "Evidência" lista as sondas que conferem o que o ADR afirma sobre o Po
 Onde está "nenhuma", o ADR é uma decisão de projeto e o que o sustenta são os testes de aceitação, ainda sem
 implementação.
 
-A CI reverifica a cada PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `sonda_adr003`, `sonda_adr009`,
-`sonda_adr011`, `sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler`
+A CI reverifica a cada push da main e PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `sonda_adr003`,
+`sonda_adr008`, `sonda_adr009`, `sonda_adr011`, `sonda_adr015` e `sonda_adr019`. As de `sonda_adr006` (exige `RUBY_BOX=1`) e `sonda_pooler`
 (exige um PgBouncer) são manuais: parte da evidência dos ADRs 003, 005, 006 e 008 vem de resultados que a CI não repete.
 
 | ADR | Rodada | Depende de | Evidência | Testes de aceitação | Questões em aberto |
@@ -64,7 +64,7 @@ A CI reverifica a cada PR, no PostgreSQL 17 e no 18, as sondas `sonda_adr002`, `
 | 005 RLS e contexto assinado | 2 | 016, 002 | `sonda_adr002`, `sonda_pooler` | 13 | 5 (deixadas a outros) |
 | 006 Isolamento de domínios | 2 | 001 | `sonda_adr006` | 7 | 5 |
 | 007 Comando e adaptadores | 2 | 016 | compilador da fase 0 (regras de rota; teste 6 em parte) | 9 | 4 |
-| 008 Ordem e continuidade dos eventos | 2 | 016, 002 | `sonda_adr002`, `sonda_pooler` | 9 | 3 |
+| 008 Ordem e continuidade dos eventos | 2 | 016, 002 | `sonda_adr002`, `sonda_adr008`, `sonda_pooler` | 9 | 3 |
 | 015 Migrações expand/contract | 2 | 002, 001 | `sonda_adr015`, `sonda_adr002` | 12 | 6 |
 | 017 Tipo `money` | 2 | 001 | compilador da fase 0 (literais `money`; teste 1 na IR) | 12 | 5 |
 | 010 Adoção hospedada e modo serviço | 3 | 002, 003 | nenhuma (modo hospedado não exercitado) | 8 | 6 |
@@ -178,10 +178,12 @@ PR à parte, com a questão resolvida (veja o item de cada um). Com o 017, a rod
 - [ ] Adiável: formato da tarefa de terminal, devolução do resultado de um job, streaming.
 
 **ADR-008 · Notificação como invalidação, ordem por `xid8` e continuidade**
-- [ ] Evidência: `sonda_adr002` (tipo `xid8`; uma escrita aberta prende o `xmin`, uma leitura não) e
-  `sonda_pooler` (atrás de um pooler em modo de transação o `LISTEN` entrega ao cliente que segura o backend).
-  A regra de leitura por intervalo (§2), a versão por linha `_v` (§3) e a ressincronização (§4) **não têm sonda
-  versionada**; o ADR declara isso e as deixa aos testes de aceitação 1, 2 e 4 a 8.
+- [ ] Evidência: `sonda_adr002` (tipo `xid8`; escrita aberta e leitura sem xid), `sonda_adr008` (dez
+  verificações de intervalos, commits invertidos, polling, dois ouvintes, versão por linha sob lock,
+  SQL direto, savepoints, snapshots e timeout) e `sonda_pooler` (o `LISTEN` atrás do pooler).
+  A nova sonda passou localmente no PostgreSQL 18.6 e entra na CI do 17 e 18. O [relatório](../sondas/adr008.md)
+  distingue os mecanismos medidos do distribuidor ainda ausente. Ressincronização por retenção e
+  mudança de cluster/timeline continuam sem teste de runtime.
 - [ ] Limites: "entrega em tempo hábil" é operacional.
 - [ ] Pode mudar a decisão: nenhuma. Volume do `NOTIFY`, intervalo de leitura e retenção (1 s e 10 minutos são
   hipóteses) e partição da outbox dependem da matriz de carga.

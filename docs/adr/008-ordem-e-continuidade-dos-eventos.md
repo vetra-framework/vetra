@@ -1,6 +1,7 @@
 # ADR-008: Notificação como invalidação, ordem por xid8 e continuidade
 
 - Status: aceito
+- Evidência posterior ao aceite: [sonda de ordem e continuidade](../sondas/adr008.md), adicionada em 2026-11-03; o relatório atualiza as medições, sem alterar a decisão abaixo.
 - Data: 2026-10-30
 - Depende de: ADR-016 (ciclo de vida da operação), ADR-002 (somente PostgreSQL)
 - Dependem deste ADR (na data do aceite): 014 (outbox com entrega pelo menos uma vez), 019 (sinais efêmeros) e
