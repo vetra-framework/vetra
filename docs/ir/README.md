@@ -7,13 +7,15 @@ dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL 
 | Arquivo | Conteúdo |
 |---|---|
 | [v0.1.schema.json](v0.1.schema.json) | JSON Schema Draft 2020-12, fechado e autocontido, com 12 tipos de nó |
+| [v0.2.schema.json](v0.2.schema.json) | Versão atual de build, com geração de `created_at` e requisito `vetra.timestamps` |
 | [mini-crm.v0.1.json](exemplos/mini-crm.v0.1.json) | Tenant, dinheiro, privacidade, transição, evento interno e handler com capacidade externa |
 | [blog.v0.1.json](exemplos/blog.v0.1.json) | Sem tenant, escopo do autor, relógio, `set_by`, `guarded` e evento público sem consumidor |
 
 Os exemplos têm envelope completo e referências resolvíveis, mas são **recortes didáticos**, não a
 compilação dos PDFs: omitem CRUD completo, revendas, autenticação, UI e demais entidades. O CRM usa um
 papel com acesso dentro do tenant; o escopo por revenda do exemplo da proposta não está reproduzido aqui, mas
-`examples/mini_crm_revendas/.vetra/graph.json` o compila com a IR 0.1 (veja o [escopo por vínculo](../fase-0.md#escopo-por-vínculo)). O significado de `through`, `local_fields`, `target_fields` e `include_on_create` em relações
+`examples/mini_crm_revendas/.vetra/graph.json` o compila hoje na IR 0.2, preservando a representação do escopo
+da 0.1 (veja o [escopo por vínculo](../fase-0.md#escopo-por-vínculo)). O significado de `through`, `local_fields`, `target_fields` e `include_on_create` em relações
 muitos-para-muitos, que o schema não define, está em [muitos-para-muitos](../fase-0.md#relações-muitos-para-muitos).
 O blog demonstra publicação com um evento explícito adicional. Não há fontes Ruby executáveis anexas.
 
@@ -33,6 +35,16 @@ autorização e vínculo aos fontes. Um documento que passa no schema ainda pode
 `vetra.core`. Uma consulta com `live` também exige `vetra.live`, cuja implementação pertence à fase de
 tempo real. Páginas, workflows e MCP não estão no formato 0.1; sua inclusão exige evolução explícita.
 `annotations` aceita metadados com chaves qualificadas e nunca pode alterar execução ou segurança.
+
+Desde a IR 0.2, `generate` também aceita `{ "kind": "timestamp", "on": "create" }`. Essa regra exige
+`vetra.timestamps`, só vale no `created_at` obrigatório e não nulo de entidade, e não pode ser combinada com
+outras regras de atribuição. O requisito exige esse campo em todas as entidades. Contratos de registro e
+payloads carregam o valor, sem copiar a geração; entradas CRUD não podem permitir sua escrita. O
+[ADR-027 proposto](../adr/027-created-at-implicito-e-ir-0-2.md) registra o contrato e seus limites.
+
+Build e check usam 0.2. Validação, diff e link aceitam 0.1 e 0.2, cada uma com o schema e as regras exatas.
+O link audita declarações na versão do artefato sem converter ou regravar o documento. O schema 0.1 e as
+fixtures documentais abaixo permanecem inalterados. A atualização exige um build e revisão explícitos.
 
 Consumidores executáveis aceitam somente versões e recursos explicitamente suportados, validando com o
 schema exato distribuído localmente. Uma MENOR futura não é ignorada. As mesmas regras valem antes de

@@ -82,7 +82,7 @@ module Vetra
 
         # Registration is needed to recreate Ruby closures in this process. The
         # normalized declaration is an audit only: it never replaces the artifact.
-        audit, registry, warnings = compile(manifest)
+        audit, registry, warnings = compile(manifest, ir_version: document.fetch('ir_version'))
         unless Canonical.dump(audit) == Canonical.dump(document)
           raise Error.single('graph_model_mismatch', 'As declarações carregadas diferem da IR aprovada; reconstrua e revise o pacote.')
         end
@@ -96,9 +96,9 @@ module Vetra
 
       private
 
-      def compile(manifest)
+      def compile(manifest, ir_version: Schema::VERSION)
         registry = DeclarationLoader.new(manifest).load
-        document = Normalizer.new(registry, manifest).document
+        document = Normalizer.new(registry, manifest, ir_version: ir_version).document
         warnings = Validator.new.validate!(document)
         [document, registry, warnings]
       end

@@ -27,14 +27,14 @@ O compilador transforma declarações Ruby em uma **representação intermediár
 
 ```mermaid
 flowchart LR
-    A["DSL Ruby"] --> B["IR 0.1 validada"]
+    A["DSL Ruby"] --> B["IR 0.2 validada"]
     B --> C["Diff arquitetural"]
     B --> D["Vinculação Ruby"]
 ```
 
 | Área | Disponível no protótipo |
 |---|---|
-| Modelo de dados | Entidades, tipos, `money` com escala por moeda, relações, índices e chaves compostas por tenant |
+| Modelo de dados | Entidades com `created_at` implícito, tipos, `money` com escala por moeda, relações, índices e chaves compostas por tenant |
 | Operações | Contratos CRUD, comandos, consultas, eventos e handlers representados no grafo |
 | Autorização declarativa | Papéis e políticas com escopo por autor, dono ou vínculo, com validação das referências e dependências |
 | Exposições | Declarações de HTTP, CLI, job e webhook, com conferência de rotas, destinos e idempotência exigida |
@@ -112,7 +112,7 @@ operação. O compilador registra e verifica essas relações; a execução depe
 | [examples/blog](examples/blog) | Aplicação sem tenant, escopo do autor, publicação e campos protegidos |
 | [examples/mini_crm](examples/mini_crm) | Tenant, `money`, transição, evento, handler e quatro superfícies de exposição |
 | [examples/mini_crm_revendas](examples/mini_crm_revendas) | Revendas, vendedores e papéis com escopo por vínculo |
-| [examples/chat](examples/chat) | Salas, relação muitos-para-muitos e comandos explícitos de inclusão e remoção de membros |
+| [examples/chat](examples/chat) | Salas, relação muitos-para-muitos e comandos explícitos de inclusão por ID ou e-mail e remoção de membros |
 
 Os diretórios contêm recortes compiláveis da fase 0. Autenticação, telas, persistência e entrega em tempo
 real continuam pendentes. Troque `--root examples/blog` pelo diretório desejado para inspecionar outro exemplo.
@@ -163,7 +163,7 @@ limites da análise.
 | [Critérios da fase 0](docs/fase-0-criterios.md) | Cobertura e evidências de aceitação |
 | [Diff arquitetural](docs/graph-diff.md) | Contratos, permissões, referências Git e relatório JSON |
 | [Vinculação de implementações](docs/graph-link.md) | Integridade do pacote, registro Ruby e dados compartilháveis |
-| [IR 0.1](docs/ir/README.md) | Schema, exemplos documentais e compatibilidade |
+| [IR 0.1 e 0.2](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
 | [Índice de ADRs](docs/adr/README.md) | Decisões de arquitetura, resoluções e status de cada proposta |
 
 O [ADR-001](docs/adr/001-grafo-da-aplicacao-e-ir.md) define o contrato do grafo, e o

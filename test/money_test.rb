@@ -23,7 +23,7 @@ class MoneyTest < GraphTest
       with_money_app(currency) do |_root, compiler|
         result = compiler.build
         assert_empty result.warnings
-        assert_equal '0.1', result.document['ir_version']
+        assert_equal Vetra::Graph::Schema::VERSION, result.document['ir_version']
         [
           ['entity', 'crm.lead'], ['contract', 'crm.lead.record'],
           ['contract', 'crm.create_lead.input'], ['contract', 'crm.update_lead.input']

@@ -3,8 +3,9 @@ module Vetra
     class Normalizer
       ACTIONS = Schema::CRUD_ACTIONS
 
-      def initialize(registry, manifest)
+      def initialize(registry, manifest, ir_version: Schema::VERSION)
         @registry, @manifest = registry, manifest
+        @ir_version = ir_version
         @raw = expand_implicit_junctions(registry.declarations)
         @entities = {}
         @nodes = {}
@@ -24,7 +25,7 @@ module Vetra
         raw('event').each { |entry| event(entry) }
         %w[command query handler].each { |kind| raw(kind).each { |entry| operation(entry) } }
         result = {
-          'ir_version' => Schema::VERSION, 'requires' => ['vetra.core'],
+          'ir_version' => @ir_version, 'requires' => timestamps? ? %w[vetra.core vetra.timestamps] : ['vetra.core'],
           'producer' => { 'name' => 'vetra', 'version' => Vetra::VERSION, 'ruby_version' => RUBY_VERSION },
           'app' => app.slice('name', 'currency', 'locale').merge('tenant' => @application_tenant),
           'inputs' => Data.copy(@manifest.entries),
@@ -37,6 +38,10 @@ module Vetra
       end
 
       private
+
+      def timestamps?
+        @ir_version != Schema::LEGACY_VERSION
+      end
 
       def raw(kind)
         @raw.select { |entry| entry['kind'] == kind }
@@ -194,10 +199,16 @@ module Vetra
           Data.copy(@application_tenant)
         end
         fields = entry['fields'].map { |value| field(entry, value) }
-        if fields.any? { |value| value['name'] == 'id' }
-          fail!('reserved_field', 'id é gerado pelo núcleo; não declare outra identidade neste protótipo.', entry)
+        reserved = timestamps? ? %w[id created_at] : ['id']
+        if fields.any? { |value| reserved.include?(value['name']) }
+          fail!('reserved_field', "#{reserved.join(' e ')} são gerados pelo núcleo; não os declare na entidade.", entry)
         end
         fields << id_field('id', entry['id'])
+        if timestamps?
+          fields << { 'name' => 'created_at', 'type' => { 'name' => 'timestamp' }, 'required' => true,
+                      'nullable' => false, 'privacy' => { 'personal' => false },
+                      'generate' => { 'kind' => 'timestamp', 'on' => 'create' } }
+        end
         fields << id_field(tenant['field'], tenant.dig('entity', 'id')) if tenant && !fields.any? { |value| value['name'] == tenant['field'] }
         indexes = entry['indexes'].map.with_index do |index, i|
           index.merge('name' => "#{plural(entry['id'].split('.').last)}_idx_#{i + 1}")
@@ -343,7 +354,7 @@ module Vetra
         entity = @entities.fetch(entry['id'])
         local = entry['id'].split('.').last
         repository = entry['options'].fetch(:repository, plural(local)).to_s
-        writable = entity['fields'].reject { |value| value['name'] == 'id' || value['name'] == entity.dig('tenant', 'field') || value['set_by'] }
+        writable = entity['fields'].reject { |value| value['name'] == 'id' || value['name'] == entity.dig('tenant', 'field') || value['set_by'] || value.dig('generate', 'kind') == 'timestamp' }
         ACTIONS.each do |action|
           id = "#{entry['domain']}.#{action}_#{local}"
           input_fields = case action
@@ -571,13 +582,16 @@ module Vetra
         report['writes'].each do |write|
           capability = aliases[write['receiver']]
           next unless capability && capability.dig('config', 'type') == 'repository'
-          unless entry['kind'] == 'command'
-            fail!('write_boundary', 'Queries não gravam; handlers só gravam chamando comandos.', entry)
+          unless entry['kind'] == 'command' && capability.dig('config', 'access') == 'read_write'
+            fail!('write_boundary', 'Gravações exigem comando e repositório com acesso read_write; handlers só gravam chamando comandos.', entry)
           end
           target = @entities.fetch(capability.dig('config', 'entity', 'id'))
           write['fields'].each do |value|
             field = target['fields'].find { |item| item['name'] == value['name'] }
             fail!('field_missing', "Gravação literal em campo inexistente: #{value['name']}.", entry) unless field
+            if field.dig('generate', 'kind') == 'timestamp'
+              fail!('generated_field_write', "#{value['name']} é gerado pelo relógio do repositório; não o atribua explicitamente.", entry)
+            end
             guard = field.fetch('guarded', []).find { |item| value['known'] && item['value'] == value['value'] }
             owners = field['set_by'] || guard&.fetch('commands')
             if owners && !owners.include?(Data.reference('command', entry['id']))

@@ -166,8 +166,16 @@ module Vetra
           if field.dig('default', 'kind') == 'context' && type['name'] != 'id'
             issue('field_default', 'Defaults de ator/tenant exigem campo id.', node, suffix: "#{at}/default")
           end
-          if field['generate'] && !names.include?(field.dig('generate', 'from'))
+          if field.dig('generate', 'kind') == 'slug' && !names.include?(field.dig('generate', 'from'))
             issue("field_generation", "Campo de origem da geração não existe.", node, suffix: "#{at}/generate")
+          end
+          if field.dig('generate', 'kind') == 'timestamp'
+            unless @document['requires'].include?('vetra.timestamps')
+              issue('ir_feature', 'Geração de timestamp exige vetra.timestamps.', node, suffix: "#{at}/generate")
+            end
+            valid = node['kind'] == 'entity' && field['name'] == 'created_at' && type == { 'name' => 'timestamp' } && field['required'] && !field['nullable']
+            valid &&= (field.keys & %w[default set_by guarded normalize constraints]).empty?
+            issue('timestamp_field', 'Geração de timestamp exige created_at de entidade, obrigatório, não nulo e sem outras regras de atribuição.', node, suffix: at) unless valid
           end
           guards = field.fetch("guarded", [])
           issue("duplicate_guard", "Cada valor protegido tem uma única declaração de donos.", node, suffix: "#{at}/guarded") unless guards.map { |guard| guard['value'] }.uniq.size == guards.size
@@ -214,6 +222,9 @@ module Vetra
       def entity(node)
         fields(node)
         map = field_map(node)
+        if @document['requires'].include?('vetra.timestamps') && map.dig('created_at', 'generate') != { 'kind' => 'timestamp', 'on' => 'create' }
+          issue('timestamp_field', 'Entidade com vetra.timestamps exige created_at gerado na criação.', node, suffix: '/fields')
+        end
         check_names(node, node.dig('storage', 'primary_key'), map, '/storage/primary_key')
         tenant = node['tenant']
         application_tenant = @document.dig('app', 'tenant')
@@ -397,7 +408,7 @@ module Vetra
         field_map(resolve(node['input'])).each do |name, input|
           next if action == 'update' && name == 'id'
           field = source[name]
-          if !field || name == 'id' || name == target.dig('tenant', 'field') || field['set_by']
+          if !field || name == 'id' || name == target.dig('tenant', 'field') || field['set_by'] || field.dig('generate', 'kind') == 'timestamp'
             issue('crud_contract', "Campo #{name} não pode ser gravável pelo CRUD genérico.", node)
             next
           end

@@ -4,7 +4,8 @@ A proposta técnica lista 21 decisões fundadoras. Os PDFs registram o estado da
 os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito antes da implementação do
 componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
-há quatro aceitos (022 a 025) e um proposto (026). Nenhum componente além do compilador da fase 0 foi implementado.
+há quatro ADRs de resolução aceitos (022 a 025), um proposto (026) e uma proposta adicional de evolução
+de formato (027). Nenhum componente além do compilador da fase 0 foi implementado.
 
 ## Escritos
 
@@ -36,15 +37,19 @@ há quatro aceitos (022 a 025) e um proposto (026). Nenhum componente além do c
 | [024](024-resolucao-das-questoes-do-adr-014.md) | Resolução das questões em aberto do ADR-014 | aceito |
 | [025](025-resolucao-das-questoes-do-adr-015.md) | Resolução das questões em aberto do ADR-015 | aceito |
 | [026](026-tabela-de-expoentes-iso-4217.md) | Tabela de expoentes ISO 4217 no compilador | proposto |
+| [027](027-created-at-implicito-e-ir-0-2.md) | `created_at` implícito e IR 0.2 | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
-à pendência documental anterior à fase 0. A decisão foi aceita, mas os testes do compilador/runtime
-continuam pendentes; o esquema e os exemplos não constituem uma implementação.
+à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
+[critérios da fase 0](../fase-0-criterios.md), e os critérios restantes e os testes de runtime continuam pendentes.
 
 O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL,
 [compara versões da IR](../graph-diff.md) e [vincula blocos Ruby ao artefato aprovado](../graph-link.md).
 Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
 transacionais continuam pendentes.
+
+A continuação do [ADR-027 proposto](027-created-at-implicito-e-ir-0-2.md) produz IR 0.2 com `created_at`
+implícito, mantendo leitura e vinculação da 0.1. O aceite dessa proposta continua pendente de integração.
 
 ## Sondas
 

@@ -2,7 +2,9 @@ require_relative 'test_helper'
 
 class ChatTest < GraphTest
   Room = ::Data.define(:id, :owner_id)
+  User = ::Data.define(:id, :email)
   Input = ::Data.define(:room_id, :user_id)
+  EmailInput = ::Data.define(:room_id, :email)
 
   class BodyFailure < StandardError
     attr_reader :field
@@ -55,11 +57,52 @@ class ChatTest < GraphTest
     end
   end
 
-  def run_body(root, name, input, rooms)
+  class MemoryUsers
+    attr_reader :lookups
+
+    def initialize(*users)
+      @users = users
+      @lookups = []
+    end
+
+    def where(email:)
+      @lookups << email
+      @users.select { |user| user.email == email }
+    end
+  end
+
+  def run_body(root, name, input, *capabilities)
     manifest = Vetra::Graph::Manifest.new(Pathname.new(root))
     registry = Vetra::Graph::DeclarationLoader.new(manifest).load
     body = registry.bindings.fetch("chat.#{name}#call")
-    BodyContext.new.instance_exec(input, rooms, &body)
+    BodyContext.new.instance_exec(input, *capabilities, &body)
+  end
+
+  def test_email_membership_contract_reuses_the_owner_action_and_only_reads_users
+    with_app('chat') do |_root, compiler|
+      document = compiler.build.document
+      command = node(document, 'command', 'chat.add_member_by_email')
+      assert_equal node(document, 'command', 'chat.add_member')['authorize'], command['authorize']
+      assert_equal %w[chat.rooms chat.users_read], command['uses'].map { |reference| reference['id'] }
+      assert_equal 'read', node(document, 'capability', 'chat.users_read').dig('config', 'access')
+      assert_equal({ 'kind' => 'contract', 'id' => 'chat.room.record' }, command['output'])
+      assert_empty command['emits']
+      assert_equal 'complete', command.dig('implementation', 'analysis', 'status')
+
+      input = node(document, 'contract', command.dig('input', 'id'))
+      assert_equal %w[email room_id], input['fields'].map { |field| field['name'] }
+      email, room_id = input['fields']
+      assert_equal({ 'name' => 'id', 'entity' => { 'kind' => 'entity', 'id' => 'chat.room' } }, room_id['type'])
+      assert_equal({ 'name' => 'email' }, email['type'])
+      input['fields'].each do |field|
+        assert field['required']
+        refute field['nullable']
+      end
+      assert_equal({ 'personal' => true, 'classification' => 'personal' }, email['privacy'])
+      assert_equal ['downcase'], email['normalize']
+      user_email = node(document, 'entity', 'chat.user')['fields'].find { |field| field['name'] == 'email' }
+      assert_equal email['normalize'], user_email['normalize']
+    end
   end
 
   def test_membership_commands_have_typed_ids_room_authorization_and_only_the_rooms_capability
@@ -109,6 +152,7 @@ class ChatTest < GraphTest
       document = compiler.build.document
       {
         'add_member' => ['POST', '/rooms/:room_id/members'],
+        'add_member_by_email' => ['POST', '/rooms/:room_id/members/by_email'],
         'remove_member' => ['DELETE', '/rooms/:room_id/members/:user_id']
       }.each do |name, (method, path)|
         route = node(document, 'route', "chat.#{name}.http_1")
@@ -119,19 +163,88 @@ class ChatTest < GraphTest
     end
   end
 
-  def test_compilation_and_linking_register_both_bodies_without_running_them
+  def test_compilation_and_linking_register_all_membership_bodies_without_running_them
     with_app('chat') do |root, compiler|
-      %w[add_member remove_member].each do |name|
+      %w[add_member add_member_by_email remove_member].each do |name|
         edit(root, "app/domains/chat/#{name}.rb") do |text|
           text.sub('rooms.lock!(input.room_id)', '(::Kernel.raise "call executado")')
         end
       end
       built = compiler.write
       linked = compiler.link
-      assert_equal %w[chat.add_member#call chat.remove_member#call], linked.implementation_ids
+      assert_equal %w[chat.add_member#call chat.add_member_by_email#call chat.remove_member#call], linked.implementation_ids
+      email_binding = linked.bindings.find { |binding| binding['ref'] == 'chat.add_member_by_email#call' }
+      assert_equal %w[input rooms users_read], email_binding['parameters']
+      assert_equal %w[chat.rooms chat.users_read], email_binding['arguments'].map { |argument| argument.dig('capability', 'id') }
       assert_equal 8, linked.builtin_bindings.size
       assert_equal built.document, linked.document
       assert_equal built.bytes, compiler.check.bytes
+    end
+  end
+
+  def test_email_body_resolves_the_user_adds_the_id_and_returns_the_locked_room
+    with_app('chat') do |root, _compiler|
+      room = Room.new(id: 'room-1', owner_id: 'owner-1')
+      user = User.new(id: 'guest-1', email: 'guest@example.com')
+      input = EmailInput.new(room_id: room.id, email: user.email)
+      rooms = MemoryRooms.new(room, members: [room.owner_id])
+      users = MemoryUsers.new(user)
+      assert_same room, run_body(root, 'add_member_by_email', input, rooms, users)
+      assert_equal [user.email], users.lookups
+      assert_equal [room.owner_id, user.id], rooms.members
+      assert_equal [[:add, room.id, user.id]], rooms.mutations
+    end
+  end
+
+  def test_email_body_reports_a_missing_user_without_mutating_members
+    with_app('chat') do |root, _compiler|
+      room = Room.new(id: 'room-1', owner_id: 'owner-1')
+      rooms = MemoryRooms.new(room, members: [room.owner_id])
+      users = MemoryUsers.new
+      input = EmailInput.new(room_id: room.id, email: 'missing@example.com')
+      error = assert_raises(BodyFailure) { run_body(root, 'add_member_by_email', input, rooms, users) }
+      assert_equal :email, error.field
+      assert_equal 'usuário não encontrado', error.message
+      assert_equal [input.email], users.lookups
+      assert_equal [room.owner_id], rooms.members
+      assert_empty rooms.mutations
+    end
+  end
+
+  def test_email_body_checks_the_room_before_looking_up_personal_data
+    with_app('chat') do |root, _compiler|
+      room = Room.new(id: 'room-1', owner_id: 'owner-1')
+      rooms = MemoryRooms.new(room, members: [room.owner_id])
+      users = MemoryUsers.new
+      input = EmailInput.new(room_id: 'missing-room', email: 'guest@example.com')
+      assert_raises(KeyError) { run_body(root, 'add_member_by_email', input, rooms, users) }
+      assert_empty users.lookups
+      assert_empty rooms.mutations
+    end
+  end
+
+  def test_email_body_refuses_an_ambiguous_email_without_mutating_members
+    with_app('chat') do |root, _compiler|
+      room = Room.new(id: 'room-1', owner_id: 'owner-1')
+      rooms = MemoryRooms.new(room, members: [room.owner_id])
+      input = EmailInput.new(room_id: room.id, email: 'shared@example.com')
+      users = MemoryUsers.new(User.new(id: 'guest-1', email: input.email), User.new(id: 'guest-2', email: input.email))
+      error = assert_raises(BodyFailure) { run_body(root, 'add_member_by_email', input, rooms, users) }
+      assert_equal :email, error.field
+      assert_equal 'e-mail corresponde a mais de um usuário', error.message
+      assert_equal [room.owner_id], rooms.members
+      assert_empty rooms.mutations
+    end
+  end
+
+  def test_email_command_cannot_write_through_the_read_only_users_capability
+    with_app('chat') do |root, compiler|
+      edit(root, 'app/domains/chat/add_member_by_email.rb') do |text|
+        text.sub('users_read.where(email: input.email)', 'users_read.create!(email: input.email)')
+      end
+      error = assert_graph_error('write_boundary') { compiler.build }
+      diagnostic = error.diagnostics.find { |item| item.code == 'write_boundary' }
+      assert_equal 'app/domains/chat/add_member_by_email.rb', diagnostic.source['path']
     end
   end
 
@@ -163,7 +276,7 @@ class ChatTest < GraphTest
   end
 
   def test_queries_cannot_mutate_members_through_the_rooms_repository
-    %w[add_member remove_member].each do |name|
+    %w[add_member add_member_by_email remove_member].each do |name|
       with_app('chat') do |root, compiler|
         edit(root, "app/domains/chat/#{name}.rb") { |text| text.sub("command :#{name}", "query :#{name}") }
         error = assert_graph_error('write_boundary') { compiler.build }

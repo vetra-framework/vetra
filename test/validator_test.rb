@@ -15,7 +15,7 @@ class ValidatorTest < GraphTest
   end
 
   def test_future_versions_features_and_unknown_properties_are_rejected
-    %w[0.2 1.0].each do |version|
+    %w[0.3 1.0].each do |version|
       original = @document['ir_version']
       @document['ir_version'] = version
       assert_graph_error('ir_version') { validate }
@@ -125,10 +125,12 @@ class ValidatorTest < GraphTest
   # ADR-001, critério 1: o schema da IR é um documento válido no Draft 2020-12. A segunda verificação mostra que o
   # metaschema recusa de fato um schema inválido, senão a primeira passaria sem testar nada.
   def test_schema_is_a_valid_draft_2020_12_document
-    schema = JSON.parse(File.read(Vetra::Graph::Schema::PATH, encoding: Encoding::UTF_8))
-    assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
-    assert JSONSchemer.valid_schema?(schema)
-    refute JSONSchemer.valid_schema?(schema.merge('type' => 'nonexistent_type')), 'o metaschema deveria recusar'
+    [Vetra::Graph::Schema::LEGACY_PATH, Vetra::Graph::Schema::PATH].each do |path|
+      schema = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
+      assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
+      assert JSONSchemer.valid_schema?(schema)
+      refute JSONSchemer.valid_schema?(schema.merge('type' => 'nonexistent_type')), 'o metaschema deveria recusar'
+    end
   end
 
   def test_field_presence_is_independent_of_nullability

@@ -4,8 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-10-31, sobre `6263777` (verificação de diagnósticos e critério 11), com a
-  continuação local dos comandos de membros do chat descrita abaixo, ainda sem PR.
+- **Atualizado em:** 2026-11-02, sobre `bb340ea`, com as continuações locais da inclusão por e-mail no chat,
+  da recusa de escrita por repositório de leitura e do `created_at` na IR 0.2, ainda sem PR.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é quem integra o PR.
 
@@ -13,11 +13,12 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 continua proposto |
-| Testes do compilador e exemplos | 239 testes e 1.844 asserções, sem falhas; 125/125 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 25 aceitos: os 21 fundadores e 4 ADRs de resolução (022 a 025); ADR-026 e ADR-027 continuam propostos |
+| Testes do compilador e exemplos | 259 testes e 2.065 asserções, sem falhas; 127/127 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Último resultado registrado neste documento: verde no PR #33; a sonda 011 entrou na matriz no #35 |
-| PRs | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; continuação atual ainda sem PR |
+| Verificação local em 2026-11-02 | Suíte completa e check/validate com fontes/link/diff contra HEAD nos quatro exemplos passaram; nenhuma quebra potencial. A gem inclui os schemas 0.1 e 0.2 |
+| PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 ainda sem PR |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
 
@@ -41,7 +42,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
-**Compilador da fase 0** (DSL Ruby, registro congelado, IR 0.1, validação)
+**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.2, leitura da 0.1, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
@@ -51,6 +52,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   permanecem congelados em profundidade. O núcleo carrega e executa build/check/validate/link/diff sem a
   constante pública `Ractor`. Três testes novos, sem implementar execução concorrente de operações
   (`6263777`)
+- [x] Gravações literais por repositório exigem `access: read_write`, inclusive dentro de comandos. A revisão
+  encontrou que a capacidade explícita `users_read` aceitava `create!`; agora falha com `write_boundary`, com
+  teste de regressão no chat (continuação local, ainda sem PR)
+- [x] IR 0.2 com `vetra.timestamps`: cada entidade tem `created_at` gerado, obrigatório e não nulo,
+  incluindo raiz do tenant e junções implícitas. O campo sai das entradas CRUD e aceita índice e projeção em
+  evento. Nomes reservados, atribuições literais e IR externa incompatível são recusados. O schema 0.1 é
+  preservado e artefatos antigos continuam validando e vinculando sem conversão; check pede novo build.
+  Quatorze testes novos cobrem determinismo, contratos, falhas, compatibilidade e diff. Os quatro exemplos
+  foram reconstruídos e o chat usa `index :room_id, :created_at` (ADR-027 proposto; continuação local)
 
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
@@ -71,7 +81,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] O chat declara `add_member` e `remove_member`, com IDs tipados, autorização pela sala, política do dono,
   rotas HTTP e recusa de remover o proprietário. Os nove testes de `chat_test.rb` cobrem a IR, a vinculação e
   os corpos com duplos de memória. Comandos são explícitos, sem geração automática, executor ou revogação
-  live (continuação local, ainda sem PR)
+  live (`dbbd713`)
+- [x] O chat declara `add_member_by_email`, com autorização pela ação `add_member` do dono, retorno da sala,
+  rota HTTP própria, e-mail pessoal e normalização declarada em `downcase`. Trava a sala antes de consultar
+  `users_read` e recusa usuário ausente ou e-mail ambíguo sem alterar membros. Seis testes novos e a ampliação
+  dos anteriores cobrem contrato, busca, falhas e vínculo; `chat_test.rb` tem 15 testes. Não há executor nem
+  normalização em execução (continuação local, ainda sem PR)
 
 **CI e sondas**
 - [x] CI com testes, `graph:check`, `graph:validate`, `graph:link` e o gate de diff contra a base (o gate falha
@@ -202,15 +217,20 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **024** Resolução das questões em aberto do ADR-014 (#32)
 - [x] **025** Resolução das questões em aberto do ADR-015 (#33)
 
-**Proposto nesta continuação**
+**Propostos nestas continuações**
 - [ ] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
   da biblioteca de formatação até a implementação da borda de UI/API. A implementação e os testes acompanham
   a proposta; o aceite depende de quem integra
+- [ ] **027** `created_at` implícito e IR 0.2: geração pelo relógio do futuro repositório, exclusão das
+  entradas CRUD e compatibilidade com artefatos 0.1. A implementação e os testes acompanham a proposta;
+  o aceite depende de quem integra
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
 - [ ] Revisar a continuação de `money` e o ADR-026 proposto, incluindo a tabela local derivada da SIX e seus
   limites (códigos sem expoente numérico não são aceitos em `money`)
+- [ ] Revisar a IR 0.2 e o ADR-027 proposto, incluindo a regra de criação de timestamps, a compatibilidade
+  do link 0.1 e os limites de migração e runtime
 - [ ] Decidir se o ADR-008 ganha `script/sonda_adr008.rb` (regra de leitura por intervalo, trigger `_v` e
   ressincronização), com CI no PostgreSQL 17 e 18
 - [ ] Decidir se o ADR-020 ganha uma sonda (trigger de linha, releitura por grupo)
@@ -230,7 +250,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [x] **5** Versão suportada, MENOR ou MAIOR futura, recurso não implementado
 - [ ] **6** Produção recusa IR ausente, adulterada ou incompatível. Parcial: não há servidor de produção
 - [ ] **7** Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta. Parcial por desenho: o
-  DSL recusa 4 construtos de 14 no blog, 4 de 6 no mini CRM e 6 de 9 no chat
+  DSL recusa 4 construtos de 14 no blog, 4 de 6 no mini CRM e 5 de 9 no chat
 - [x] **8** Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização
 - [x] **9** O diff distingue remoção, renomeação, capacidade nova, permissão e só origem
 - [x] **10** Registro congelado, implementação ausente ou duplicada, recarga como unidade. Coberto, com uma
@@ -254,8 +274,6 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 **Nos exemplos**
 - [ ] Geração automática dos comandos de vínculo de `many_to_many`: o chat já declara `add_member` e
   `remove_member` explicitamente; a geração prevista no PDF não existe
-- [ ] O comando `add_member_by_email` do chat
-- [ ] O `created_at` implícito
 
 **Runtime**
 - [ ] Execução das primitivas CRUD e dos comandos (hoje são descritores reconhecidos, sem executor)
@@ -309,8 +327,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   valor protegido como `default:` (`guard_default`). A verificação na etapa 6, as telas administrativas, o trigger
   e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018
 - [ ] **ADR-014:** o protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor,
-  mas o relay, as entregas, o lease e a reentrega não existem. Como a política `authorize` de um comando trata o
-  ator de sistema de um handler é questão aberta; um papel de sistema exigiria uma nova MENOR da IR
+  mas o relay, as entregas, o lease e a reentrega não existem. O tratamento do ator de sistema já foi decidido
+  no ADR-024, §4, e ainda não foi implementado; a IR 0.1 não representa um papel de sistema
 - [ ] **ADR-013:** o protótipo cobre só a classificação `privacy`, a validação do payload dos eventos e o diff de
   privacidade (teste de aceitação 2). Nada do envelope, do KMS, do histórico ou da auditoria existe. Declarar o
   titular e a retenção exige uma nova MENOR da IR, porque `privacy` é fechado
@@ -363,7 +381,9 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um PR, e o aceite só vale quando quem revisa o integra.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
-   por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat estão
-   implementados; os demais itens seguem pendentes nas seções 4 e 5
+   por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
+   inclusão por e-mail, estão implementados, assim como o `created_at` implícito na IR 0.2. Os demais itens
+   seguem pendentes nas seções 4 e 5. No chat, faltam a geração automática de comandos de vínculo,
+   consultas com contrato composto e live, autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

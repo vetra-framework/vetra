@@ -200,7 +200,8 @@ class DiagnosticsTest < GraphTest
       begin
         Vetra::Graph::Schema.send(:remove_const, :PATH)
         Vetra::Graph::Schema.const_set(:PATH, path)
-        assert_graph_error('schema_reference') { Vetra::Graph::Schema.new.validate!(validator_document) }
+        document = validator_document.merge('ir_version' => Vetra::Graph::Schema::VERSION)
+        assert_graph_error('schema_reference') { Vetra::Graph::Schema.new.validate!(document) }
       ensure
         Vetra::Graph::Schema.send(:remove_const, :PATH)
         Vetra::Graph::Schema.const_set(:PATH, original)

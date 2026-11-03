@@ -189,6 +189,7 @@ module Vetra
         owner = { 'kind' => 'application', 'id' => @after.dig('app', 'name') }
         old_app = rewrite_references(@before['app'])
         compare_properties(old_app, @after['app'], owner, '/app')
+        property(@before, @after, 'ir_version', owner, '/ir_version', ['contract'], 'review')
         property(@before, @after, 'requires', owner, '/requires', ['dependencies'], 'review')
         %w[producer annotations].each { |key| property(@before, @after, key, owner, "/#{key}", ['build'], 'metadata') }
         old_inputs = @before['inputs'].to_h { |input| [input['path'], input] }

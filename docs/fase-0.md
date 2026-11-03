@@ -1,8 +1,10 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.1 → validação**, o diff arquitetural
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.2 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
+O compilador continua validando e vinculando a IR 0.1 com seu schema e semântica originais. Novos builds
+usam 0.2, com o `created_at` proposto no [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
 
 ## Executar
 
@@ -70,7 +72,7 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
 
 - `Vetra.app`, com `tenant`, `currency` e `locale`.
 - `domain` e `depends_on`; ausência de fronteira explícita gera aviso.
-- `entity`, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
+- `entity`, com `id` e `created_at` implícitos, campos primitivos, `enum`, `money`, `decimal`, `slug`, defaults, privacidade, índices e
   `belongs_to`, incluindo chaves compostas para `same_tenant`, `has_many` como inverso de um `belongs_to` e
   `many_to_many` por uma entidade de junção declarada ou gerada.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
@@ -96,8 +98,8 @@ Declarações/opções não implementadas falham; não viram anotações nem des
 workflows, consultas live, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
 `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos materializados do
 ator além de `id`. Uma palavra-chave desconhecida em qualquer declaração falha com `unsupported_option`, e uma
-obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. O schema 0.1
-possui algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
+obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. Os schemas
+possuem algumas dessas representações; conhecer sua forma não significa que este consumidor saiba compilá-las.
 
 O construtor não é um sandbox. As declarações são código de desenvolvimento confiável e devem ser
 determinísticas; chamadas explícitas a constantes Ruby podem escapar da API. A análise Prism do corpo de
@@ -107,9 +109,12 @@ capacidades nomeadas. Não resolve fluxo de dados, aliases, helpers arbitrários
 transitivos. `analysis.status: complete` só significa que esse analisador limitado não encontrou uma
 construção dinâmica conhecida. Não constitui prova de pureza ou segurança.
 
+Gravações literais reconhecidas exigem um comando e um repositório com `access: read_write`. Mesmo um
+comando recebe `write_boundary` se tentar gravar por uma capacidade explícita de leitura, como `users_read`.
+
 ## Exposições HTTP, CLI, job e webhook
 
-Cada exposição gera um nó `route` da IR 0.1, apontando para a mesma operação. O contrato de entrada, a
+Cada exposição gera um nó `route`, representável desde a IR 0.1, apontando para a mesma operação. O contrato de entrada, a
 autorização, as capacidades e o bloco `call` pertencem à operação, como decide o [ADR-007](adr/007-comando-como-unidade-unica-e-adaptadores.md).
 O mini CRM demonstra as quatro superfícies em `win_lead`:
 
@@ -167,8 +172,29 @@ mesmo com `scale:` explícito. Não há consulta à rede nem suposição de duas
 
 Um `default` monetário precisa trazer uma moeda suportada cujo expoente caiba na escala do campo, e uma string
 decimal que caiba em `precision`/`scale`. Valores excedentes falham com `field_default`; não são arredondados.
-A moeda por tenant, o arredondamento, a formatação e a validação HTTP em execução continuam pendentes. A IR 0.1
-permanece com `scale` numérico explícito, sem mudança de schema.
+A moeda por tenant, o arredondamento, a formatação e a validação HTTP em execução continuam pendentes. As IRs
+0.1 e 0.2 guardam `scale` numérico explícito com a mesma representação monetária.
+
+## Data de criação implícita
+
+Novos builds geram `created_at` em todas as entidades, incluindo a raiz do tenant e as junções implícitas.
+O campo é um `timestamp` obrigatório e não nulo, com `generate: { kind: "timestamp", on: "create" }` na
+entidade. O documento usa IR 0.2 e exige `vetra.timestamps`, conforme o [ADR-027 proposto](adr/027-created-at-implicito-e-ir-0-2.md).
+
+O campo participa do contrato de registro, pode ser projetado em eventos e pode ser usado em índices.
+Não aparece nas entradas CRUD de criação e atualização. O nome é reservado nas entidades; redeclará-lo
+falha com `reserved_field`. Atribuições literais reconhecidas por repositório falham com
+`generated_field_write`, inclusive em um `create!`. Isso não altera campos de filtro chamados `created_at`
+em entradas de operações.
+
+No chat, `index :room_id, :created_at` agora reproduz a proposta. A compilação não consulta o relógio:
+somente registra que o futuro repositório atribuirá a data na criação, usando o relógio determinístico da
+operação. Persistência, preenchimento de linhas antigas e `updated_at` continuam pendentes.
+
+O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
+0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
+novo build 0.2; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
+aparece no diff para revisão, além dos campos e índices.
 
 ## Escopo por vínculo
 
@@ -300,23 +326,34 @@ can :add_member, :remove_member, on: :room, where: { owner: :current_actor }
 ```
 
 O corpo de cada comando trava a sala antes de chamar `rooms.add_member!` ou `rooms.remove_member!`. A remoção
-recusa o `user_id` do dono com `fail!`, preservando o vínculo inicial do proprietário. As exposições são:
+recusa o `user_id` do dono com `fail!`, preservando o vínculo inicial do proprietário.
+
+`add_member_by_email` recebe `room_id` e `email`, retorna a sala e reutiliza a ação `add_member` da mesma
+política do dono. Usa `rooms` e a capacidade de somente leitura `users_read`: trava a sala antes da busca,
+consulta até dois usuários pelo e-mail e inclui o ID apenas se houver um resultado. Nenhum resultado ou um
+e-mail ambíguo falha no campo `email`, sem alterar membros. O contrato da entrada e a entidade `user` declaram
+normalização `downcase` e classificação pessoal do e-mail; a normalização ainda depende do futuro runtime.
+Como o exemplo não tem `auth` nem unicidade do e-mail, a recusa da ambiguidade evita escolher um usuário
+arbitrariamente.
+
+As exposições são:
 
 | Comando | Método | Caminho |
 |---|---|---|
 | `chat.add_member` | POST | `/rooms/:room_id/members` |
+| `chat.add_member_by_email` | POST | `/rooms/:room_id/members/by_email` |
 | `chat.remove_member` | DELETE | `/rooms/:room_id/members/:user_id` |
 
 `test/chat_test.rb` confere contratos, política do dono, rotas, vínculo dos blocos e a recusa dessas escritas
 quando declaradas como consulta. Testes unitários dos corpos usam um repositório em memória e um contexto de
-`fail!` de teste para conferir inclusão, remoção, retorno da sala e recusa de remover o dono. Esses testes não
+`fail!` de teste para conferir inclusão, remoção, retorno da sala, recusa de remover o dono e falhas da busca
+por e-mail. A vinculação confere também a ordem dos parâmetros de `rooms` e `users_read`. Esses testes não
 implementam o executor do framework, autorização em execução, transações, RLS ou revogação live. Build e link
 continuam sem executar os corpos.
 
 A geração automática desses comandos a partir de `many_to_many`, como prevê o PDF, permanece pendente:
-neste incremento os comandos são arquivos escritos pela aplicação, representáveis na IR 0.1. Também não
-existem no exemplo o comando por e-mail `add_member_by_email` e o `created_at` implícito (o índice de mensagens
-usa só `room_id`).
+neste incremento os comandos são arquivos escritos pela aplicação, representáveis desde a IR 0.1. A IR 0.2
+inclui o `created_at` implícito, e o índice de mensagens usa `room_id` e `created_at`.
 
 ## Integridade e limites
 
@@ -356,7 +393,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 125 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 127 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

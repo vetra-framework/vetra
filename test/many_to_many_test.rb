@@ -83,7 +83,7 @@ class ManyToManyTest < GraphTest
       junction = node(document, 'entity', 'chat.room_member')
       assert_equal({ 'kind' => 'entity', 'id' => 'chat.room' }, junction['generated_from'])
       assert_equal 'room_members', junction.dig('storage', 'table')
-      assert_equal %w[id room_id user_id], junction['fields'].map { |field| field['name'] }.sort
+      assert_equal %w[created_at id room_id user_id], junction['fields'].map { |field| field['name'] }.sort
       assert_equal %w[room user], junction['relations'].map { |item| item['name'] }.sort
       assert junction['indexes'].any? { |index| index['unique'] && index['fields'] == %w[room_id user_id] }
       assert_nil junction['tenant']
@@ -99,7 +99,7 @@ class ManyToManyTest < GraphTest
       relation = node(document, 'entity', 'blog.post')['relations'].find { |item| item['name'] == 'tags' }
       assert_equal 'blog.tag', relation.dig('target', 'id')
       assert_equal 'blog.post_tag', relation.dig('through', 'id')
-      assert_equal %w[id post_id tag_id], node(document, 'entity', 'blog.post_tag')['fields'].map { |field| field['name'] }.sort
+      assert_equal %w[created_at id post_id tag_id], node(document, 'entity', 'blog.post_tag')['fields'].map { |field| field['name'] }.sort
     end
   end
 
