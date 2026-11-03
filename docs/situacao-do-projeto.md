@@ -16,7 +16,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; ADR-032 proposto, aguardando aceite do mantenedor |
-| Testes do compilador e exemplos | 351 testes e 2.906 asserções, sem falhas; 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador e exemplos | 352 testes e 2.932 asserções, sem falhas (com a K5); 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C1 | Rodada 2 após devolução: 23 testes de geração de vínculos e compatibilidade; quatro grafos reconstruídos na IR 0.4, chat com opt-out explícito. Check, validação com fontes e link passaram nos quatro exemplos; gate contra `origin/main` sem quebra, com revisão de `ir_version` nos quatro e um metadado no chat. Gem alpha.5 e schemas 0.1/0.2/0.3 preservados |
@@ -126,9 +126,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `db:authz:sql`: gera SQL determinístico da IR validada, sem conectar ou aplicar mudanças.
   Seleciona leituras das políticas e a raiz do tenant, usa armazenamento físico e gera três triggers por
   tabela, revisão transacional, privilégios restritos e preenchimento inicial. O SQL recusa schema existente,
-  tipos/colunas incompatíveis, partições/herança e poderes perigosos, inclusive privilégios padrão herdados.
-  A CLI confere o pacote sem reavaliar o DSL. Quatorze testes novos e 17 verificações do SQL aplicado em
-  PostgreSQL 18.6; sonda ADR-031 na CI 17/18. [Guia e limites](db-authz-sql.md).
+  tipos/colunas incompatíveis, partições/herança e poderes perigosos, inclusive privilégios padrão herdados e
+  papéis que a aplicação pode assumir por `SET ROLE` ou conceder a si com `ADMIN OPTION`, além de `REFERENCES`
+  subscriptions de replicação lógica e papéis de acesso ao servidor; os triggers ficam `ENABLE ALWAYS` (K5). A
+  CLI confere o pacote sem reavaliar o DSL. Quinze testes e 29 verificações do SQL aplicado em PostgreSQL 18.6;
+  sonda ADR-031 na CI 17/18.
+  [Guia e limites](db-authz-sql.md).
 - [x] `sonda_adr020.rb`: treze verificações de revisão por tenant, sem depender do contexto da escrita;
   inclui lotes, troca de tenant, atomicidade e notificações, concorrência, privilégios, objetos temporários,
   decisão strict após revogação, falha fechada, snapshot antigo, evento sem conteúdo pessoal e releitura

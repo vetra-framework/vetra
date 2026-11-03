@@ -12,7 +12,10 @@ Situações: `a fazer`, `em andamento`, `em auditoria`, `devolvida`, `concluída
 | K1 | Registrar o fluxo entre agentes: `AGENTS.md`, `CLAUDE.md` e este quadro | Claude | concluída | ver histórico | Parecer do Codex pedido |
 | K2 | Auditar as entregas do Codex de `cb7c0b5` a `61efbb8` | Claude | concluída | — | Resultado abaixo |
 | K3 | Atualizar a linha de commits do resumo da situação e formalizar as linhas de cabeçalho permitidas em ADR aceito | Claude | concluída | ver histórico | Parecer do Codex pedido |
-| C1 | Geração automática dos comandos de vínculo de `many_to_many` (parte do critério 7) | Codex | concluída | este commit | Devolvida na rodada 1, aprovada na rodada 2; ADR-032 proposto ([auditoria](#auditoria-c1)) |
+| C1 | Geração automática dos comandos de vínculo de `many_to_many` (parte do critério 7) | Codex | concluída | `58993e2` | Devolvida na rodada 1, aprovada na rodada 2; ADR-032 proposto; CI verde ([auditoria](#auditoria-c1)) |
+| K4 | Protocolo novo: os dois implementam, auditoria cruzada, decisão e envio pelo Claude; lacunas do parecer | Claude | concluída | `e761f05` | Pedido do mantenedor; incorpora o parecer do Codex sobre `1aca944` |
+| K5 | `db:authz:sql`: fechar os caminhos que contornam a revisão (papéis assumíveis por `SET ROLE`, `ADMIN OPTION`, `REFERENCES`, `session_replication_role`) | Claude | concluída | este commit | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada com ajuste não bloqueante ([auditoria](#auditoria-k5)) |
+| C2 | `db:authz:sql`: recusar ou listar para revisão as rotinas `SECURITY DEFINER` existentes que a aplicação pode executar e que pertencem a papéis com poder de escrita, `TRUNCATE` ou `TRIGGER` nas tabelas protegidas (achado da auditoria da K5) | Codex | a fazer | — | — |
 
 ### C1: escopo
 
@@ -46,9 +49,60 @@ sem quebra, com a troca de `ir_version` para revisão nos quatro grafos; `git di
 | Listas de versões repetidas em `schema.rb`, normalizador, validador e linker | não | Não ajustar agora: o padrão já existia; vale uma tabela de versões quando surgir a 0.5 |
 | Nenhum exemplo exercita a geração (o chat usa `commands: false`) | não | Não ajustar: os 20 testes de `relation_commands_test.rb` cobrem a geração e as recusas |
 
+## Auditoria K5
+
+Implementado pelo Claude sobre `58993e2`; auditado pelo Codex em modo somente leitura; decisão do Claude.
+
+**Rodada 1 — devolvida pelo Codex.** A correção de `SET ROLE` estava certa (a semântica de `pg_has_role(...,
+'SET')` inclui o próprio papel e cadeias), mas três caminhos anteriores contornavam a revisão do mesmo jeito.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `GRANT SET ON PARAMETER session_replication_role` permite `replica`, que suprime os triggers | sim | Ajustar de outro modo: triggers `ENABLE ALWAYS`, que vale também para concessões feitas depois da instalação, em vez de só recusar quem tem o poder hoje |
+| `REFERENCES` nas tabelas protegidas, inclusive por coluna, não era revogado nem conferido | sim | Ajustar: revogar e recusar, também em papéis assumíveis |
+| `ADMIN OPTION` deixa a aplicação conceder a si um papel que hoje não pode assumir | sim | Ajustar: recusar `ADMIN OPTION` da aplicação ou de papel assumível sobre outro papel |
+| A edição tirou o bit de execução de `script/sonda_adr031.rb` | não | Ajustar: modo `100755` restaurado |
+| A suíte não rodou no sandbox somente leitura do auditor (276 erros de temporários) | não | Não ajustar o código; o Claude repete a suíte antes do envio |
+
+**Rodada 2 — devolvida pelo Codex.** Os três caminhos da rodada 1 ficaram fechados; o Codex rodou a suíte e
+conferiu que não alterou a árvore.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Uma subscription criada pela aplicação (`pg_create_subscription`) escreve sem disparar triggers por instrução, mesmo `ALWAYS` | sim | Ajustar: recusar uso de `pg_create_subscription` e posse de subscriptions por papel que a aplicação usa |
+| `MEMBER WITH ADMIN OPTION` atravessa vínculos `INHERIT FALSE, SET FALSE`: falso positivo com o `ADMIN` implícito de um criador `CREATEROLE` | sim | Ajustar: contar só o `ADMIN` de papéis que a aplicação assume ou herda (`pg_auth_members`), com o caso legítimo na sonda |
+| `pg_restore --data-only --disable-triggers` volta os triggers de `ALWAYS` para a habilitação comum | não | Ajustar: documentar a conferência de `tgenabled` depois de um restore assim |
+| Contagem da suíte desatualizada no resumo da situação | não | Ajustar no envio |
+
+**Rodada 3 — devolvida pelo Codex.** O falso positivo do criador ficou corrigido; o Codex reproduziu no
+PostgreSQL 18.6 dois desvios por cadeia mista e um poder de servidor.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `app -SET-> ponte -INHERIT-> administrador`: o `ADMIN` do administrador é utilizável depois de `SET ROLE ponte`, e a consulta não o via (TRUNCATE com revisão parada) | sim | Ajustar: "utilizável" passa a ser o que herda algum papel assumível, não só a aplicação |
+| Mesma cadeia com a posse de uma subscription existente | sim | Ajustar com o mesmo critério |
+| `pg_execute_server_program` permitiu truncar o arquivo físico da tabela | sim | Ajustar: recusar os três papéis predefinidos de acesso a arquivos e programas do servidor |
+
+**Rodada 4.** Sonda 29/29 no PostgreSQL 18.6, com os três cenários do Codex; contra o gerador de `61efbb8`, as
+dez verificações que detectam os caminhos fechados falham (19/29). Suíte com 352 testes e 2.932 asserções.
+PostgreSQL 17 só na CI: o WSL tem o cliente, não o servidor.
+
+**Rodada 4 — aprovada com ajuste não bloqueante.** O Codex confirmou os três bloqueantes fechados, também em
+cadeias `SET → SET → INHERIT → INHERIT`, sem falso positivo com `pg_read_all_data` ou `pg_monitor`, e repetiu a
+suíte (352 testes, 0 falhas, 141/141).
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Função `SECURITY DEFINER` preexistente do proprietário, executável pela aplicação, faz `TRUNCATE` sem revisão | não | Ajustar documentando o limite no guia; a correção vira a tarefa C2 do Codex, por ser outra classe de problema |
+
 ## Auditoria K2: entregas do Codex de `cb7c0b5` a `61efbb8`
 
-Verificado em 2026-11-03 sobre `2d37e15`.
+Verificado em 2026-11-03 sobre `61efbb8` (a primeira versão deste registro dizia `2d37e15` por engano; o
+parecer do Codex apontou a divergência).
+
+**Correção posterior:** o parecer do Codex achou uma lacuna que esta auditoria não viu. O gerador conferia só os
+privilégios da aplicação, não os de papéis que ela pode assumir por `SET ROLE` com `INHERIT FALSE`; um
+`TRUNCATE` obtido assim apaga vínculos sem incrementar a revisão. A K5 corrige.
 
 **Aprovado.** Suíte com 328 testes e 2.532 asserções, sem falhas, e 137/137 códigos de diagnóstico; os quatro
 exemplos passam em check, validação com fontes e link; o gate contra `2cb2700` não aponta quebra e lista para

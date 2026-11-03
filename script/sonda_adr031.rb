@@ -134,6 +134,126 @@ class GeneratedAuthorizationProbe
         @admin.exec("REVOKE #{@extra} FROM #{@app}")
       end
     end
+    check('recusa TRUNCATE assumível por SET ROLE sem herança') do
+      # Sem o TRUNCATE direto do fixture, o poder só existe depois de SET ROLE: a verificação antiga não o via.
+      @admin.exec("REVOKE TRUNCATE ON #{@data}.memberships FROM #{@app}; GRANT TRUNCATE ON #{@data}.memberships TO #{@extra}; GRANT #{@extra} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        hidden = @admin.exec_params('SELECT NOT has_table_privilege($1, $2, $3)', [@app, "#{@data}.memberships", 'TRUNCATE']).getvalue(0, 0) == 't'
+        ok, detail = rejection('Privilégios herdados ou assumíveis')
+        [ok && hidden, "#{detail}; fora do privilégio direto da aplicação=#{hidden}"]
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@app}; REVOKE TRUNCATE ON #{@data}.memberships FROM #{@extra}")
+      end
+    end
+    check('recusa papel assumível com BYPASSRLS') do
+      @admin.exec("ALTER ROLE #{@extra} BYPASSRLS; GRANT #{@extra} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('assumir por SET ROLE')
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@app}; ALTER ROLE #{@extra} NOBYPASSRLS")
+      end
+    end
+    check('recusa escrita de revisão assumível por SET ROLE') do
+      @admin.exec("ALTER DEFAULT PRIVILEGES GRANT UPDATE ON TABLES TO #{@extra}; GRANT #{@extra} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('escrita nas revisões')
+      ensure
+        @admin.exec("ALTER DEFAULT PRIVILEGES REVOKE UPDATE ON TABLES FROM #{@extra}; REVOKE #{@extra} FROM #{@app}")
+      end
+    end
+    check('papel assumível sem privilégio perigoso não impede a instalação') do
+      @admin.exec("GRANT #{@extra} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        install
+        [revisions == { '1' => 0, '2' => 0 }, "revisões=#{revisions}"]
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@app}")
+      end
+    end
+    check('recusa REFERENCES por coluna assumível por SET ROLE') do
+      @admin.exec("GRANT REFERENCES (company_id) ON #{@data}.memberships TO #{@extra}; GRANT #{@extra} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('TRUNCATE/TRIGGER/REFERENCES')
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@app}; REVOKE REFERENCES (company_id) ON #{@data}.memberships FROM #{@extra}")
+      end
+    end
+    check('recusa ADMIN OPTION que permitiria conceder a si um papel perigoso') do
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{@extra}; GRANT #{@extra} TO #{@app} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE")
+      begin
+        rejection('ADMIN OPTION')
+      ensure
+        @admin.exec("REVOKE #{@extra} FROM #{@app}; REVOKE TRUNCATE ON #{@data}.memberships FROM #{@extra}")
+      end
+    end
+    check('ADMIN implícito de criador nem assumível nem herdado não impede a instalação') do
+      creator, child = "#{@prefix}_creator", "#{@prefix}_child"
+      @admin.exec("CREATE ROLE #{creator} NOLOGIN CREATEROLE; SET ROLE #{creator}; CREATE ROLE #{child} NOLOGIN; RESET ROLE")
+      @admin.exec("GRANT #{creator} TO #{@app} WITH INHERIT FALSE, SET FALSE")
+      begin
+        implicit = @admin.exec_params("SELECT pg_has_role($1, $2, 'MEMBER WITH ADMIN OPTION')", [creator, child]).getvalue(0, 0) == 't'
+        install
+        [implicit && revisions == { '1' => 0, '2' => 0 }, "ADMIN implícito do criador=#{implicit}; revisões=#{revisions}"]
+      ensure
+        @admin.exec("RESET ROLE; REVOKE #{creator} FROM #{@app}; DROP ROLE IF EXISTS #{child}; DROP ROLE IF EXISTS #{creator}")
+      end
+    end
+    check('recusa aplicação que pode criar subscriptions de replicação lógica') do
+      @admin.exec("GRANT pg_create_subscription TO #{@app}")
+      begin
+        rejection('subscriptions')
+      ensure
+        @admin.exec("REVOKE pg_create_subscription FROM #{@app}")
+      end
+    end
+    check('recusa ADMIN herdado por papel assumível (cadeia SET -> INHERIT)') do
+      bridge, holder, danger = %w[bridge holder danger].map { |suffix| "#{@prefix}_#{suffix}" }
+      @admin.exec("CREATE ROLE #{bridge} NOLOGIN; CREATE ROLE #{holder} NOLOGIN; CREATE ROLE #{danger} NOLOGIN")
+      @admin.exec("GRANT TRUNCATE ON #{@data}.memberships TO #{danger}; GRANT #{danger} TO #{holder} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE")
+      @admin.exec("GRANT #{holder} TO #{bridge} WITH INHERIT TRUE, SET FALSE; GRANT #{bridge} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('ADMIN OPTION')
+      ensure
+        @admin.exec("DROP SCHEMA IF EXISTS #{@data} CASCADE; DROP ROLE #{bridge}; DROP ROLE #{holder}; DROP ROLE #{danger}")
+      end
+    end
+    check('recusa posse de subscription herdada por papel assumível') do
+      bridge, owner = %w[bridge subowner].map { |suffix| "#{@prefix}_#{suffix}" }
+      subscription = "#{@prefix}_sub"
+      @admin.exec("CREATE ROLE #{bridge} NOLOGIN; CREATE ROLE #{owner} NOLOGIN; GRANT pg_create_subscription TO #{owner}")
+      @admin.exec("CREATE SUBSCRIPTION #{subscription} CONNECTION 'dbname=vetra_inexistente' PUBLICATION vetra_pub " \
+                  "WITH (connect = false, enabled = false, create_slot = false, slot_name = NONE)")
+      @admin.exec("ALTER SUBSCRIPTION #{subscription} OWNER TO #{owner}; REVOKE pg_create_subscription FROM #{owner}")
+      @admin.exec("GRANT #{owner} TO #{bridge} WITH INHERIT TRUE, SET FALSE; GRANT #{bridge} TO #{@app} WITH INHERIT FALSE, SET TRUE")
+      begin
+        rejection('subscriptions')
+      ensure
+        @admin.exec("DROP SUBSCRIPTION #{subscription}; DROP ROLE #{bridge}; DROP ROLE #{owner}")
+      end
+    end
+    check('recusa aplicação com pg_execute_server_program') do
+      @admin.exec("GRANT pg_execute_server_program TO #{@app}")
+      begin
+        rejection('pg_execute_server_program')
+      ensure
+        @admin.exec("REVOKE pg_execute_server_program FROM #{@app}")
+      end
+    end
+    check('session_replication_role = replica não suprime a revisão') do
+      @admin.exec("GRANT SET ON PARAMETER session_replication_role TO #{@app}")
+      begin
+        install
+        sessions(1) do |writer|
+          writer.exec("INSERT INTO #{@data}.memberships VALUES (1, 1)")
+          before = revisions['1']
+          writer.exec("SET session_replication_role = replica")
+          writer.exec("DELETE FROM #{@data}.memberships WHERE id = 1")
+          [before == 1 && revisions['1'] == 2, "revisão antes=#{before}; depois do DELETE em replica=#{revisions['1']}"]
+        end
+      ensure
+        @admin.exec("REVOKE SET ON PARAMETER session_replication_role FROM #{@app}")
+      end
+    end
     check('recusa proprietário com LOGIN') do
       @admin.exec("ALTER ROLE #{@owner} LOGIN")
       begin

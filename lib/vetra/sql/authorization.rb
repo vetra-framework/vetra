@@ -96,6 +96,24 @@ module Vetra
             IF pg_has_role(#{literal(@app)}, #{literal(@owner)}, 'MEMBER') THEN
               RAISE EXCEPTION 'Aplicação não pode pertencer ao papel proprietário';
             END IF;
+            IF EXISTS (SELECT 1 FROM #{assumable_roles} AND (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole)) THEN
+              RAISE EXCEPTION 'Aplicação não pode assumir por SET ROLE papel com SUPERUSER, BYPASSRLS ou CREATEROLE';
+            END IF;
+            -- Com ADMIN OPTION utilizável, a aplicação concederia a si própria um papel que hoje não pode assumir.
+            -- Só conta o ADMIN utilizável: um vínculo INHERIT FALSE, SET FALSE não o empresta.
+            IF EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.admin_option AND #{usable('m.member')}) THEN
+              RAISE EXCEPTION 'Aplicação não pode administrar papéis (ADMIN OPTION) diretamente, por herança ou por SET ROLE';
+            END IF;
+            -- O aplicador da replicação lógica não dispara triggers por instrução, nem ENABLE ALWAYS.
+            IF #{usable("'pg_create_subscription'::regrole")}
+               OR EXISTS (SELECT 1 FROM pg_subscription s WHERE #{usable('s.subowner')}) THEN
+              RAISE EXCEPTION 'Aplicação não pode criar nem possuir subscriptions de replicação lógica';
+            END IF;
+            -- Executar programas ou ler e gravar arquivos do servidor contorna as permissões SQL.
+            IF EXISTS (SELECT 1 FROM pg_roles p WHERE p.rolname IN ('pg_execute_server_program', 'pg_write_server_files', 'pg_read_server_files')
+               AND #{usable('p.oid')}) THEN
+              RAISE EXCEPTION 'Aplicação não pode usar pg_execute_server_program, pg_write_server_files ou pg_read_server_files';
+            END IF;
           END $vetra_roles$;
         SQL
       end
@@ -170,15 +188,30 @@ module Vetra
             REVOKE ALL ON FUNCTION #{function}() FROM PUBLIC, #{quote(@app)};
             CREATE TRIGGER #{name} AFTER #{event.upcase} ON #{relation(table)}
               REFERENCING #{references} FOR EACH STATEMENT EXECUTE FUNCTION #{function}();
+            -- ALWAYS: dispara também com session_replication_role = replica, que suprime triggers comuns.
+            ALTER TABLE #{relation(table)} ENABLE ALWAYS TRIGGER #{name};
           SQL
-        end.join + "REVOKE TRUNCATE, TRIGGER ON #{relation(table)} FROM PUBLIC, #{quote(@app)};\n"
+        end.join + "REVOKE TRUNCATE, TRIGGER, REFERENCES ON #{relation(table)} FROM PUBLIC, #{quote(@app)};\n"
+      end
+
+      # Papéis cujos privilégios a aplicação tem ou pode obter: ela própria, os herdados e os alcançáveis por SET ROLE,
+      # inclusive concessões com INHERIT FALSE, que has_*_privilege(app, ...) não enxerga.
+      def assumable_roles
+        "pg_roles r WHERE pg_has_role(#{literal(@app)}, r.oid, 'SET')"
+      end
+
+      # Papel cujos poderes a aplicação usa de fato: herdado por algum papel que ela pode assumir (inclusive ela
+      # própria). Depois de SET ROLE, valem as heranças do papel assumido, e não só as da aplicação.
+      def usable(role)
+        "EXISTS (SELECT 1 FROM pg_roles a WHERE pg_has_role(#{literal(@app)}, a.oid, 'SET') AND pg_has_role(a.oid, #{role}, 'USAGE'))"
       end
 
       def privilege_guards
         checks = @tables.map do |table|
           <<~SQL
-            IF has_table_privilege(#{literal(@app)}, #{literal(relation(table))}, 'TRUNCATE,TRIGGER') THEN
-              RAISE EXCEPTION 'Privilégios herdados de TRUNCATE/TRIGGER ainda permitem alterar a invalidação';
+            IF EXISTS (SELECT 1 FROM #{assumable_roles} AND (has_table_privilege(r.oid, #{literal(relation(table))}, 'TRUNCATE,TRIGGER')
+              OR has_any_column_privilege(r.oid, #{literal(relation(table))}, 'REFERENCES'))) THEN
+              RAISE EXCEPTION 'Privilégios herdados ou assumíveis por SET ROLE de TRUNCATE/TRIGGER/REFERENCES ainda permitem alterar a invalidação';
             END IF;
           SQL
         end
@@ -186,16 +219,17 @@ module Vetra
           DO $vetra_privileges$
           BEGIN
           #{checks.join}
-            IF has_schema_privilege(#{literal(@app)}, #{literal(@schema)}, 'CREATE') THEN
-              RAISE EXCEPTION 'Privilégio herdado permite criar objetos na infraestrutura';
+            IF EXISTS (SELECT 1 FROM #{assumable_roles} AND has_schema_privilege(r.oid, #{literal(@schema)}, 'CREATE')) THEN
+              RAISE EXCEPTION 'Privilégio herdado ou assumível por SET ROLE permite criar objetos na infraestrutura';
             END IF;
-            IF has_table_privilege(#{literal(@app)}, #{literal(revisions)}, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
-               OR has_any_column_privilege(#{literal(@app)}, #{literal(revisions)}, 'INSERT,UPDATE,REFERENCES') THEN
-              RAISE EXCEPTION 'Privilégio herdado permite escrita nas revisões';
+            IF EXISTS (SELECT 1 FROM #{assumable_roles}
+              AND (has_table_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
+                OR has_any_column_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,REFERENCES'))) THEN
+              RAISE EXCEPTION 'Privilégio herdado ou assumível por SET ROLE permite escrita nas revisões';
             END IF;
             IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-              WHERE n.nspname = #{literal(@schema)} AND has_function_privilege(#{literal(@app)}, p.oid, 'EXECUTE')) THEN
-              RAISE EXCEPTION 'Execução herdada das funções de revisão não é permitida';
+              WHERE n.nspname = #{literal(@schema)} AND EXISTS (SELECT 1 FROM #{assumable_roles} AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))) THEN
+              RAISE EXCEPTION 'Execução herdada ou assumível por SET ROLE das funções de revisão não é permitida';
             END IF;
           END $vetra_privileges$;
         SQL

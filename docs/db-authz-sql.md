@@ -39,13 +39,29 @@ mudam a autorização também podem incrementar a revisão. No mini CRM de reven
 A instalação do SQL segue esta ordem:
 
 1. Abre transação e configura `lock_timeout = 3s` e `search_path` fixo.
-2. Confere PostgreSQL 17+, papéis e ausência de vínculo da aplicação com o proprietário.
+2. Confere PostgreSQL 17+, papéis e ausência de vínculo da aplicação com o proprietário. Recusa também
+   qualquer papel que a aplicação possa assumir por `SET ROLE` com `SUPERUSER`, `BYPASSRLS` ou `CREATEROLE`,
+   e `ADMIN OPTION` utilizável: o de qualquer papel herdado por um papel que ela pode assumir, inclusive ela
+   própria (depois de `SET ROLE`, valem as heranças do papel assumido). Com ele, a
+   aplicação concederia a si própria, depois da instalação, um papel que hoje não pode assumir. Um `ADMIN` preso
+   atrás de um vínculo `INHERIT FALSE, SET FALSE` não conta, porque a aplicação não consegue exercê-lo. Recusa
+   ainda o uso de `pg_create_subscription` e a posse de subscriptions, pelo mesmo critério: o aplicador da
+   replicação lógica não dispara triggers por instrução, nem `ENABLE ALWAYS`. E recusa o uso de
+   `pg_execute_server_program`, `pg_write_server_files` e `pg_read_server_files`, que alcançam arquivos e
+   programas do servidor por fora das permissões SQL.
 3. Obtém locks `SHARE ROW EXCLUSIVE` nas tabelas selecionadas, em ordem estável.
 4. Confere tabelas comuns, ausência de herança/partições, coluna de tenant não nula e tipo compatível com
    o ID da raiz; a raiz precisa de PK simples em `id`. Recusa propriedade pela aplicação.
-5. Cria um schema novo, `authz_revisions` e funções/triggers de inserção, atualização e exclusão.
-6. Restringe privilégios; recusa poderes herdados de `TRUNCATE`/`TRIGGER`, escrita nas revisões,
-   execução das funções ou criação de objetos na infraestrutura, inclusive por privilégios padrão.
+5. Cria um schema novo, `authz_revisions` e funções/triggers de inserção, atualização e exclusão. Os triggers
+   ficam `ENABLE ALWAYS`: disparam também com `session_replication_role = replica`, que suprime triggers
+   comuns e pode ser concedido a um papel comum com `GRANT SET ON PARAMETER`.
+6. Restringe privilégios; revoga `TRUNCATE`, `TRIGGER` e `REFERENCES` das tabelas protegidas e recusa esses
+   poderes (`REFERENCES` também por coluna), escrita nas revisões, execução das funções
+   ou criação de objetos na infraestrutura, inclusive por privilégios padrão. A recusa vale para a aplicação e
+   para todo papel que ela possa assumir por `SET ROLE` (`pg_has_role(..., 'SET')`), inclusive concessões
+   `WITH INHERIT FALSE, SET TRUE`, cujos privilégios não aparecem em `has_table_privilege` da aplicação mas
+   ficam disponíveis depois de um `SET ROLE`. Sem isso, um `TRUNCATE` obtido assim apagaria vínculos sem
+   incrementar a revisão, porque `TRUNCATE` não dispara os triggers de `DELETE`.
 7. Varre os IDs existentes da raiz para criar revisões zero e confirma a transação.
 
 As tabelas e os papéis devem existir antes. O instalador precisa dos privilégios de migração sobre esses
@@ -80,9 +96,13 @@ pacote. IRs 0.1/0.2/0.3 são aceitas com suas regras próprias; a geração não
 
 `test/authorization_sql_test.rb` cobre seleção, nomes, mapeamento, determinismo, falhas e CLI sem reavaliar
 o DSL. A [sonda ADR-031](../script/sonda_adr031.rb) aplica o SQL realmente gerado em PostgreSQL descartável.
-No PostgreSQL 18.6, Ruby 4.0.9 e `pg` 1.7.0, passaram 17/17 verificações: instalação, DML em lote, troca de
-tenant, ciclo de vida da raiz, atomicidade, concorrência, privilégios e recusas de estrutura/papéis/schema.
-A limpeza dos schemas e papéis foi conferida. A CI repete a sonda no PostgreSQL 17 e 18.
+No PostgreSQL 18.6, Ruby 4.0.9 e `pg` 1.7.0, passaram 29/29 verificações: instalação, DML em lote, troca de
+tenant, ciclo de vida da raiz, atomicidade, concorrência, privilégios, papéis assumíveis por `SET ROLE`,
+`ADMIN OPTION` (inclusive herdado por papel assumível e o caso legítimo de `ADMIN` implícito inacessível),
+`REFERENCES`, subscriptions (criação e posse herdada), papéis de acesso ao servidor,
+`session_replication_role` e recusas de estrutura/papéis/schema. Contra o gerador de `61efbb8`, as dez
+verificações que detectam esses caminhos falham (19/29). A limpeza dos schemas e papéis foi conferida. A CI repete a sonda no
+PostgreSQL 17 e 18.
 
 ## Limites
 
@@ -90,7 +110,16 @@ Não há `db:plan`, `db:migrate`, atualização de instalações existentes, cha
 RLS ou eventos de linha, assinaturas, executor de operações ou entrega de dados live. O schema novo é uma
 pré-condição: colisões falham sem substituir objetos. O mesmo vale para dados particionados ou herdados.
 A introspecção gerada verifica somente as colunas e os poderes necessários a este SQL, não o esquema
-completo da aplicação. Os fixtures da sonda têm as colunas físicas mínimas usadas pelos triggers.
+completo da aplicação. Os poderes são conferidos na instalação; concessões feitas depois não são vigiadas.
+Também não são auditadas as rotinas que já existem: uma função `SECURITY DEFINER` de um papel com poderes sobre
+as tabelas protegidas, executável pela aplicação, pode fazer `TRUNCATE` em nome do dono sem incrementar a revisão.
+Revise essas funções antes da instalação; a auditoria automática delas é a tarefa C2 do
+[quadro dos agentes](tarefas-dos-agentes.md).
+
+Um `pg_restore --data-only --disable-triggers` termina com `ENABLE TRIGGER ALL`, que troca o estado `ALWAYS`
+dos triggers pela habilitação comum; a partir daí, `session_replication_role = replica` volta a suprimi-los.
+Depois de um restore assim, confira `pg_trigger.tgenabled = 'A'` nos triggers `vt_authz_*` e restaure
+`ENABLE ALWAYS` antes de liberar a aplicação. Um dump e restore completos preservam o estado. Os fixtures da sonda têm as colunas físicas mínimas usadas pelos triggers.
 
 As funções de privilégio e as relações de transição seguem as referências de
 [privilégios](https://www.postgresql.org/docs/18/functions-info.html) e

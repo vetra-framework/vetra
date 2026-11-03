@@ -61,11 +61,32 @@ class AuthorizationSQLTest < GraphTest
       assert_includes sql, 'SELECT "company_id"::text AS tenant_id FROM vt_old UNION SELECT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id'
       assert_includes sql, 'SET revision = stored.revision + 1'
       assert_includes sql, "pg_notify('vetra_authz', affected_tenant)"
-      assert_includes sql, 'REVOKE TRUNCATE, TRIGGER ON'
+      assert_includes sql, 'REVOKE TRUNCATE, TRIGGER, REFERENCES ON'
+      assert_equal 15, sql.scan(/ENABLE ALWAYS TRIGGER "vt_authz_/).size
       refute_includes sql, 'CREATE ROLE'
       refute_includes sql, 'CREATE OR REPLACE'
       refute_includes sql, 'DROP '
       refute_includes sql, 'CREATE TABLE IF NOT EXISTS'
+    end
+  end
+
+  def test_privilege_guards_cover_roles_reachable_by_set_role
+    with_app('mini_crm_revendas') do |_root, compiler|
+      sql = generate(compiler.build.document, app_role: 'web_app').sql
+      # Atributos dos papéis, cinco tabelas protegidas, schema, revisões e funções.
+      assert_equal 9, sql.scan("pg_roles r WHERE pg_has_role('web_app', r.oid, 'SET')").size
+      assert_includes sql, %q{has_table_privilege(r.oid, '"public"."memberships"', 'TRUNCATE,TRIGGER')}
+      assert_includes sql, %q{has_any_column_privilege(r.oid, '"public"."memberships"', 'REFERENCES')}
+      assert_includes sql, 'AND (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole)'
+      usable = ->(role) { "EXISTS (SELECT 1 FROM pg_roles a WHERE pg_has_role('web_app', a.oid, 'SET') AND pg_has_role(a.oid, #{role}, 'USAGE'))" }
+      assert_includes sql, "FROM pg_auth_members m WHERE m.admin_option AND #{usable['m.member']}"
+      assert_includes sql, "IF #{usable["'pg_create_subscription'::regrole"]}"
+      assert_includes sql, "FROM pg_subscription s WHERE #{usable['s.subowner']}"
+      assert_includes sql, "'pg_execute_server_program', 'pg_write_server_files', 'pg_read_server_files'"
+      refute_includes sql, 'MEMBER WITH ADMIN OPTION'
+      %w[has_table_privilege has_any_column_privilege has_schema_privilege has_function_privilege].each do |check|
+        refute_includes sql, "#{check}('web_app'"
+      end
     end
   end
 

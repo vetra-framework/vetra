@@ -55,7 +55,9 @@ gate G4. A suíte e o catálogo do compilador permanecem com 314 testes e 133 c�
 Com o gerador SQL do ADR-031: 328 testes e 2.532 asserções, sem falhas; 137/137 códigos exercitados.
 Os quatro exemplos passaram em check, validação com fontes e link; o diff tem somente metadados de
 produtor/lockfile, sem quebra. A sonda aplica o SQL gerado e passou em 17/17 verificações no PostgreSQL 18.6,
-com inclusão na CI do 17/18. O compilador passa a alpha.5, preservando a IR. O [guia](db-authz-sql.md)
+com inclusão na CI do 17/18. Depois, a K5 estendeu as recusas aos papéis assumíveis por `SET ROLE`, a `ADMIN OPTION`, a
+`REFERENCES`, a subscriptions e aos papéis de acesso ao servidor, tornou os triggers `ENABLE ALWAYS`, e a
+sonda passou a 29/29. O compilador passa a alpha.5, preservando a IR. O [guia](db-authz-sql.md)
 registra os limites do bootstrap; os critérios 6 e 7 continuam parciais.
 
 Com a C1 e o ADR-032 **proposto**, em 2026-11-03: 351 testes e 2.906 asserções, sem falhas;
