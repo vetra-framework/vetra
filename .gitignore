@@ -7,5 +7,6 @@ Thumbs.db
 .bundle/
 vendor/bundle/
 pkg/
+*.gem
 coverage/
 .vetra/cache/
