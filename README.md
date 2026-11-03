@@ -37,6 +37,7 @@ flowchart LR
 | Modelo de dados | Entidades com `created_at` implícito, tipos, `money` com escala por moeda, relações, índices e chaves compostas por tenant |
 | Operações | Contratos CRUD, consultas com registros, coleções e saídas compostas, comandos, eventos e handlers no grafo |
 | Autorização declarativa | Papéis e políticas com escopo por autor, dono ou vínculo, com validação das referências e dependências |
+| Consultas live | Declaração de modo e dependências de dados e autorização; assinaturas e entrega ainda pendentes |
 | Exposições | Declarações de HTTP, CLI, job e webhook, com conferência de rotas, destinos e idempotência exigida |
 | Revisão | Diff de contratos, permissões, capacidades, privacidade, transições e metadados |
 | Vinculação | Conferência do artefato, dos fontes e dos blocos Ruby, sem executar operações |
@@ -112,7 +113,7 @@ operação. O compilador registra e verifica essas relações; a execução depe
 | [examples/blog](examples/blog) | Aplicação sem tenant, escopo do autor, publicação e campos protegidos |
 | [examples/mini_crm](examples/mini_crm) | Tenant, `money`, transição, evento, handler e quatro superfícies de exposição |
 | [examples/mini_crm_revendas](examples/mini_crm_revendas) | Revendas, vendedores e papéis com escopo por vínculo |
-| [examples/chat](examples/chat) | Salas, consultas de listagem e página com contratos tipados, membros por ID e inclusão por e-mail interna |
+| [examples/chat](examples/chat) | Salas, consultas tipadas, declaração live com dependências de autorização, membros por ID e inclusão por e-mail interna |
 
 Os diretórios contêm recortes compiláveis da fase 0. Autenticação, telas, persistência e entrega em tempo
 real continuam pendentes. Troque `--root examples/blog` pelo diretório desejado para inspecionar outro exemplo.

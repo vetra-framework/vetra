@@ -77,6 +77,11 @@ define quais comandos o handler pode executar (ADR-014, §8), então acrescentar
 declarar um handler com `calls`, aparece como `permissions`. Privacidade, capacidades e transições também são
 marcadas para revisão. Índices, armazenamento e restrições merecem revisão de migração própria.
 
+Alterar o modo ou as dependências de uma consulta live recebe as categorias `dependencies` e `permissions`,
+com revisão obrigatória e impacto de permissão indeterminado. Adicionar live exige revisão; retirar a
+declaração é quebra de contrato para os futuros consumidores de assinaturas. Essa classificação não indica
+que o runtime de tempo real já esteja implementado.
+
 Mudar somente o hash de um arquivo é mudança de build, não prova de equivalência de implementação:
 o diff não distingue comentário, helper alterado ou lógica Ruby diferente apenas pelo digest. Essas
 mudanças aparecem em metadados e a saída textual explicita esse limite quando fontes/build mudam.

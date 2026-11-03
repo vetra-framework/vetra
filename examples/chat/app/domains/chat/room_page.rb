@@ -6,6 +6,7 @@ query :room_page do
   end
   authorize :read, :room, record: :room_id
   uses :rooms, :messages
+  live true
 
   call do |input, rooms, messages|
     room = rooms.find!(input.room_id)

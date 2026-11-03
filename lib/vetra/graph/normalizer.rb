@@ -32,6 +32,7 @@ module Vetra
           'nodes' => @nodes.values.sort_by { |node| node.values_at('kind', 'id') }
         }
         result['requires'] << 'vetra.structured_outputs' if @structured_outputs
+        result['requires'] << 'vetra.live' if @live
         result['requires'].sort!
         result = Data.copy(result)
         sort_sets(result)
@@ -522,8 +523,9 @@ module Vetra
 
       def operation(entry)
         kind = entry['kind']
-        forbidden = kind == 'handler' ? %w[fields emits exposures authorize returns] : %w[on calls idempotent_by]
+        forbidden = kind == 'handler' ? %w[fields emits exposures authorize returns live] : %w[on calls idempotent_by]
         forbidden += ['emits'] if kind == 'query'
+        forbidden += ['live'] if kind == 'command'
         forbidden.each do |key|
           value = entry[key]
           fail!('unsupported_declaration', "#{key} não é válido em #{kind} neste protótipo.", entry) if value && (!value.respond_to?(:empty?) || !value.empty?)
@@ -550,6 +552,7 @@ module Vetra
           node.merge!('input' => Data.reference('contract', input['id']), 'output' => operation_output(entry), 'authorize' => authorization)
           node['emits'] = emissions(entry, authorization) if kind == 'command'
         end
+        live(entry, node) if kind == 'query' && entry.dig('live', 'enabled')
         check_writes(entry, node, report)
         add(node)
         counts = Hash.new(0)
@@ -565,6 +568,28 @@ module Vetra
           counts[surface] += 1
           route(entry, node, config, exposure['idempotency'], "#{entry['id']}.#{surface}_#{counts[surface]}", surface: surface)
         end
+      end
+
+      def live(entry, node)
+        fail!('ir_feature', 'Este consumidor só compila live na IR 0.3.', entry) unless @ir_version == Schema::VERSION
+        if LiveDependencies.outside_boundary?(node, nodes: @nodes)
+          fail!('live_boundary', 'Live aceita repositórios e capacidades determinísticas, sem unsafe_effect.', entry)
+        end
+        names = entry.dig('live', 'depends_on')
+        if names.nil? && node.dig('implementation', 'analysis', 'status') != 'complete'
+          fail!('live_dependencies', 'Análise incompleta exige depends_on explícito em live; declare também as leituras dos helpers.', entry)
+        end
+        declared = names&.map { |name| Data.reference('entity', entity_id(name, entry['domain'], entry)) }
+        if declared && declared.uniq.size != declared.size
+          fail!('live_dependencies', 'Cada entidade aparece uma única vez em depends_on de live.', entry)
+        end
+        required = LiveDependencies.required(node, nodes: @nodes, extra: declared || [])
+        missing = required - (declared || required)
+        unless missing.empty?
+          fail!('live_dependencies', "depends_on de live omite entidades conhecidas: #{missing.map { |reference| reference['id'] }.join(', ')}.", entry)
+        end
+        node['live'] = { 'mode' => entry.dig('live', 'mode'), 'depends_on' => (declared || required).sort_by { |reference| reference.values_at('kind', 'id') } }
+        @live = true
       end
 
       def operation_output(entry)

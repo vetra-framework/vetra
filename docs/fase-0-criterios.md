@@ -36,6 +36,12 @@ Com contratos compostos e coleções de consultas (IR 0.3): 293 testes e 2.229 a
 contra a base publicada `2cb2700` não encontrou quebra potencial; o chat tem oito nós novos, seis mudanças
 para revisão e 64 nós no total. A versão do compilador passa a 0.1.0-alpha.3.
 
+Com declarações live e dependências de autorização (2026-11-03): 314 testes e 2.382 asserções, sem falhas;
+133/133 códigos exercitados. O formato continua na IR 0.3, agora com suporte declarativo a `vetra.live`,
+e o compilador passa a 0.1.0-alpha.4. O chat conserva 64 nós; `room_page` declara live com quatro entidades
+de dependência. Check, validação com fontes, link e diff contra `cb7c0b5` passaram nos quatro exemplos,
+sem quebra potencial. As assinaturas em execução continuam pendentes.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes
@@ -45,7 +51,7 @@ encontrados nos pontos de emissão de `lib/`.
 
 A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
 literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
-cada ocorrência. São 130 códigos em 202 pontos de emissão. O carregador de teste
+cada ocorrência. São 133 códigos em 215 pontos de emissão. O carregador de teste
 `diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
 e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
 reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
@@ -67,12 +73,12 @@ continua sendo o caminho de teste para elas.
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb` e `query_output_test.rb`, emite os 130 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb` e `live_test.rb`, emite os 133 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration` e `timestamp_test.rb` e `query_output_test.rb`: leitura e link de 0.1/0.2 com semântica antiga, rebuild em 0.3 e diff explícito da versão. O schema exato impede que formatos antigos aceitem a representação nova; 0.4, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão não suportada (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
-| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (52 e 65 mudanças no `graph:diff`, blog e mini CRM). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 4 de 6; no chat, 5 de 9. Todos falham de forma audível. |
+| 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (52 e 65 mudanças no `graph:diff`, blog e mini CRM). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 4 de 6; no chat, 4 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 25 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
 | 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
@@ -136,20 +142,21 @@ proposta e o repositório foi aplicada sozinha:
 
 No chat, a base foi `examples/chat`:
 
-- **Aceitos (4):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }`, o comando
+- **Aceitos (5):** `can :add_member, :remove_member, on: :room, where: { owner: :current_actor }`, o comando
   `add_member_by_email` com `authorize :add_member` e `input :email, :email`, e `many_to_many :members, entity: :user,
   include: :owner` sem nenhuma junção declarada (antes era recusado), e `index :room_id, :created_at`
-  usando a geração da IR 0.2.
+  usando a geração da IR 0.2, além de `live true` com dependências conservadoras na IR 0.3.
   O repositório agora declara `add_member` e `remove_member` explicitamente, com contrato de IDs, política do
   dono, rotas e recusa de remover o proprietário. `add_member_by_email` também está declarado, com contrato
   explícito de retorno, busca por capacidade de leitura e recusa de e-mail ausente ou ambíguo. A geração
   automática dos comandos de vínculo do PDF continua pendente.
-- **Recusados (5):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse`, uma consulta sem
-  `returns` nem `authorize` e `live true`.
+- **Recusados (4):** `auth :password`, `ui :server`, `realtime :websocket, fallback: :sse` e uma consulta sem
+  `returns` nem `authorize`.
 
-Os três exemplos juntos recusam oito famílias de construto. Quatro já constavam no `fase-0.md` como não
-implementadas: `auth`, `ui`, `live true`, `returns` explícito (a obrigatoriedade de `authorize` só aparece no
-diagnóstico do compilador). O `created_at` implícito, antes recusado, passou a ser implementado na IR 0.2.
+Os três exemplos juntos recusam sete famílias de construto. Três já constavam no `fase-0.md` como não
+implementadas: `auth`, `ui`, `returns` explícito (a obrigatoriedade de `authorize` só aparece no
+diagnóstico do compilador). O `created_at` implícito, antes recusado, passou a ser implementado na IR 0.2;
+`live true` passou a ser compilado na IR 0.3, sem implementar a entrega em tempo real.
 Uma é requisito de desenho que o `fase-0.md` só mostra por
 exemplo: o `has_many` inverso do escopo por vínculo. **Três não constavam em lugar nenhum da documentação:**
 `realtime`, `rate_limit:` em `can` e `rounding:` em `currency`. Foram acrescentadas à lista do `fase-0.md`. As duas
@@ -201,7 +208,13 @@ Os 25 testes de `query_output_test.rb` cobrem as saídas de `my_rooms` e `room_p
 coleções, classificação pessoal derivada, contexto de uso, ciclos e referências, capacidade de leitura e
 diffs de garantias aninhadas. Os corpos são exercitados em memória para ordem, filtro da sala, limite de
 100 mensagens e sala ausente. `returns` e `authorize` permanecem explícitos; a sintaxe implícita dos PDFs,
-expansões de relações e live continuam pendentes. O critério 7 segue parcial.
+expansões de relações e entrega live continuam pendentes. O critério 7 segue parcial.
+
+Os 21 testes de `live_test.rb` cobrem modos, opções inválidas, dependências derivadas de repositórios,
+saídas e políticas, junções de autorização, listas explícitas, análise incompleta, limites de capacidade,
+IR externa, preservação dos consumidores anteriores e diff de permissão. `graph:link` conserva os metadados
+sem executar o corpo. O trigger de revisão, as assinaturas, a revogação e o transporte do ADR-020 continuam
+pendentes; os critérios 6 e 7 permanecem parciais.
 
 - O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
   construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.

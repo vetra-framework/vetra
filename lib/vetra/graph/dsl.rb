@@ -23,8 +23,8 @@ module Vetra
           error("unsupported_declaration", "Declaração #{name} não implementada no protótipo; nenhum dado foi descartado.")
         end
 
-        def error(code, message)
-          ::Kernel.raise Error.single(code, message, source: @source)
+        def error(code, message, origin: @source)
+          ::Kernel.raise Error.single(code, message, source: origin)
         end
 
         def source(block)
@@ -260,6 +260,27 @@ module Vetra
 
         def uses(*names)
           @attributes["uses"].concat(names.map(&:to_s))
+        end
+
+        def live(value = true, **options)
+          origin = source(nil)
+          if @attributes.key?('live') || ![true, false].include?(value)
+            error('live_declaration', 'Declare live uma única vez, com true ou false.', origin: origin)
+          end
+          unknown = options.keys - %i[mode depends_on]
+          error('unsupported_option', "Opções não implementadas em live: #{unknown.join(', ')}.", origin: origin) unless unknown.empty?
+          error('live_declaration', 'live false não aceita opções adicionais.', origin: origin) if !value && !options.empty?
+          mode = options.fetch(:mode, :strict).to_s
+          error('live_declaration', 'live exige mode: :strict ou :balanced.', origin: origin) unless %w[strict balanced].include?(mode)
+          declaration = { 'enabled' => value, 'mode' => mode }
+          if options.key?(:depends_on)
+            names = options[:depends_on]
+            unless names.is_a?(::Array) && !names.empty? && names.all? { |name| (name.is_a?(::String) || name.is_a?(::Symbol)) && !name.to_s.strip.empty? }
+              error('live_dependencies', 'depends_on de live exige uma lista não vazia de entidades.', origin: origin)
+            end
+            declaration['depends_on'] = names.map(&:to_s)
+          end
+          @attributes['live'] = declaration
         end
 
         def emits(event, with:, from: nil)

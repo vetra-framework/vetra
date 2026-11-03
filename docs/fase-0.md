@@ -5,7 +5,8 @@ e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
 O compilador continua validando e vinculando as IRs 0.1 e 0.2 com seus schemas e semânticas originais.
 Novos builds usam 0.3, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
-retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md).
+retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
+live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md).
 
 ## Executar
 
@@ -82,7 +83,8 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
   `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
 - `command` e `query`, com `input`, `returns :entidade`, `authorize`, `uses`, `call`, `unsafe_effect` e
-  `expose http:`, `cli:`, `job:` e `webhook:`. Consultas também aceitam coleções e blocos de saída compostos.
+  `expose http:`, `cli:`, `job:` e `webhook:`. Consultas também aceitam coleções, blocos de saída compostos
+  e declarações `live` com dependências verificadas.
   `returns` é explícito porque não se infere retorno de Ruby
   arbitrário. Queries aceitam HTTP de leitura e CLI; jobs e webhooks exigem comandos.
 - `event`, com projeção de campos, visibilidade e exigência de consumidor; `emits` pode inferir o evento
@@ -97,7 +99,7 @@ o conjunto `uses` na IR, mas a vinculação original dos parâmetros fica fora d
 `graph:link`. A unidade vinculada expõe metadados congelados; as closures ficam privadas.
 
 Declarações/opções não implementadas falham; não viram anotações nem desaparecem. Entre elas estão UI, MCP,
-workflows, consultas live, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
+workflows, `auth` e geração de usuários/vínculos, metadados de dependências por gem, SQL explícito,
 `realtime`, `rate_limit:` em `can`, `rounding:` em `currency` e políticas baseadas em atributos materializados do
 ator além de `id`. Uma palavra-chave desconhecida em qualquer declaração falha com `unsupported_option`, e uma
 obrigatória ausente com `missing_option`; os dois nomeiam o método e apontam a linha da declaração. Os schemas
@@ -146,12 +148,41 @@ entradas, comandos ou eventos e rebaixamento de privacidade falham antes da vinc
 O chat declara `my_rooms` (`GET /rooms`) e `room_page` (`GET /rooms/:room_id/page`), com autorização explícita
 e repositórios de leitura. A página traz no máximo as últimas 100 mensagens da sala, ordenadas por criação
 e ID para desempate. São consultas compiláveis e corpos testados em memória; autorização em execução,
-HTTP, paginação por cursor, expansão de membros/autores e live continuam pendentes.
+HTTP, paginação por cursor, expansão de membros/autores e entrega live continuam pendentes.
 
 Comandos conservam o retorno de um registro. Coleções de escalares, listas de listas e contratos recursivos
 não são suportados. O compilador não executa o corpo para inferir ou provar seu retorno: o futuro runtime
 precisará validar os valores contra os contratos. O [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md)
 define esse incremento.
+
+## Declarações live
+
+Consultas podem declarar `live true`, com `mode: :strict` como padrão. `mode: :balanced` exige escolha
+explícita. `live false` desativa a declaração e não aceita opções adicionais; comandos e handlers recusam
+`live`, inclusive desativado. A declaração exige `vetra.live` na IR 0.3; consumidores 0.1 e 0.2 continuam
+recusando esse recurso.
+
+O compilador deriva um conjunto conservador de entidades a partir da autorização, dos repositórios e dos
+contratos de saída. Inclui também as entidades lidas pelas políticas aplicáveis, percorrendo essas leituras
+até não aparecerem dependências novas. No chat, `room_page` depende de `room`, `message`, `room_membership`
+e `user`: a junção entra pela política de membros, mesmo sem um repositório recebido diretamente.
+
+Uma lista explícita pode acrescentar entidades, mas precisa conter todas as dependências conhecidas,
+incluindo as leituras das políticas das entidades extras:
+
+```ruby
+live true, depends_on: %i[room message room_membership user]
+```
+
+Uma análise Ruby incompleta exige essa lista e mantém o aviso `analysis_incomplete`. A lista não prova
+as leituras de helpers arbitrários. Consultas live recusam `unsafe_effect`, SQL e capacidades externas;
+aceitam repositórios de leitura e capacidades determinísticas. O validador verifica também o recurso e as
+dependências de uma IR externa. O diff destaca mudanças como dependências e permissões; remover live é
+quebra de contrato.
+
+Esta etapa compila e valida metadados. Assinaturas, triggers, revogação transacional, releitura por grupo e
+entrega WebSocket/SSE continuam pendentes. A configuração `realtime` ainda é recusada.
+O [ADR-029](adr/029-declaracoes-live-e-dependencias.md) define o alcance e os limites desta etapa.
 
 ## Exposições HTTP, CLI, job e webhook
 
@@ -440,7 +471,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 130 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 133 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

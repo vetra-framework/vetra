@@ -33,8 +33,11 @@ namespace, tenant, classificação de capacidades, compatibilidade de defaults/p
 autorização e vínculo aos fontes. Um documento que passa no schema ainda pode falhar nessas regras.
 
 `requires` é uma lista de requisitos semânticos, não de plugins a carregar. As fixtures documentais exigem apenas
-`vetra.core`; os builds atuais exigem também `vetra.timestamps` e, quando necessário, `vetra.structured_outputs`. Uma consulta com `live` também exige `vetra.live`, cuja implementação pertence à fase de
-tempo real. Páginas, workflows e MCP não estão no formato 0.1; sua inclusão exige evolução explícita.
+`vetra.core`; os builds atuais exigem também `vetra.timestamps` e, quando necessário, `vetra.structured_outputs`.
+Uma consulta com `live` exige `vetra.live`: o consumidor 0.3 compila e valida o modo e as dependências de dados
+e autorização, conforme o [ADR-029](../adr/029-declaracoes-live-e-dependencias.md). Os consumidores 0.1 e 0.2
+continuam recusando esse recurso. A execução das assinaturas e a entrega em tempo real permanecem pendentes.
+Páginas, workflows e MCP não estão no formato 0.1; sua inclusão exige evolução explícita.
 `annotations` aceita metadados com chaves qualificadas e nunca pode alterar execução ou segurança.
 
 Desde a IR 0.2, `generate` também aceita `{ "kind": "timestamp", "on": "create" }`. Essa regra exige

@@ -20,7 +20,7 @@ O comando lê somente o `.vetra/graph.json` da aplicação informada; não aceit
 Saída 0 indica vínculo consistente, 1 indica falha de artefato/fontes/registro e 2 indica uso incorreto.
 Avisos do grafo continuam em stderr. O comando não executa operações, abre conexões ou aceita tráfego.
 
-O pacote atual usa `Vetra::VERSION = "0.1.0-alpha.3"`. Ao atualizar o compilador, reconstrua os grafos dos
+O pacote atual usa `Vetra::VERSION = "0.1.0-alpha.4"`. Ao atualizar o compilador, reconstrua os grafos dos
 exemplos com os lockfiles correspondentes: a versão do produtor também faz parte da integridade do link.
 A leitura dos formatos IR 0.1 e 0.2 continua suportada, mas isso não dispensa a correspondência da versão do
 Vetra/Ruby registrada no artefato. A versão da gem e a versão da IR são contratos independentes.

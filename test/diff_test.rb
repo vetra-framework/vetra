@@ -275,7 +275,7 @@ class DiffTest < GraphTest
     error = assert_graph_error('ir_version') { compare }
     assert_includes error.message, 'Grafo posterior'
     @after['ir_version'] = original_version
-    @before['requires'] << 'vetra.live'
+    @before['requires'] << 'vetra.future'
     error = assert_graph_error('ir_feature') { compare }
     assert_includes error.message, 'Grafo anterior'
     @before['requires'].pop

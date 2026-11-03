@@ -449,6 +449,7 @@ module Vetra
           end
         end
         crud_contract(node) if node.dig('implementation', 'kind') == 'builtin'
+        live(node) if node['kind'] == 'query' && node['live']
         node.fetch('emits', []).each do |emission|
           target = resolve(emission['from'])
           payload = resolve(resolve(emission['event'])['payload'])
@@ -464,6 +465,20 @@ module Vetra
               issue("event_payload", "Tipo, nulabilidade ou privacidade divergente no payload #{field['name']}.", node, suffix: '/emits')
             end
           end
+        end
+      end
+
+      def live(node)
+        unless @document['requires'].include?('vetra.live')
+          issue('ir_feature', 'Consulta live exige vetra.live em requires.', node, suffix: '/live')
+        end
+        if LiveDependencies.outside_boundary?(node, nodes: @nodes)
+          issue('live_boundary', 'Live aceita repositórios e capacidades determinísticas, sem unsafe_effect.', node, suffix: '/live')
+        end
+        declared = node.dig('live', 'depends_on')
+        missing = LiveDependencies.required(node, nodes: @nodes, extra: declared) - declared
+        unless missing.empty?
+          issue('live_dependencies', "depends_on de live omite entidades conhecidas: #{missing.map { |reference| reference['id'] }.join(', ')}.", node, suffix: '/live/depends_on')
         end
       end
 

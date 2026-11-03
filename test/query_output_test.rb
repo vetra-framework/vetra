@@ -29,7 +29,7 @@ class QueryOutputTest < GraphTest
     with_app('chat') do |_root, compiler|
       document = compiler.build.document
       assert_equal '0.3', document['ir_version']
-      assert_equal %w[vetra.core vetra.structured_outputs vetra.timestamps], document['requires']
+      assert_equal %w[vetra.core vetra.live vetra.structured_outputs vetra.timestamps], document['requires']
       contract = output(document, 'my_rooms')
       assert contract['collection']
       assert_equal node(document, 'contract', 'chat.room.record')['fields'], contract['fields']
@@ -130,6 +130,7 @@ class QueryOutputTest < GraphTest
       document['ir_version'] = '0.2'
       assert_graph_error('ir_feature') { validate(document) }
       document['requires'].delete('vetra.structured_outputs')
+      document['requires'].delete('vetra.live')
       assert_graph_error('schema') { validate(document) }
     end
   end

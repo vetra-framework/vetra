@@ -313,6 +313,7 @@ module Vetra
         else ['dependencies']
         end
         result << 'isolation' if node['tenant']
+        result << 'dependencies' if node['kind'] == 'query' && node['live']
         if %w[entity contract].include?(node['kind'])
           result += node.fetch('fields', []).flat_map { |field| field_categories(node, field) } - ['contract', 'storage']
         end
@@ -320,6 +321,7 @@ module Vetra
       end
 
       def categories(owner, key, prefix)
+        return %w[dependencies permissions] if key == 'live' && owner['kind'] == 'query'
         return ['privacy'] if key == 'privacy' || key == 'history'
         return ['transitions'] if %w[guarded set_by transitions].include?(key)
         return %w[isolation permissions] if key == 'tenant'
@@ -333,6 +335,7 @@ module Vetra
       end
 
       def impact(owner, key, before, after, contexts, prefix)
+        return before && !after ? 'breaking' : 'review' if owner['kind'] == 'query' && key == 'live'
         return 'breaking' if owner['kind'] == 'contract' && key == 'collection' && prefix.empty?
         return 'review' if %w[privacy guarded set_by transitions history tenant authorize calls uses domain depends_on implementation unsafe_effect].include?(key)
         return 'breaking' if owner['kind'] == 'route'

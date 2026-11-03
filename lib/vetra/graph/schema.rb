@@ -6,7 +6,7 @@ module Vetra
       VERSION = "0.3"
       LEGACY_VERSION = "0.1"
       PREVIOUS_VERSION = "0.2"
-      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs].freeze
+      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs vetra.live].freeze
       CRUD_ACTIONS = %w[create read update delete].freeze
       PATH = File.expand_path("../../../docs/ir/v0.3.schema.json", __dir__)
       PREVIOUS_PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
