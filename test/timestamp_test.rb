@@ -20,8 +20,8 @@ class TimestampTest < GraphTest
     %w[blog mini_crm mini_crm_revendas chat].each do |name|
       with_app(name) do |_root, compiler|
         document = compiler.build.document
-        assert_equal '0.2', document['ir_version']
-        assert_equal %w[vetra.core vetra.timestamps], document['requires']
+        assert_equal Vetra::Graph::Schema::VERSION, document['ir_version']
+        assert_equal %w[vetra.core vetra.timestamps], document['requires'] & %w[vetra.core vetra.timestamps]
         document['nodes'].select { |entry| entry['kind'] == 'entity' }.each do |entity|
           timestamp = created_at(document, 'entity', entity['id'])
           assert_equal({ 'name' => 'timestamp' }, timestamp['type'])
@@ -157,7 +157,7 @@ class TimestampTest < GraphTest
       assert_graph_error('graph_stale') { compiler.check }
       assert_equal original_bytes, compiler.artifact.binread
       current = compiler.write
-      assert_equal '0.2', current.document['ir_version']
+      assert_equal Vetra::Graph::Schema::VERSION, current.document['ir_version']
       assert_equal current.document, compiler.link.document
     end
   end
@@ -169,7 +169,7 @@ class TimestampTest < GraphTest
       refute report.breaking?
       version = report.data['changes'].find { |change| change['path'] == '/ir_version' }
       assert_equal '0.1', version['before']
-      assert_equal '0.2', version['after']
+      assert_equal Vetra::Graph::Schema::VERSION, version['after']
       assert_equal 'review', version['impact']
       assert version['requires_review']
       field_changes = report.data['changes'].select { |change| change['path'] == '/fields/created_at' }

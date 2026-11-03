@@ -31,6 +31,8 @@ module Vetra
           'inputs' => Data.copy(@manifest.entries),
           'nodes' => @nodes.values.sort_by { |node| node.values_at('kind', 'id') }
         }
+        result['requires'] << 'vetra.structured_outputs' if @structured_outputs
+        result['requires'].sort!
         result = Data.copy(result)
         sort_sets(result)
         result['digest'] = Canonical.digest(result)
@@ -545,8 +547,7 @@ module Vetra
           record = input_fields.find { |value| value['name'] == authorization['record'] }
           record['type']['entity'] ||= authorization['entity'] if record && record.dig('type', 'name') == 'id'
           input = add(base(entry, 'contract', "#{entry['id']}.input", generated: true).merge('fields' => input_fields))
-          target = @entities.fetch(entity_id(entry['returns'], entry['domain'], entry))
-          node.merge!('input' => Data.reference('contract', input['id']), 'output' => Data.reference('contract', target.fetch('_contract')), 'authorize' => authorization)
+          node.merge!('input' => Data.reference('contract', input['id']), 'output' => operation_output(entry), 'authorize' => authorization)
           node['emits'] = emissions(entry, authorization) if kind == 'command'
         end
         check_writes(entry, node, report)
@@ -564,6 +565,38 @@ module Vetra
           counts[surface] += 1
           route(entry, node, config, exposure['idempotency'], "#{entry['id']}.#{surface}_#{counts[surface]}", surface: surface)
         end
+      end
+
+      def operation_output(entry)
+        declaration = entry['returns']
+        if declaration.is_a?(String)
+          target = @entities.fetch(entity_id(declaration, entry['domain'], entry))
+          return Data.reference('contract', target.fetch('_contract'))
+        end
+        fail!('output_shape', 'Retornos compostos e coleções são suportados somente em consultas.', entry) unless entry['kind'] == 'query'
+        fail!('ir_feature', 'Retornos estruturados exigem IR 0.3.', entry) unless @ir_version == Schema::VERSION
+        @structured_outputs = true
+        output = base(entry, 'contract', "#{entry['id']}.output", generated: true)
+        if declaration['collection']
+          entity = @entities.fetch(entity_id(declaration['entity'], entry['domain'], entry))
+          output.merge!('collection' => true, 'fields' => Data.copy(@nodes.fetch(['contract', entity.fetch('_contract')])['fields']))
+        else
+          output['fields'] = declaration['fields'].map do |value|
+            result = field(entry, value)
+            next result unless %w[record collection].include?(value.dig('type', 'name'))
+            entity = @entities.fetch(entity_id(value.dig('type', 'entity'), entry['domain'], entry))
+            contract_id = entity.fetch('_contract')
+            result['type'] = { 'name' => value.dig('type', 'name'), 'contract' => Data.reference('contract', contract_id) }
+            personal = @nodes.fetch(['contract', contract_id])['fields'].map { |child| child['privacy'] }.select { |privacy| privacy['personal'] }
+            result['privacy'] = if personal.empty?
+              { 'personal' => false }
+            else
+              { 'personal' => true, 'classification' => personal.any? { |privacy| privacy['classification'] == 'sensitive' } ? 'sensitive' : 'personal' }
+            end
+            result
+          end
+        end
+        Data.reference('contract', add(output)['id'])
       end
 
       def emissions(entry, authorization)

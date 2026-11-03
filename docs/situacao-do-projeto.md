@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `fac9b8e` (merge do [PR #36](https://github.com/vetra-framework/vetra/pull/36)).
+- **Atualizado em:** 2026-11-03, sobre `2cb2700`, com a continuação da IR 0.3 e das consultas tipadas do chat descrita neste commit.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -14,11 +14,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 27 aceitos: os 21 fundadores, 5 ADRs de resolução (022 a 026) e a evolução de formato 027; nenhum proposto |
-| Testes do compilador e exemplos | 268 testes e 2.107 asserções, sem falhas; 127/127 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 28 aceitos: os 21 fundadores, 5 ADRs de resolução (022 a 026) e as evoluções de formato 027/028; nenhum proposto |
+| Testes do compilador e exemplos | 293 testes e 2.229 asserções, sem falhas; 130/130 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `a1c4dad`, o primeiro com a proteção que só bloqueia force-push e exclusão |
-| Verificação local em 2026-11-02 | Suíte completa, os quatro exemplos e 17 cenários do gate passaram. O chat tem duas quebras intencionais, declaradas por digest; 0.1.0-alpha.2 inclui os schemas 0.1 e 0.2 |
+| Verificação local desta continuação | Suíte completa e os quatro exemplos passaram; o gate contra origin/main não aponta quebras. O chat tem 8 nós novos e 64 no total; alpha.3 inclui os schemas 0.1/0.2/0.3 |
 | PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
 | Sondas | 8 em `script/`, mais o simulador do gate da CI; 6 rodam na CI (002, 003, 009, 011, 015 e 019) |
 | Runtime | Não existe. Só o compilador da fase 0 foi implementado |
@@ -44,10 +44,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
-- [x] Versão do compilador preparada como `0.1.0-alpha.2`, com lockfiles e quatro grafos reconstruídos.
+- [x] Versão do compilador preparada como `0.1.0-alpha.3`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
 
-**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.2, leitura da 0.1, validação)
+**Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.3, leitura da 0.1/0.2, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
 - [x] Todos os códigos de diagnóstico têm um teste que os dispara (#8)
 - [x] Palavra-chave desconhecida ou ausente falha com `unsupported_option` e `missing_option`, nomeando o método e a
@@ -66,6 +66,13 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   preservado e artefatos antigos continuam validando e vinculando sem conversão; check pede novo build.
   Quatorze testes novos cobrem determinismo, contratos, falhas, compatibilidade e diff. Os quatro exemplos
   foram reconstruídos e o chat usa `index :room_id, :created_at` (ADR-027 aceito; implementação em `694b34d`)
+
+
+- [x] IR 0.3 com `vetra.structured_outputs`: consultas podem retornar coleções de registros e objetos
+  compostos com referências a contratos. O compilador deriva a classificação pessoal dos contêineres;
+  o validador recusa ciclos, referências inválidas, uso em contextos de escrita/eventos e rebaixamento da
+  classificação. O diff propaga o uso de saída pelos contratos referenciados e trata troca de objeto/lista
+  como quebra. Schemas 0.1 e 0.2 preservados, inclusive no link; ADR-028 nesta continuação.
 
 **DSL**
 - [x] Escopo por vínculo (`memberships`)
@@ -92,6 +99,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   ambíguo falha com a mesma mensagem, sem alterar membros. A rota HTTP foi retirada para evitar descoberta
   de cadastros; convites com aceite e a política de descoberta continuam pendentes. Os 16 testes do chat
   cobrem contratos, corpos, falhas e ausência de rota; não há executor nem índice real no banco.
+
+
+- [x] `my_rooms` e `room_page` no chat, com autorização explícita e repositórios de leitura. A primeira
+  retorna uma lista de salas; a segunda, sala e até 100 mensagens ordenadas por criação e ID. As exposições
+  são `GET /rooms` e `GET /rooms/:room_id/page`. Os 25 testes novos cobrem formas, privacidade, contextos,
+  diffs, compatibilidade e corpos em memória. Não há execução HTTP, live ou expansão de membros/autores.
 
 **CI e sondas**
 - [x] Diff em PRs contra o SHA da base e em pushes da main contra o SHA anterior. Falha audível em base
@@ -239,6 +252,9 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **027** `created_at` implícito e IR 0.2: geração pelo relógio do futuro repositório, exclusão das
   entradas CRUD e compatibilidade com artefatos 0.1. Implementação integrada; aceite registrado em
   2026-11-02 por solicitação do mantenedor
+
+- [x] **028** Contratos compostos e coleções de consultas: IR 0.3, referência a contratos de registros,
+  classificação pessoal derivada e preservação dos schemas anteriores; integrado nesta continuação
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
@@ -394,7 +410,8 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, e o aceite só vale 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
    por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
    inclusão por e-mail, estão implementados, assim como o `created_at` implícito na IR 0.2. Os demais itens
-   seguem pendentes nas seções 4 e 5. No chat, faltam a geração automática de comandos de vínculo,
-   consultas com contrato composto e live, autenticação, UI e realtime
+   seguem pendentes nas seções 4 e 5. As consultas do chat já têm coleções e contratos compostos na IR 0.3.
+   No chat, faltam a geração automática dos comandos de vínculo, expansões de membros/autores, live,
+   autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

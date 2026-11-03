@@ -30,6 +30,12 @@ passaram para PR e push, incluindo bases inválidas, primeiro push e quebras nã
 uma retirada intencional de rota e uma restrição de unicidade; ambas estão declaradas pelos digests
 exatos, para revisão, sem alterar a classificação do `graph:diff`. A versão do compilador é 0.1.0-alpha.2.
 
+
+Com contratos compostos e coleções de consultas (IR 0.3): 293 testes e 2.229 asserções, sem falhas;
+130/130 códigos exercitados. Check, validação com fontes e link passaram nos quatro exemplos. O diff
+contra a base publicada `2cb2700` não encontrou quebra potencial; o chat tem oito nós novos, seis mudanças
+para revisão e 64 nós no total. A versão do compilador passa a 0.1.0-alpha.3.
+
 ## Como a lacuna do critério 2 foi medida
 
 O critério 2 pede que "cada regra semântica tenha um caso que a dispara". Procurar o nome do código nos testes
@@ -39,7 +45,7 @@ encontrados nos pontos de emissão de `lib/`.
 
 A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
 literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
-cada ocorrência. São 127 códigos em 192 pontos de emissão. O carregador de teste
+cada ocorrência. São 130 códigos em 202 pontos de emissão. O carregador de teste
 `diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
 e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
 reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
@@ -61,10 +67,10 @@ continua sendo o caminho de teste para elas.
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb` e `timestamp_test.rb`, emite os 127 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb` e `query_output_test.rb`, emite os 130 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
-| 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration` e `timestamp_test.rb`: leitura e link de 0.1 com semântica antiga, rebuild em 0.2 e diff explícito da versão. O schema exato impede que 0.1 aceite timestamps gerados; 0.3, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |
+| 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration` e `timestamp_test.rb` e `query_output_test.rb`: leitura e link de 0.1/0.2 com semântica antiga, rebuild em 0.3 e diff explícito da versão. O schema exato impede que formatos antigos aceitem a representação nova; 0.4, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |
 | 6 | Produção recusa IR ausente, adulterada ou incompatível | Parcial | O carregador recusa artefato ausente, não canônico, adulterado ou de versão não suportada (`link_test`), e a perda do cache descartável só recompila a mesma IR. Não há servidor de produção para exercitar o resto. |
 | 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado (52 e 65 mudanças no `graph:diff`, blog e mini CRM). Conferidos construto a construto contra a proposta: no blog, 4 de 14 recusados; no mini CRM, 4 de 6; no chat, 5 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
@@ -189,6 +195,13 @@ o índice composto do chat, projeções em evento, determinismo sem relógio e r
 atribuição explícita. O schema 0.1 permanece inalterado; o link audita o artefato nessa versão, sem gerar
 campos novos. O diff registra versão, requisito e campos da evolução 0.2. A atribuição no repositório,
 atualizações e migrações de dados antigos ainda dependem do runtime.
+
+
+Os 25 testes de `query_output_test.rb` cobrem as saídas de `my_rooms` e `room_page`, os tipos de registros e
+coleções, classificação pessoal derivada, contexto de uso, ciclos e referências, capacidade de leitura e
+diffs de garantias aninhadas. Os corpos são exercitados em memória para ordem, filtro da sala, limite de
+100 mensagens e sala ausente. `returns` e `authorize` permanecem explícitos; a sintaxe implícita dos PDFs,
+expansões de relações e live continuam pendentes. O critério 7 segue parcial.
 
 - O critério 1 está fechado. O 7 segue parcial por desenho: os três exemplos já foram conferidos construto a
   construto, e o que o DSL ainda recusa está listado acima. O 10 mantém a limitação do `binding` descrita acima.

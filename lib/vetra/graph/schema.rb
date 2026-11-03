@@ -3,11 +3,13 @@ require "json_schemer"
 module Vetra
   module Graph
     class Schema
-      VERSION = "0.2"
+      VERSION = "0.3"
       LEGACY_VERSION = "0.1"
-      FEATURES = %w[vetra.core vetra.timestamps].freeze
+      PREVIOUS_VERSION = "0.2"
+      FEATURES = %w[vetra.core vetra.timestamps vetra.structured_outputs].freeze
       CRUD_ACTIONS = %w[create read update delete].freeze
-      PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
+      PATH = File.expand_path("../../../docs/ir/v0.3.schema.json", __dir__)
+      PREVIOUS_PATH = File.expand_path("../../../docs/ir/v0.2.schema.json", __dir__)
       LEGACY_PATH = File.expand_path("../../../docs/ir/v0.1.schema.json", __dir__)
 
       def initialize
@@ -15,11 +17,15 @@ module Vetra
       end
 
       def validate!(document)
-        unless document.is_a?(Hash) && [LEGACY_VERSION, VERSION].include?(document["ir_version"])
-          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{LEGACY_VERSION} e #{VERSION}.", pointer: "/ir_version")
+        unless document.is_a?(Hash) && [LEGACY_VERSION, PREVIOUS_VERSION, VERSION].include?(document["ir_version"])
+          raise Error.single("ir_version", "Versão de IR não suportada; este compilador aceita #{LEGACY_VERSION}, #{PREVIOUS_VERSION} e #{VERSION}.", pointer: "/ir_version")
         end
         version = document.fetch('ir_version')
-        supported = version == LEGACY_VERSION ? ['vetra.core'] : FEATURES
+        supported = case version
+        when LEGACY_VERSION then ['vetra.core']
+        when PREVIOUS_VERSION then %w[vetra.core vetra.timestamps]
+        else FEATURES
+        end
         unknown = Array(document["requires"]) - supported
         unless unknown.empty?
           raise Error.single("ir_feature", "Recursos não implementados: #{unknown.join(', ')}.", pointer: "/requires")
@@ -42,7 +48,11 @@ module Vetra
 
       def validators(version)
         @schemas[version] ||= begin
-          path = version == LEGACY_VERSION ? LEGACY_PATH : PATH
+          path = case version
+          when LEGACY_VERSION then LEGACY_PATH
+          when PREVIOUS_VERSION then PREVIOUS_PATH
+          else PATH
+          end
           definition = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
           properties = definition.fetch('properties')
           envelope = definition.merge('properties' => properties.merge('nodes' => properties.fetch('nodes').merge('items' => { 'type' => 'object' })))

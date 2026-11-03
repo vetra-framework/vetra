@@ -1,7 +1,7 @@
 PATH
   remote: ../..
   specs:
-    vetra (0.1.0.pre.alpha.2)
+    vetra (0.1.0.pre.alpha.3)
       json (>= 2.18, < 3)
       json_schemer (~> 2.5)
       prism (~> 1.0)
@@ -36,7 +36,7 @@ CHECKSUMS
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
   regexp_parser (2.13.1) sha256=5aedb6b7c35688f51e86eef17a15374dfd287c83f4ca644b2c5f3ec50a33b44b
   simpleidn (0.3.0) sha256=12ca730bed2f3db04d11e9bfd1bca3e11fb37f55b21eb2e9793fb5814bf54d03
-  vetra (0.1.0.pre.alpha.2)
+  vetra (0.1.0.pre.alpha.3)
 
 BUNDLED WITH
   4.0.20

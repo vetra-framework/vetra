@@ -1,10 +1,11 @@
 # Fase 0: protótipo do compilador
 
-O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.2 → validação**, o diff arquitetural
+O protótipo implementa o caminho **DSL Ruby → registro congelado → IR 0.3 → validação**, o diff arquitetural
 e a vinculação validada de blocos Ruby do [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md). É experimental.
 Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os critérios de aceitação.
-O compilador continua validando e vinculando a IR 0.1 com seu schema e semântica originais. Novos builds
-usam 0.2, com o `created_at` definido no [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md).
+O compilador continua validando e vinculando as IRs 0.1 e 0.2 com seus schemas e semânticas originais.
+Novos builds usam 0.3, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
+retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md).
 
 ## Executar
 
@@ -81,7 +82,8 @@ O [guia de vinculação](graph-link.md) detalha a ordem das verificações e a A
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
   `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
 - `command` e `query`, com `input`, `returns :entidade`, `authorize`, `uses`, `call`, `unsafe_effect` e
-  `expose http:`, `cli:`, `job:` e `webhook:`. `returns` é explícito porque não se infere retorno de Ruby
+  `expose http:`, `cli:`, `job:` e `webhook:`. Consultas também aceitam coleções e blocos de saída compostos.
+  `returns` é explícito porque não se infere retorno de Ruby
   arbitrário. Queries aceitam HTTP de leitura e CLI; jobs e webhooks exigem comandos.
 - `event`, com projeção de campos, visibilidade e exigência de consumidor; `emits` pode inferir o evento
   interno e seu payload quando ele não foi declarado separadamente.
@@ -111,6 +113,45 @@ construção dinâmica conhecida. Não constitui prova de pureza ou segurança.
 
 Gravações literais reconhecidas exigem um comando e um repositório com `access: read_write`. Mesmo um
 comando recebe `write_boundary` se tentar gravar por uma capacidade explícita de leitura, como `users_read`.
+
+
+## Coleções e contratos compostos de consultas
+
+`returns :room` continua representando um registro. `returns :room, collection: true` gera o contrato
+`<consulta>.output`, com `collection: true` e os campos de cada item. A lista pode ser vazia. Para um objeto
+com diferentes resultados, declare os campos:
+
+```ruby
+query :room_page do
+  input :room_id, :id
+  returns do
+    record :room, entity: :room
+    collection :messages, entity: :message
+  end
+  authorize :read, :room, record: :room_id
+  uses :rooms, :messages
+  call do |input, rooms, messages|
+    room = rooms.find!(input.room_id)
+    { room: room, messages: messages.where(room_id: room.id).order(:created_at, :id).last(100) }
+  end
+end
+```
+
+O bloco de saída também aceita campos primitivos, como `integer :count`. `optional: true` em um campo de
+registro ou coleção permite ausência e null. Os tipos estruturados referenciam contratos de objeto, e a
+classificação pessoal é derivada dos campos referenciados. Referências ausentes, ciclos, uso em entidades,
+entradas, comandos ou eventos e rebaixamento de privacidade falham antes da vinculação. O grafo exige
+`vetra.structured_outputs`; a forma é nova na IR 0.3, com os formatos anteriores preservados.
+
+O chat declara `my_rooms` (`GET /rooms`) e `room_page` (`GET /rooms/:room_id/page`), com autorização explícita
+e repositórios de leitura. A página traz no máximo as últimas 100 mensagens da sala, ordenadas por criação
+e ID para desempate. São consultas compiláveis e corpos testados em memória; autorização em execução,
+HTTP, paginação por cursor, expansão de membros/autores e live continuam pendentes.
+
+Comandos conservam o retorno de um registro. Coleções de escalares, listas de listas e contratos recursivos
+não são suportados. O compilador não executa o corpo para inferir ou provar seu retorno: o futuro runtime
+precisará validar os valores contra os contratos. O [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md)
+define esse incremento.
 
 ## Exposições HTTP, CLI, job e webhook
 
@@ -193,7 +234,7 @@ operação. Persistência, preenchimento de linhas antigas e `updated_at` contin
 
 O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
 0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
-novo build 0.2; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
+novo build 0.3; use `graph:build` e revise o diff para adotar a geração. A mudança de versão e do requisito
 aparece no diff para revisão, além dos campos e índices.
 
 ## Escopo por vínculo
@@ -399,7 +440,7 @@ antes/depois do carregamento e recusa de mudanças sem reconstrução automátic
 descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 127 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os 130 códigos de diagnóstico do compilador são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios

@@ -218,6 +218,16 @@ module Vetra
         end
       end
 
+      class Output < Fields
+        def record(name, entity:, optional: false)
+          field(name, 'record', entity: entity, optional: optional)
+        end
+
+        def collection(name, entity:, optional: false)
+          field(name, 'collection', entity: entity, optional: optional)
+        end
+      end
+
       class Operation < Fields
         attr_reader :attributes, :implementation
 
@@ -230,8 +240,17 @@ module Vetra
           field(name, type.to_s, **options)
         end
 
-        def returns(entity)
-          @attributes["returns"] = entity.to_s
+        def returns(entity = nil, collection: false, &block)
+          error('output_contract', 'Declare returns uma única vez, com entidade ou bloco.') if @attributes['returns'] || (block && entity) || (!block && !entity)
+          error('output_contract', 'collection exige true ou false e não pode acompanhar um bloco.') unless [true, false].include?(collection) && !(block && collection)
+          @attributes['returns'] = if block
+            builder = Output.new(@registry, @manifest, @domain, source(block)).evaluate(block)
+            { 'fields' => builder.fields }
+          elsif collection
+            { 'entity' => entity.to_s, 'collection' => true }
+          else
+            entity.to_s
+          end
         end
 
         def authorize(action, entity, record: nil)

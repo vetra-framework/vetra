@@ -39,6 +39,7 @@ module Vetra
           issue('duplicate_implementation', 'Referência de implementação usada por mais de uma operação.', nodes.last, suffix: '/implementation/ref') if nodes.size > 1
         end
         fail_if_errors!
+        prepare_contracts
         @currency_exponent = Currency.exponent(document.dig('app', 'currency'))
         money_owner = document['nodes'].find do |node|
           %w[entity contract].include?(node['kind']) && node['fields'].any? { |field| field.dig('type', 'name') == 'money' }
@@ -50,7 +51,7 @@ module Vetra
           case node['kind']
           when "domain" then domain(node)
           when "entity" then entity(node)
-          when "contract" then fields(node)
+          when "contract" then contract(node)
           when "policy" then policy(node)
           when "command", "query", "handler" then operation(node)
           when "event" then event(node)
@@ -141,12 +142,85 @@ module Vetra
         issue("domain_unrestricted", "Declare depends_on para verificar a fronteira deste domínio.", node, warning: true) if node['depends_on'].nil?
       end
 
+      def prepare_contracts
+        @contracts = each('contract').to_h { |node| [node['id'], node] }
+        @contract_children = @contracts.transform_values do |node|
+          node['fields'].filter_map { |field| field.dig('type', 'contract', 'id') }.uniq
+        end
+        states = {}
+        visit = lambda do |id|
+          if states[id] == :visiting
+            issue('contract_cycle', 'Contratos de saída não podem formar ciclos.', @contracts.fetch(id))
+            return
+          end
+          return if states[id] == :done
+          states[id] = :visiting
+          @contract_children.fetch(id).each { |child| visit.call(child) }
+          states[id] = :done
+        end
+        @contracts.each_key { |id| visit.call(id) }
+        fail_if_errors!
+        @query_outputs = []
+        collect = lambda do |id|
+          return if @query_outputs.include?(id)
+          @query_outputs << id
+          @contract_children.fetch(id).each { |child| collect.call(child) }
+        end
+        each('query').each { |query| collect.call(query.dig('output', 'id')) }
+        @restricted_contracts = @nodes.values.flat_map do |node|
+          [node.dig('input', 'id'), node['kind'] == 'command' && node.dig('output', 'id'), node['kind'] == 'event' && node.dig('payload', 'id')]
+        end.select { |id| id.is_a?(String) }.uniq
+        @contract_privacy = {}
+      end
+
+      def privacy_rank(privacy)
+        return 0 unless privacy['personal']
+        privacy['classification'] == 'sensitive' ? 2 : 1
+      end
+
+      def contract_privacy_rank(id)
+        @contract_privacy[id] ||= @contracts.fetch(id)['fields'].map do |field|
+          child = field.dig('type', 'contract', 'id')
+          [privacy_rank(field['privacy']), child ? contract_privacy_rank(child) : 0].max
+        end.max || 0
+      end
+
+      def structured_output?(node)
+        node['kind'] == 'contract' && @query_outputs.include?(node['id']) && !@restricted_contracts.include?(node['id'])
+      end
+
+      def require_structured_outputs(node, suffix)
+        unless @document['requires'].include?('vetra.structured_outputs')
+          issue('ir_feature', 'Retornos estruturados exigem vetra.structured_outputs.', node, suffix: suffix)
+        end
+      end
+
+      def contract(node)
+        fields(node)
+        return unless node['collection']
+        require_structured_outputs(node, '/collection')
+        issue('output_shape', 'Coleção raiz é permitida somente na saída de consultas.', node, suffix: '/collection') unless structured_output?(node)
+      end
+
+      def structured_field(node, field, at)
+        require_structured_outputs(node, "#{at}/type")
+        unless structured_output?(node) && (field.keys & %w[default set_by guarded generate normalize constraints]).empty?
+          issue('output_shape', 'Registros e coleções são campos de saída de consulta, sem regras de gravação ou geração.', node, suffix: "#{at}/type")
+        end
+        target = resolve(field.dig('type', 'contract'))
+        issue('output_shape', 'Um campo estruturado deve referenciar contrato de objeto, não uma coleção raiz.', node, suffix: "#{at}/type/contract") if target['collection']
+        if privacy_rank(field['privacy']) < contract_privacy_rank(target['id'])
+          issue('output_privacy', 'A classificação do campo composto não pode rebaixar a do contrato referenciado.', node, suffix: "#{at}/privacy")
+        end
+      end
+
       def fields(node)
         names = node['fields'].map { |field| field['name'] }
         issue("duplicate_field", "Nomes de campos devem ser únicos.", node, suffix: "/fields") unless names.uniq == names
         node['fields'].each_with_index do |field, i|
           at = "/fields/#{i}"
           type = field['type']
+          structured_field(node, field, at) if %w[record collection].include?(type['name'])
           if %w[decimal money].include?(type['name']) && type['scale'] > type['precision']
             issue("decimal_scale", "scale não pode exceder precision.", node, suffix: "#{at}/type")
           end

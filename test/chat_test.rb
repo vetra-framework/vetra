@@ -184,7 +184,7 @@ class ChatTest < GraphTest
       end
       built = compiler.write
       linked = compiler.link
-      assert_equal %w[chat.add_member#call chat.add_member_by_email#call chat.remove_member#call], linked.implementation_ids
+      assert_equal %w[chat.add_member#call chat.add_member_by_email#call chat.my_rooms#call chat.remove_member#call chat.room_page#call], linked.implementation_ids
       email_binding = linked.bindings.find { |binding| binding['ref'] == 'chat.add_member_by_email#call' }
       assert_equal %w[input rooms users_read], email_binding['parameters']
       assert_equal %w[chat.rooms chat.users_read], email_binding['arguments'].map { |argument| argument.dig('capability', 'id') }

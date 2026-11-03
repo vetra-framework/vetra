@@ -177,10 +177,20 @@ module Vetra
 
       def contract_usage(document)
         uses = Hash.new { |hash, key| hash[key] = [] }
+        contracts = document['nodes'].select { |node| node['kind'] == 'contract' }.to_h { |node| [node['id'], node] }
+        mark = lambda do |id, context|
+          return unless id
+          return if uses[id].include?(context)
+          uses[id] << context
+          contracts.fetch(id)['fields'].each do |field|
+            child = field.dig('type', 'contract', 'id')
+            mark.call(child, context) if child
+          end
+        end
         document['nodes'].each do |node|
-          uses[node.dig('input', 'id')] << 'input' if node['input']
-          uses[node.dig('output', 'id')] << 'output' if node['output']
-          uses[node.dig('payload', 'id')] << 'event' if node['kind'] == 'event'
+          mark.call(node.dig('input', 'id'), 'input') if node['input']
+          mark.call(node.dig('output', 'id'), 'output') if node['output']
+          mark.call(node.dig('payload', 'id'), 'event') if node['kind'] == 'event'
         end
         uses
       end
@@ -323,6 +333,7 @@ module Vetra
       end
 
       def impact(owner, key, before, after, contexts, prefix)
+        return 'breaking' if owner['kind'] == 'contract' && key == 'collection' && prefix.empty?
         return 'review' if %w[privacy guarded set_by transitions history tenant authorize calls uses domain depends_on implementation unsafe_effect].include?(key)
         return 'breaking' if owner['kind'] == 'route'
         return 'breaking' if %w[input output payload storage].include?(key)
