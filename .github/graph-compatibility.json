@@ -1,0 +1,11 @@
+{
+  "format_version": "1",
+  "changes": [
+    {
+      "artifact": "examples/chat/.vetra/graph.json",
+      "before_digest": "sha256:fae5a71e2f6d9fc50da1372b39d5014a0dae87ef58fc7924935990bdcabdcc94",
+      "after_digest": "sha256:5336fc8b95d018e61397b5aff24d26776b3cd8f5fc75513016f60fec567ac928",
+      "reason": "Correção de privacidade: retirada da rota HTTP de busca por e-mail e unicidade sobre o e-mail normalizado. O comando fica interno até existir fluxo de convite com consentimento. Dados antigos exigem normalização e resolução de duplicatas antes do índice único; o protótipo ainda não persiste dados."
+    }
+  ]
+}

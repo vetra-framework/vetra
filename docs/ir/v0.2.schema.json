@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:vetra:ir:0.2",
   "title": "Vetra Application Graph IR 0.2",
-  "description": "Contrato do ADR-001 com geração temporal proposta no ADR-027. Forma estrutural; referências, tipos de literais, manifesto, digest e demais invariantes exigem validação semântica.",
+  "description": "Contrato do ADR-001 com geração temporal definida no ADR-027. Forma estrutural; referências, tipos de literais, manifesto, digest e demais invariantes exigem validação semântica.",
   "type": "object",
   "properties": {
     "ir_version": {"const": "0.2"},
