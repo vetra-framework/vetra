@@ -1,7 +1,7 @@
 # ADR-031: Geração de SQL de revisão de autorização
 
 - Status: aceito
-- Aceite: integração direta na main, após testes do gerador e aplicação em PostgreSQL descartável.
+- Aceite: integração direta na main, após testes do gerador e aplicação em PostgreSQL descartável. Confirmado em 2026-11-03 pelo Claude, por delegação do mantenedor, após a auditoria K2 e das correções K5 (`fb41921`) e C2 (`4588b78`).
 - Data: 2026-11-03
 - Depende de: ADR-001 (IR), ADR-015/025 (planos revisáveis), ADR-020/030 (revisão de autorização)
 

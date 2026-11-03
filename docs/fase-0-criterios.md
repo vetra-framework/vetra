@@ -241,7 +241,7 @@ O link mantém `executor: pending` e preserva artefatos 0.1/0.2/0.3, incluindo r
 na 0.3, sem geração retroativa. A 0.3 recusa o requisito e as primitivas de vínculo; 0.5 é recusada como
 MENOR futura. Os quatro exemplos têm revisão de `ir_version` 0.3 → 0.4, sem quebra. O diff cobre adição com
 revisão de permissões, remoção como quebra, troca por Ruby e mudança da relação que altera a primitiva.
-O ADR-032 permanece proposto. Inclusão, remoção, preservação dos vínculos de `include:` e suas garantias
+O ADR-032 foi aceito em 2026-11-03. Inclusão, remoção, preservação dos vínculos de `include:` e suas garantias
 transacionais ainda dependem do executor; o critério 7 segue parcial.
 
 Os 14 testes de `timestamp_test.rb` cobrem `created_at` em entidades e junções, contratos CRUD e de registro,

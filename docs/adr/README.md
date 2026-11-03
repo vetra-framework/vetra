@@ -5,8 +5,8 @@ os documentos abaixo desenvolvem essas decisões. Cada ADR deve ser escrito ante
 componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos** (001 a 021). Os ADRs de resolução
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
 há seis ADRs de resolução aceitos (022 a 026 e 030), duas evoluções de formato aceitas (027 e 028) e o suporte
-declarativo a live (029), além da geração inicial de SQL de revisão (031). O ADR-032 está proposto para os
-comandos gerados de vínculo de `many_to_many`, com implementação entregue para auditoria. O runtime segue pendente.
+declarativo a live (029), além da geração inicial de SQL de revisão (031). O ADR-032, também aceito, gera os
+comandos de vínculo de `many_to_many`. O runtime segue pendente.
 
 ## Escritos
 
@@ -43,7 +43,7 @@ comandos gerados de vínculo de `many_to_many`, com implementação entregue par
 | [029](029-declaracoes-live-e-dependencias.md) | Declarações live e dependências verificáveis | aceito |
 | [030](030-tenants-da-revisao-de-autorizacao.md) | Tenants da revisão de autorização | aceito |
 | [031](031-geracao-de-sql-de-revisao-de-autorizacao.md) | Geração de SQL de revisão de autorização | aceito |
-| [032](032-comandos-gerados-de-vinculo.md) | Comandos gerados de vínculo de many_to_many | proposto |
+| [032](032-comandos-gerados-de-vinculo.md) | Comandos gerados de vínculo de many_to_many | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

@@ -2,7 +2,7 @@
 
 - Status: aceito
 - Implementação posterior: ADR-031 (geração inicial de SQL, sem executor de migrações).
-- Aceite: integração direta na main, após validação da sonda e revisão dos limites nesta continuação.
+- Aceite: integração direta na main, após validação da sonda e revisão dos limites nesta continuação. Confirmado em 2026-11-03 pelo Claude, por delegação do mantenedor, após a auditoria K2.
 - Data: 2026-11-03
 - Resolve: ADR-020, questão 6 (origem do tenant no trigger de instrução)
 - Depende de: ADR-005 (contexto e RLS), ADR-020 (revisão por tenant)

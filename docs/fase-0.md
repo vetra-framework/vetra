@@ -6,9 +6,9 @@ Os 21 ADRs (001 a 021) foram aceitos. A fase 0 ainda não cumpriu todos os crit�
 O compilador continua validando e vinculando as IRs 0.1, 0.2 e 0.3 com seus schemas e semânticas originais.
 Novos builds usam 0.4, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
 retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
-live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032 proposto](adr/032-comandos-gerados-de-vinculo.md)
-descreve os comandos gerados de `many_to_many`, exclusivos da IR 0.4 e sem executor. A C1 está em auditoria,
-rodada 2 após devolução; a versão da gem permanece alpha.5.
+live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
+descreve os comandos gerados de `many_to_many`, exclusivos da IR 0.4 e sem executor; a versão da gem
+permanece alpha.5.
 
 ## Executar
 
@@ -431,8 +431,7 @@ por Ruby no mesmo ID exige revisão de implementação, sem inferir equivalênci
 pela primitiva também destaca implementação e permissões, inclusive ao mudar `through` ou `include:`.
 As IRs 0.1/0.2/0.3 continuam validando, comparando e vinculando sem geração retroativa, com seus schemas
 publicados inalterados. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado; um novo build 0.4
-adota o padrão e exige revisão. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md) está **proposto**;
-seu aceite permanece com o mantenedor.
+adota o padrão e exige revisão. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md) está aceito.
 
 ### Comandos de membros no chat
 

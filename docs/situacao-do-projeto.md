@@ -4,9 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `de84819`, com a C2 do Codex aprovada pela auditoria do Claude na rodada 3:
-  `db:authz:sql` recusa rotinas `SECURITY DEFINER` preexistentes que levam a donos com poderes perigosos.
-  A C1 foi aprovada na rodada 2: ADR-032 proposto, IR 0.4 e comandos declarativos de vínculo, sem executor.
+- **Atualizado em:** 2026-11-03, sobre `a835d6d`. O mantenedor delegou ao Claude as decisões pendentes: ADR-032
+  aceito com os comandos de vínculo ligados por padrão, ADRs 028 a 031 confirmados e a rodada 2 do
+  [quadro dos agentes](tarefas-dos-agentes.md) definida. Antes, a C2 (`4588b78`) passou a recusar rotinas
+  `SECURITY DEFINER` preexistentes que levam a donos com poderes perigosos.
   O fluxo voltou a ser integração direta na `main`, sem branches nem PRs; a proteção da branch passa a bloquear só
   force-push e exclusão.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
@@ -16,7 +17,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 31 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029 e o gerador SQL inicial 031; ADR-032 proposto, aguardando aceite do mantenedor |
+| ADRs | 32 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031 e os comandos de vínculo 032 |
 | Testes do compilador e exemplos | 355 testes e 2.984 asserções, sem falhas (com a C2); 141/141 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
@@ -93,7 +94,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   IR externa, link com semântica anterior e diff cobertos. Novos builds usam IR 0.4 com
   `vetra.relation_commands` quando há geração; schemas 0.1/0.2/0.3 preservados, sem geração retroativa.
   A IR 0.3 recusa o novo requisito e as novas primitivas. O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
-  está proposto; o chat conserva seus comandos explícitos e os critérios 6/7 continuam parciais.
+  está aceito; o chat conserva seus comandos explícitos e os critérios 6/7 continuam parciais.
 - [x] Papéis, políticas, `crud`, `money`, `decimal`, `enum`, `slug`, privacidade, índices e chaves compostas por
   tenant
 - [x] `money` sem `scale` segue o expoente da moeda da aplicação; uma escala explícita inferior é recusada
@@ -305,19 +306,23 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **031** Geração inicial de SQL de revisão de autorização: CLI sem aplicação automática, checagens de
   pacote/banco/papéis e sonda que aplica o SQL gerado; integrado nesta continuação
 
-**Proposto, com implementação em auditoria**
-- [ ] **032** Comandos gerados de vínculo de `many_to_many`: nomenclatura, opt-out, colisões explícitas,
-  contratos, autorização pelo dono e diff, na IR 0.4 conforme o ADR-001 §4. Aceite pelo mantenedor pendente;
-  implementação C1 sem commit, em auditoria, rodada 2 após devolução
+- [x] **032** Comandos gerados de vínculo de `many_to_many`: nomenclatura, opt-out, colisões explícitas,
+  contratos, autorização pelo dono e diff, na IR 0.4; integrado em `58993e2`, aceito em 2026-11-03 pelo Claude
+  por delegação do mantenedor, mantendo a geração ligada por padrão
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
-- [ ] Claude repetir a auditoria da C1 na árvore de trabalho (rodada 2 após devolução); mantenedor decidir o
-  aceite do ADR-032 e, separadamente, o padrão opt-out dos comandos de vínculo (`crud` é opt-in)
-- [ ] Decidir se a `sonda_adr015` ganha os quatro casos do ADR-025 (índice e chave em tabela particionada, chave
-  composta por tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18
-- [ ] Decidir quais das questões em aberto dos demais ADRs aceitos merecem um ADR de resolução agora. Nenhuma
-  bloqueia a persistência; o ADR-009 tem a do ator de sistema de um workflow, que o ADR-024 já responde em regra
+- [x] Em 2026-11-03, por delegação do mantenedor, o Claude decidiu:
+  - aceitar o ADR-032 e manter a geração dos comandos de vínculo ligada por padrão, e confirmar o aceite dos
+    ADRs 028 a 031, auditados na K2;
+  - levar à `sonda_adr015` os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por
+    tenant, `CHECK` de `enum`), com CI no PostgreSQL 17 e 18: tarefa K6;
+  - não abrir agora ADR de resolução para as questões em aberto dos demais ADRs aceitos: nenhuma bloqueia a
+    persistência, e cada uma será tratada quando o componente correspondente começar;
+  - manter recusada a consulta sem `returns` nem `authorize`: contrato e autorização explícitos são regra de
+    desenho, e o critério 7 continua parcial por isso.
+- [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5 depois da C3, porque a publicação fixa o schema 0.4 e o que
+  a C3 acrescentar.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -460,14 +465,15 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 ## 7. Próximos passos propostos
 
-Ordem sugerida; cada passo é um ou mais commits na `main`, e o aceite só vale quando o mantenedor o integra.
+Ordem sugerida; cada passo é um ou mais commits na `main`. A rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
+fecha lacunas declarativas pequenas e a sonda do ADR-025; a persistência é o passo seguinte.
 
 1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
    por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
    inclusão por e-mail, estão implementados, assim como o `created_at` implícito na IR 0.2. Os demais itens
    seguem pendentes nas seções 4 e 5. As consultas do chat já têm coleções e contratos compostos na IR 0.3.
    No chat, `room_page` também declara live com dependências verificadas. A geração automática dos comandos
-   de vínculo está implementada na C1, em auditoria; o chat a desliga para conservar seus comandos explícitos.
+   de vínculo está implementada (C1, ADR-032); o chat a desliga para conservar seus comandos explícitos.
    Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Começar a persistência (o Vetra Data): os pré-requisitos de ADR estão tratados. É código e testes, e só
    começa quando quem revisa pedir

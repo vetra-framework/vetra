@@ -1,7 +1,7 @@
 # ADR-028: Contratos compostos e coleções de consultas
 
 - Status: aceito
-- Aceite: integração direta na main, após validação da implementação e dos exemplos nesta continuação.
+- Aceite: integração direta na main, após validação da implementação e dos exemplos nesta continuação. Confirmado em 2026-11-03 pelo Claude, por delegação do mantenedor, após a auditoria K2.
 - Data: 2026-11-02
 - Depende de: ADR-001 (IR e compatibilidade), ADR-007 (consultas e contratos), ADR-027 (IR 0.2)
 

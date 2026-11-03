@@ -27,6 +27,22 @@ Situações: `a fazer`, `em andamento`, `em auditoria`, `devolvida`, `concluída
   (`fase-0.md`, critérios e situação) coerentes.
 - Entregar sem commit, com o relatório do protocolo.
 
+## Rodada 2 (2026-11-03)
+
+O mantenedor delegou ao Claude as decisões pendentes. Decidido: ADR-032 aceito, com a geração ligada por padrão;
+ADRs 028 a 031 confirmados; nenhuma questão em aberto vira ADR de resolução agora; a consulta sem `returns` nem
+`authorize` continua recusada. O Codex não alcança o PostgreSQL no sandbox, então as tarefas com sonda ficam com
+o Claude e as de compilador podem ir para os dois.
+
+| ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
+|---|---|---|---|---|---|
+| C3 | `rounding:` em `currency` (construto da proposta hoje recusado, critério 7): ADR proposto, DSL, IR em nova MENOR conforme o ADR-001 §4, validador, diff e docs | Codex | em andamento | — | Auditoria pelo Claude |
+| K6 | `sonda_adr015`: os quatro casos do ADR-025 (índice e chave em tabela particionada, chave composta por tenant, `CHECK` de `enum`), na CI do PostgreSQL 17 e 18 | Claude | a fazer | — | Auditoria pelo Codex |
+| C4 | `rate_limit:` em `can` (construto da proposta hoje recusado, critério 7), depois da C3 e no mesmo formato | Codex | a fazer | — | — |
+
+Depois desta rodada: a gem alpha.5 pode ser publicada pelo mantenedor, e o passo seguinte é começar a
+persistência.
+
 ## Auditoria C1
 
 Implementado pelo Codex sobre `1aca944`; auditado pelo Claude; decisão do Claude.

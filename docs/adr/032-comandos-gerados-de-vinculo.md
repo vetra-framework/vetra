@@ -1,6 +1,7 @@
 # ADR-032: Comandos gerados de vínculo de many_to_many
 
-- Status: proposto
+- Status: aceito
+- Aceite: 2026-11-03, pelo Claude por delegação do mantenedor, após a auditoria da C1 (`58993e2`).
 - Data: 2026-11-03
 - Depende de: ADR-001, ADR-007 e ADR-016
 
@@ -67,9 +68,11 @@ Precisamos de uma geração determinística que não substitua código da aplica
 
 Relações existentes adotam a geração após rebuild e revisão. O chat mantém seus comandos explícitos.
 `crud` é opt-in, enquanto os comandos de vínculo são opt-out: a geração fica ligada por padrão e precisa
-de `commands: false` para ser desligada. O mantenedor decidirá esse padrão separadamente.
+de `commands: false` para ser desligada. O padrão foi mantido no aceite: a declaração `many_to_many` já é a
+escolha explícita da aplicação, como a linha `crud`; os comandos gerados não ganham rota, política nem
+concessão, e o diff os mostra como adição a revisar. Assim a geração segue a proposta sem ampliar a superfície.
 Junções com dados de negócio, nomes ambíguos ou colisões precisam desligar a geração. O diff não atribui
-segurança à mera presença de uma política nem prova equivalência de Ruby. O aceite deste ADR é do mantenedor.
+segurança à mera presença de uma política nem prova equivalência de Ruby.
 
 ## Garantia
 

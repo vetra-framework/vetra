@@ -1,7 +1,7 @@
 # ADR-029: Declarações live e dependências verificáveis
 
 - Status: aceito
-- Aceite: integração direta na main, após validação da implementação e dos exemplos nesta continuação.
+- Aceite: integração direta na main, após validação da implementação e dos exemplos nesta continuação. Confirmado em 2026-11-03 pelo Claude, por delegação do mantenedor, após a auditoria K2.
 - Data: 2026-11-03
 - Depende de: ADR-001 (IR e recursos), ADR-004 (capacidades), ADR-020 (entrega live), ADR-028 (saídas de consultas)
 
