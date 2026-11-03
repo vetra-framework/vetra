@@ -19,7 +19,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local desta continuação | Gerador SQL com 14 testes novos e aplicação do SQL gerado: 17/17 verificações no PostgreSQL 18.6. Quatro exemplos passaram; gate sem quebra. Versão alpha.5, IR preservada |
-| PRs e commits locais | #1 a #35 integrados; `money` em `635d926`; exposições em `7bd44cb`; verificações em `6263777`; membros do chat em `dbbd713`; README em `bb340ea`; inclusão por e-mail, correção de leitura e IR 0.2 em `694b34d`; correções de revisão no PR #36 |
+| PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
 | Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
 

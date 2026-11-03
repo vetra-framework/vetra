@@ -123,7 +123,12 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 
 - Um arquivo por decisão, nomeado `NNN-titulo-curto.md` (por exemplo, `016-ciclo-de-vida-da-operacao.md`).
 - Use o modelo abaixo.
-- Um ADR aceito não é editado; uma mudança de decisão gera um novo ADR que o substitui.
+- Um ADR aceito não é editado; uma mudança de decisão gera um novo ADR que o substitui. As únicas exceções são
+  linhas de referência no cabeçalho, que apontam para fora sem mudar o texto aceito: `Substituído por`,
+  `Questões resolvidas por`, `Evidência posterior` (sonda ou relatório adicionado depois do aceite) e
+  `Implementação posterior` (ADR ou código que implementa a decisão).
+- Um ADR novo entra como `proposto`. O status passa a `aceito` quando o mantenedor o aceita, e a linha `Aceite`
+  registra a data e quem aceitou.
 - Uma questão em aberto de um ADR aceito se resolve por um **ADR de resolução**, como descrito a seguir.
 
 ### Resolver uma questão em aberto de um ADR aceito
