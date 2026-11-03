@@ -4,26 +4,28 @@ O [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md) lista 11 testes de aceitação p
 cada um com a suíte atual e registra o que está coberto, o que está parcial e o que é lacuna. Ele não declara a
 fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 
-Verificação da rodada 2 em 2026-11-03, Ruby 4.0.9, base `6b371d3031bfdb28ba49cc39601c5a86117401af`:
-**393 testes e 4.307 asserções**, sem falhas, erros ou testes ignorados; **143/143 códigos**
-exercitados em `bundle exec rake test:diagnostics`. São 34 ADRs aceitos.
+Verificação em 2026-11-03, Ruby 4.0.9, base `131478b9ec9b25a12074189dfa9c9248805197fb`:
+**428 testes e 4.618 asserções**, sem falhas, erros ou testes ignorados; **154/154 códigos**
+exercitados em `bundle exec rake test:diagnostics`. São 35 ADRs aceitos.
 
 O build usa IR 0.6. `rate_limit:` em `can` declara limite por política, ator e tenant e só exige
 `vetra.rate_limit` quando usado. Os 22 testes de `rate_limit_test.rb` cobrem sintaxe positiva com unidade
 e janela, canonicalização em segundos, IR externa, compatibilidade das versões 0.1 a 0.5, link sem
 execução, adulterações e diff de segurança. O teste do blog também confere a concessão administrativa
 sem limite.
-O contrato da rodada 2 admite a operação sem consumir cotas se alguma concessão aplicável a autoriza
+O contrato admite a operação sem consumir cotas se alguma concessão aplicável a autoriza
 sem limite; se todas as que autorizam têm limite, exige e consome todas as cotas. Essa admissão conjunta
 depende do futuro runtime e ainda não tem teste operacional. Schemas 0.1 a 0.5 permanecem idênticos à base.
 
-Os quatro exemplos foram reconstruídos e passam em check, validação com fontes e link:
-blog com 52 nós, mini CRM com 36, mini CRM com revendas com 49 e chat com 64. Só o blog exige o recurso;
-a permissão visitante de criar comentários reproduz `rate_limit: "5/min"` da proposta. A aprovação de
-comentários tem comando explícito, e `approved` fica protegido por `set_by` e fora das entradas CRUD.
-O gate contra `origin/main` (`6b371d3`) aponta **zero quebras**, 27 mudanças para revisão e três
-metadados. Não há quebra intencional nova a declarar. O SQL dos dois CRMs continua igual ao da base,
-exceto pelo comentário do digest; não há mudança de comportamento de banco nem sonda afetada.
+Os quatro exemplos passam em check, validação com fontes e link: blog com 52 nós, mini CRM com 36,
+mini CRM com revendas com 49 e chat com 64. O gate contra `origin/main` (`cc013b7`) não encontra mudanças
+nos modelos ou metadados dos quatro grafos. A IR e os schemas publicados permanecem inalterados.
+
+O mapeamento físico inicial do [ADR-035](adr/035-mapeamento-fisico-inicial.md) tem 35 testes e
+311 asserções em `schema_sql_test.rb`: tipos, nulidade, defaults, nomes, colisões, FKs, ciclos,
+tenant implícito, raiz e aplicações globais. Quatro fixtures integrais fixam o DDL; os 11 novos códigos
+de diagnóstico são exercitados pela suíte. A aplicação do DDL no PostgreSQL 17/18 cabe à auditoria do
+Claude; não há resultado de banco registrado. Planos, migração, papéis, RLS e triggers seguem pendentes.
 
 `git diff --check` passa e não há mudanças de modo em scripts. Os critérios 6 e 7 continuam parciais:
 blog recusa 3 de 14 construtos conferidos, mini CRM 3 de 6 e chat 4 de 9. Contadores de taxa, identidades
@@ -38,7 +40,7 @@ encontrados nos pontos de emissão de `lib/`.
 
 A verificação agora faz parte do repositório. `test/support/diagnostic_coverage.rb` extrai com Prism os códigos
 literais passados a `issue`, `fail!`, `error`, `Error.single` e `Diagnostic.new(code:)`, com arquivo e linha de
-cada ocorrência. São 143 códigos em 234 pontos de emissão. O carregador de teste
+cada ocorrência. São 154 códigos em 247 pontos de emissão. O carregador de teste
 `diagnostic_coverage_runner.rb` instrumenta `Diagnostic.new`, que também recebe o que `Error.single` constrói,
 e confere a cobertura depois da suíte. Códigos sem emissão e códigos emitidos sem declaração literal
 reconhecida fazem a tarefa terminar com erro. A instrumentação existe só no processo de teste, fora da gem.
@@ -60,7 +62,7 @@ continua sendo o caminho de teste para elas.
 | # | Critério (resumo) | Situação | Evidência ou lacuna |
 |---|---|---|---|
 | 1 | Schema válido, exemplos com/sem tenant, falhas estruturais | Coberto | Exemplos documentais com e sem tenant passam pelo validador (`canonical_test`) e os exemplos compilam (`compiler_test`). Falham estruturalmente: versão futura, propriedade desconhecida, nó e referência de `kind` errados, operador desconhecido, número de ponto flutuante, **propriedade obrigatória ausente**, **decimal ou `money` com valor numérico** (`test_missing_required_properties_fail_structurally`, `test_decimal_and_money_literals_must_not_be_json_numbers`) e o próprio schema é válido no metaschema do Draft 2020-12 (`test_schema_is_a_valid_draft_2020_12_document`). |
-| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb`, `live_test.rb`, `authorization_sql_test.rb`, `relation_commands_test.rb`, `rounding_test.rb` e `rate_limit_test.rb`, emite os 143 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
+| 2 | Cada regra semântica tem caso que a dispara | Coberto, com verificação na CI | A medição inicial encontrou 78 de 121 códigos; `diagnostics_test.rb` cobriu os 43 que faltavam. A suíte atual, incluindo `money_test.rb`, `timestamp_test.rb`, `query_output_test.rb`, `live_test.rb`, `authorization_sql_test.rb`, `relation_commands_test.rb`, `rounding_test.rb`, `rate_limit_test.rb` e `schema_sql_test.rb`, emite os 154 códigos do catálogo. `test:diagnostics` falha se faltar um código e informa suas origens. Limite: cobertura por código, não por ramo ou ponto de emissão. |
 | 3 | Mesmo resultado entre checkouts, descoberta embaralhada, vetores Unicode | Coberto | Reprodução em diretórios diferentes, vetores JCS, ordem de enums e arrays posicionais já eram cobertos. `test_discovery_order_does_not_change_the_graph_bytes` embaralha a ordem em que o `Find` entrega os caminhos (3 sementes) e confere os mesmos bytes; ele confere também que a ordem mudou e falha se o compilador deixar de ordenar (verificado removendo `.sort` de `manifest.rb` numa cópia). |
 | 4 | O hash reproduz o valor; mudanças invalidam o build | Coberto | `digest_excludes_only_root_digest_and_preserves_array_order`, `helpers_lockfile_additions_and_removals_invalidate_sources`, `mutating_policy_invalidates_digest`. |
 | 5 | Versão suportada, MENOR/MAIOR futura, recurso não implementado | Coberto | `future_versions_features_and_unknown_properties_are_rejected`, `future_format_unknown_features_and_invalid_json_fail_before_registration`, `timestamp_test.rb`, `query_output_test.rb`, `relation_commands_test.rb`, `rounding_test.rb` e `rate_limit_test.rb`: leitura e link de 0.1/0.2/0.3/0.4/0.5 com semânticas antigas, incluindo retornos estruturados e live na 0.3; rebuild em 0.6 e revisão explícita da versão nos quatro exemplos, sem quebra. O schema e a validação semântica exatos recusam o requisito ou a primitiva de vínculo na 0.3 e o campo/requisito de arredondamento em 0.1 a 0.4, além do campo/requisito de taxa em 0.1 a 0.5; 0.7, 1.0 e recursos desconhecidos são recusados. Não há conversão automática. |

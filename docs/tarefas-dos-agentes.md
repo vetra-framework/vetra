@@ -50,11 +50,32 @@ incorpora o parecer do Codex.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | em andamento | — | Auditoria pelo Claude |
+| C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | este commit | Aprovada na rodada 1; ADR-035 aceito por delegação ([auditoria](#auditoria-c5)) |
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | a fazer | — | Auditoria pelo Codex |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
+
+## Auditoria C5
+
+Implementado pelo Codex sobre `131478b`; auditado pelo Claude; decisão do Claude.
+
+**Rodada 1 — aprovada.** ADR-035 proposto e `Vetra::SQL::Schema`, função pura da IR para um modelo congelado e o
+DDL de um banco vazio em três blocos (schemas, tabelas com chaves e índices, FKs), com fixtures dos quatro exemplos.
+Suíte com 428 testes e 4.618 asserções, 154/154 diagnósticos; gate sem alterações nos grafos.
+
+O Claude aplicou o DDL no PostgreSQL 18.6, um banco vazio por exemplo: 19/19 verificações. O SQL é igual aos
+fixtures; os quatro exemplos criam 13 tabelas e 15 FKs numa transação, sem índice inválido, e uma segunda aplicação
+falha (`42P07`). No mini CRM com revendas: lead com vendedor nulo é aceito e recebe UUID v4; revenda ou vendedor de
+outro tenant é recusado (`23503`); `users` e `dealers` têm FK para a raiz mesmo sem `belongs_to`; `money` exige o
+par, recusa `NaN` e moeda com mais casas que a escala (`23514`); `enum` e comprimento são conferidos; as FKs adiáveis
+permitem inverter a ordem de inserção numa transação; excluir uma empresa com filhas é recusado. O PostgreSQL 17
+entra na CI com a K7.
+
+| Ponto | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A coluna de moeda aceita qualquer código ISO cujo expoente cabe na escala, não só a moeda da aplicação | não | Não ajustar: o ADR-017 permite valores em outras moedas e deixa a moeda padrão para a entrada |
+| `downcase` depende da collation do banco | não | Não ajustar: registrado no ADR-035; a implantação fixa a collation |
 
 ## Auditoria C4
 

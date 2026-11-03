@@ -4,10 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `45b6446`, com a rodada 2 do [quadro dos agentes](tarefas-dos-agentes.md)
-  concluída e a rodada 3, da persistência, [planejada](plano-persistencia.md). A C4 declara `rate_limit:` em `can`, com limite por política, ator e tenant na IR 0.6 e requisito
-  emitido somente quando usado; o ADR-034 foi aceito pelo Claude, por delegação do mantenedor, como antes o 032 e
-  o 033. Os schemas 0.1 a 0.5 continuam preservados; contadores e runtime permanecem pendentes.
+- **Atualizado em:** 2026-11-03, sobre `131478b`, com a C5 da [persistência](plano-persistencia.md) aprovada pela
+  auditoria do Claude: função pura da IR para modelo congelado e DDL de banco vazio, com fixtures dos quatro
+  exemplos, aplicada no PostgreSQL 18.6. O [ADR-035](adr/035-mapeamento-fisico-inicial.md) foi aceito pelo Claude,
+  por delegação do mantenedor. A IR permanece 0.6; planos, aplicação, papéis, RLS e triggers de transição seguem pendentes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -15,14 +15,14 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 34 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034 |
-| Testes do compilador e exemplos | 393 testes e 4.307 asserções, sem falhas; 143/143 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 35 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034 |
+| Testes do compilador e exemplos | 428 testes e 4.618 asserções, sem falhas; 154/154 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
-| Verificação local da C4 | Rodada 2: 22 testes de taxa; suíte com 143/143 diagnósticos. Quatro grafos em 0.6 passam em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`6b371d3`): zero quebras, 27 mudanças para revisão e três metadados. Só o blog exige `vetra.rate_limit`; comentários incluem a permissão visitante da proposta e aprovação protegida. Schemas 0.1 a 0.5 e quadro de tarefas preservados, sem mudanças de modo. O SQL dos CRMs muda apenas no comentário de digest. |
+| Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação no PostgreSQL 17/18 pendente da auditoria do Claude. |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
-| Runtime | Não existe. Há compilador e gerador SQL inicial; aplicação de migrações e execução de operações seguem pendentes |
+| Runtime | Não existe. Há compilador, gerador de esquema físico e SQL de revisão; aplicação de migrações e execução de operações seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -47,6 +47,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
+
+**Mapeamento físico inicial**
+
+- [x] `Vetra::SQL::Schema`: IR validada para modelo profundamente congelado e DDL determinístico de banco
+  vazio, separado em schemas, tabelas/chaves/índices e FKs. Inclui tenant implícito, raiz distinta de tabelas
+  globais, junções e FKs compostas opcionais, sem alterar a IR. [Guia](db-schema-sql.md).
+- [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
+- [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
+  tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; o 17 entra na CI com o `db:plan --check` da K7.
 
 **Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.6, leitura da 0.1/0.2/0.3/0.4/0.5, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
@@ -333,6 +342,9 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   política/ator/tenant, concessão sem limite que dispensa as cotas, compatibilidade e diff de segurança; aceito
   em 2026-11-03 pelo Claude por delegação do mantenedor, após a auditoria da C4
 
+- [x] **035** Mapeamento físico inicial: modelo e DDL de banco vazio; aceito em 2026-11-03 pelo Claude por delegação
+  do mantenedor, após a auditoria da C5
+
 ## 3. Decisões e trabalho que dependem de quem revisa
 
 - [x] Em 2026-11-03, por delegação do mantenedor, o Claude decidiu:
@@ -459,8 +471,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
-  (022 a 025), mas os valores iniciais e as medições que eles registram estão por fazer, e nada da persistência
-  existe (veja os itens ADR-022 a ADR-025 abaixo)
+  (022 a 025). O modelo físico e o DDL de banco vazio estão implementados (ADR-035); planos,
+  aplicação, repositórios e as medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
@@ -503,5 +515,6 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) da rodada 3 leva cada exemplo a um banco
-   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate` (tarefas C5, K7, C6, C7 e K8 do
-   quadro). O plano incremental, os repositórios sobre o Sequel e a outbox ficam para a rodada 4
+   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. A C5 entrega o modelo físico e o
+   DDL inicial; faltam K7, C6, C7 e K8 do quadro. Plano incremental, repositórios sobre o Sequel e outbox
+   continuam fora da implementação inicial

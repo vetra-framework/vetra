@@ -14,6 +14,10 @@ aplicação e evolui o build para a IR 0.5.
 O [ADR-034](034-limite-de-taxa-por-permissao-e-ir-0-6.md), também aceito, declara `rate_limit:` por
 permissão, ator e tenant, com IR 0.6. O limite em execução e seus contadores continuam pendentes.
 
+O [ADR-035](035-mapeamento-fisico-inicial.md), aceito, define o mapeamento físico inicial,
+com modelo e DDL puro para banco vazio nos quatro exemplos. O [guia](../db-schema-sql.md) descreve a API
+e os limites; planos, aplicação, papéis, RLS e triggers de transição permanecem pendentes.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -52,6 +56,7 @@ permissão, ator e tenant, com IR 0.6. O limite em execução e seus contadores 
 | [032](032-comandos-gerados-de-vinculo.md) | Comandos gerados de vínculo de many_to_many | aceito |
 | [033](033-arredondamento-monetario-e-ir-0-5.md) | Arredondamento monetário da aplicação e IR 0.5 | aceito |
 | [034](034-limite-de-taxa-por-permissao-e-ir-0-6.md) | Limite de taxa por permissão e IR 0.6 | aceito |
+| [035](035-mapeamento-fisico-inicial.md) | Mapeamento físico inicial do grafo para PostgreSQL | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
