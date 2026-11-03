@@ -15,7 +15,7 @@ Situações: `a fazer`, `em andamento`, `em auditoria`, `devolvida`, `concluída
 | C1 | Geração automática dos comandos de vínculo de `many_to_many` (parte do critério 7) | Codex | concluída | `58993e2` | Devolvida na rodada 1, aprovada na rodada 2; ADR-032 proposto; CI verde ([auditoria](#auditoria-c1)) |
 | K4 | Protocolo novo: os dois implementam, auditoria cruzada, decisão e envio pelo Claude; lacunas do parecer | Claude | concluída | `e761f05` | Pedido do mantenedor; incorpora o parecer do Codex sobre `1aca944` |
 | K5 | `db:authz:sql`: fechar os caminhos que contornam a revisão (papéis assumíveis por `SET ROLE`, `ADMIN OPTION`, `REFERENCES`, `session_replication_role`) | Claude | concluída | `fb41921` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada com ajuste não bloqueante; CI verde, sonda 29/29 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k5)) |
-| C2 | `db:authz:sql`: recusar ou listar para revisão as rotinas `SECURITY DEFINER` existentes que a aplicação pode executar e que pertencem a papéis com poder de escrita, `TRUNCATE` ou `TRIGGER` nas tabelas protegidas (achado da auditoria da K5) | Codex | concluída | este commit | Rodadas 1 e 2 devolvidas pelo Claude; rodada 3 aprovada ([auditoria](#auditoria-c2)) |
+| C2 | `db:authz:sql`: recusar ou listar para revisão as rotinas `SECURITY DEFINER` existentes que a aplicação pode executar e que pertencem a papéis com poder de escrita, `TRUNCATE` ou `TRIGGER` nas tabelas protegidas (achado da auditoria da K5) | Codex | concluída | `4588b78` | Rodadas 1 e 2 devolvidas pelo Claude; rodada 3 aprovada; CI verde, sonda 59/59 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c2)) |
 
 ### C1: escopo
 
