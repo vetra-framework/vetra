@@ -56,10 +56,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   globais, junções e FKs compostas opcionais, sem alterar a IR. [Guia](db-schema-sql.md).
 - [x] `vetra db:plan` (K7): plano inicial em `db/plans/` com fase, lock e custo por passo e transação única; retrato
   `db/schema.sql` pelo `pg_dump` normalizado de um banco descartável; `--check` na CI no PostgreSQL 17 e 18, num job
-  próprio. Os quatro exemplos têm plano e retrato. [Guia](db-plan.md).
+  próprio, verde nos dois ([execução 41902986720](https://github.com/vetra-framework/vetra/actions/runs/41902986720)). Os quatro exemplos têm plano e retrato. [Guia](db-plan.md).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
-  tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; o 17 entra na CI com o `db:plan --check` da K7.
+  tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
 
 **Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.6, leitura da 0.1/0.2/0.3/0.4/0.5, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`

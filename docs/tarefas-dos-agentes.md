@@ -51,7 +51,7 @@ incorpora o parecer do Codex.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
-| K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | este commit | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada ([auditoria](#auditoria-k7)) |
+| K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
@@ -101,6 +101,10 @@ Verificado pelo Claude no PostgreSQL 18.6: `db:plan`, `--snapshot` e `--check` n
 primeiro é somente leitura (`target_session_attrs=read-write` e `options`), sem banco temporário restante; a classificação
 de lock de cada passo, aplicando os passos um a um com as tabelas já criadas (34 passos sobre tabelas existentes com o
 lock declarado; os 13 `CREATE TABLE` só travam a tabela nova). Suíte com 447 testes e 4.804 asserções, 166/166.
+
+Na CI ([execução 41902986720](https://github.com/vetra-framework/vetra/actions/runs/41902986720)), o `--check` passou nos
+quatro exemplos no PostgreSQL 17 e no 18: o `pg_dump` 17 reproduz o retrato gerado no 18, o que também confirma no 17
+o DDL da C5.
 
 ## Auditoria C5
 
