@@ -4,10 +4,11 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `131478b`, com a C5 da [persistência](plano-persistencia.md) aprovada pela
-  auditoria do Claude: função pura da IR para modelo congelado e DDL de banco vazio, com fixtures dos quatro
-  exemplos, aplicada no PostgreSQL 18.6. O [ADR-035](adr/035-mapeamento-fisico-inicial.md) foi aceito pelo Claude,
-  por delegação do mantenedor. A IR permanece 0.6; planos, aplicação, papéis, RLS e triggers de transição seguem pendentes.
+- **Atualizado em:** 2026-11-03, sobre `e0ee3ad`, com a K7 da [persistência](plano-persistencia.md): `vetra db:plan`
+  grava o plano inicial em `db/plans/`, e `--snapshot`/`--check` aplicam os planos num banco descartável e conferem o
+  retrato `db/schema.sql` ([guia](db-plan.md)). Antes, a C5 gerou o esquema físico do
+  [ADR-035](adr/035-mapeamento-fisico-inicial.md). A IR permanece 0.6; `db:migrate`, papéis, RLS e triggers de transição
+  seguem pendentes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -16,7 +17,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 35 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034 |
-| Testes do compilador e exemplos | 428 testes e 4.618 asserções, sem falhas; 154/154 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador e exemplos | 447 testes e 4.804 asserções, sem falhas; 166/166 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação no PostgreSQL 17/18 pendente da auditoria do Claude. |
@@ -53,6 +54,9 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `Vetra::SQL::Schema`: IR validada para modelo profundamente congelado e DDL determinístico de banco
   vazio, separado em schemas, tabelas/chaves/índices e FKs. Inclui tenant implícito, raiz distinta de tabelas
   globais, junções e FKs compostas opcionais, sem alterar a IR. [Guia](db-schema-sql.md).
+- [x] `vetra db:plan` (K7): plano inicial em `db/plans/` com fase, lock e custo por passo e transação única; retrato
+  `db/schema.sql` pelo `pg_dump` normalizado de um banco descartável; `--check` na CI no PostgreSQL 17 e 18, num job
+  próprio. Os quatro exemplos têm plano e retrato. [Guia](db-plan.md).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; o 17 entra na CI com o `db:plan --check` da K7.
@@ -471,7 +475,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
-  (022 a 025). O modelo físico e o DDL de banco vazio estão implementados (ADR-035); planos,
+  (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
   aplicação, repositórios e as medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O

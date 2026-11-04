@@ -12,6 +12,7 @@ class GraphTest < Minitest::Test
     Dir.mktmpdir('vetra-test-') do |directory|
       FileUtils.cp_r("#{PROJECT}/examples/#{name}/.", directory)
       FileUtils.rm_rf(File.join(directory, '.vetra'))
+      FileUtils.rm_rf(File.join(directory, 'db'))
       yield directory, Vetra::Graph::Compiler.new(root: directory)
     end
   end

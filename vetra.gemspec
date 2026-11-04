@@ -28,5 +28,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "json_schemer", "~> 2.5"
   spec.add_dependency "prism", "~> 1.0"
   spec.add_development_dependency "minitest", "~> 5.25"
+  spec.add_development_dependency "pg", "~> 1.6"
   spec.add_development_dependency "rake", "~> 13.2"
 end

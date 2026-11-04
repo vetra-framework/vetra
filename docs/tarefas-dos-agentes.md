@@ -51,10 +51,56 @@ incorpora o parecer do Codex.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
-| K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | a fazer | — | Auditoria pelo Codex |
+| K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | este commit | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada ([auditoria](#auditoria-k7)) |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
+
+## Auditoria K7
+
+Implementado pelo Claude sobre `e0ee3ad`; auditado pelo Codex; decisão do Claude. O sandbox do Codex não alcança o
+PostgreSQL, então a aplicação real foi feita pelo Claude no PostgreSQL 18.6; o 17 roda no job `db-plan` da CI.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Uma URL com senha mal codificada fazia a CLI imprimir a mensagem do driver com a senha | sim | Ajustar: erros de URL e conexão viram `db_connection` com classe e SQLSTATE |
+| A normalização do retrato tirava linhas `--` e `SET` e espaços também dentro de literais e corpos de função, e dois esquemas diferentes davam o mesmo retrato | sim | Ajustar: `StatementScanner` acompanha literais, comentários de bloco e instruções abertas; a normalização só age entre instruções |
+| `--snapshot` aplicava planos editados sem conferir a IR, e um `COMMENT ON DATABASE` chegaria ao servidor | sim | Ajustar: `--snapshot` só aplica planos que a IR gera, como o `--check` |
+| A suíte falhava com os `db/` dos exemplos copiados pelos testes | sim | Ajustar: `with_app` remove `db/`, artefato gerado como `.vetra/` |
+| Um default com uma linha `-- vetra:` era lido como marcador e o plano gerado era recusado | sim | Ajustar: o leitor do plano usa o mesmo scanner; marcadores só contam entre instruções |
+| O formato só tem a transação única; `CREATE INDEX CONCURRENTLY` exigirá passos fora de transação | não | Não ajustar agora: registrado no guia como pré-requisito da rodada 4 |
+
+**Rodada 2 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A normalização tirava o CR de `CRLF` dentro de literais, e `'a
+b'` e `'a
+b'` davam o mesmo retrato | sim | Ajustar: só o LF delimitador sai de cada linha |
+| Um default com CR saía cru no plano, e o segundo `db:plan` recusava o próprio plano | sim | Ajustar: o gerador da C5 escreve caracteres de controle como escapes de E-string; os fixtures da C5 não mudaram |
+
+**Rodada 3 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Um `PGSERVICE` herdado podia levar o `pg_dump` a outro servidor ou banco | sim | Ajustar: o `pg_dump` recebe em `--dbname` os parâmetros efetivos da conexão temporária e roda sem as variáveis `PG*` herdadas; a senha vai só em `PGPASSWORD` |
+
+**Rodada 4 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `target_session_attrs` ficava de fora, e com vários hosts o `pg_dump` podia escolher outro servidor | sim | Ajustar: o servidor efetivo é fixado. Ao reproduzir, o Claude achou um defeito anterior: a conexão ao banco temporário reenviava a lista de hosts e falhava no servidor somente leitura; ela também fica fixa no servidor da conexão administrativa |
+| `options` ficava de fora | sim | Ajustar: preservado, com teste do parse pela libpq |
+
+**Rodada 5 — aprovada pelo Codex**, sem achados novos.
+
+Verificado pelo Claude no PostgreSQL 18.6: `db:plan`, `--snapshot` e `--check` nos quatro exemplos, inclusive com
+`PGSERVICE`, `PGDATABASE` e `PGHOST` herdados apontando para outro servidor, e com uma URL de dois servidores cujo
+primeiro é somente leitura (`target_session_attrs=read-write` e `options`), sem banco temporário restante; a classificação
+de lock de cada passo, aplicando os passos um a um com as tabelas já criadas (34 passos sobre tabelas existentes com o
+lock declarado; os 13 `CREATE TABLE` só travam a tabela nova). Suíte com 447 testes e 4.804 asserções, 166/166.
 
 ## Auditoria C5
 

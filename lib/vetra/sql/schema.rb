@@ -14,6 +14,7 @@ module Vetra
       }.freeze
       TEXT_TYPES = %w[string text email enum].freeze
       SYSTEM_COLUMNS = %w[tableoid xmin cmin xmax cmax ctid].freeze
+      LITERAL_ESCAPES = { "'" => "''", '\\' => '\\\\', "\n" => '\\n', "\r" => '\\r', "\t" => '\\t' }.freeze
 
       def initialize(document)
         @document = Graph::Data.copy(document)
@@ -246,8 +247,9 @@ module Vetra
 
       def text_literal(value)
         validate_text!(value)
-        # E-string explícita: independe de standard_conforming_strings, sem SQL fornecido pelo grafo.
-        "E'#{value.gsub(/[\\']/) { |character| character == "'" ? "''" : "\\\\" }}'"
+        # E-string explícita: independe de standard_conforming_strings, sem SQL fornecido pelo grafo. Caracteres de
+        # controle saem como escapes, para que o plano seja texto de linhas LF sem bytes de controle dentro de literais.
+        "E'#{value.gsub(/[\\'\x01-\x1f\x7f]/) { |character| LITERAL_ESCAPES.fetch(character) { format('\\x%02X', character.ord) } }}'"
       end
 
       def foreign_keys(table)

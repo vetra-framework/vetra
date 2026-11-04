@@ -6,7 +6,7 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
@@ -14,18 +14,34 @@ module Vetra
         flags.on('--sql-schema NAME', 'Schema novo do SQL de revisão de autorização') { |value| options[:schema] = value }
         flags.on('--owner-role NAME', 'Papel proprietário já existente') { |value| options[:owner_role] = value }
         flags.on('--app-role NAME', 'Papel da aplicação já existente') { |value| options[:app_role] = value }
+        flags.on('--snapshot', 'db:plan: regravar db/schema.sql num banco descartável (DATABASE_URL)') { options[:snapshot] = true }
+        flags.on('--check', 'db:plan: conferir plano e retrato num banco descartável (DATABASE_URL)') { options[:check] = true }
         flags.on('-h', '--help', 'Mostrar ajuda') { out.puts(flags); return 0 }
         flags.on('--version', 'Mostrar versão do protótipo') { out.puts(VERSION); return 0 }
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan].include?(command)
         err.puts(parser)
         return 2
       end
       sql_options = options.slice(:schema, :owner_role, :app_role)
+      if command == 'db:plan'
+        unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking] && !(options[:snapshot] && options[:check])
+          raise OptionParser::InvalidArgument, 'db:plan aceita --root e uma entre --snapshot e --check'
+        end
+        url = ENV['DATABASE_URL']
+        database = url && !url.empty? ? SQL::ScratchDatabase.new(url: url, pg_dump: ENV.fetch('VETRA_PG_DUMP', 'pg_dump')) : nil
+        planner = SQL::Planner.new(root: options[:root], database: database)
+        result = options[:check] ? planner.check : (options[:snapshot] ? planner.snapshot : planner.plan)
+        relative = result.path.delete_prefix("#{File.expand_path(options[:root])}/")
+        message = { written: "gravado #{relative}", unchanged: "sem mudanças em #{relative}", checked: "plano e #{relative} conferem" }
+        out.puts("db:plan: OK — #{message.fetch(result.status)}")
+        return 0
+      end
+      raise OptionParser::InvalidArgument, '--snapshot e --check exigem db:plan' if options[:snapshot] || options[:check]
       if command == 'db:authz:sql'
-        unless args.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
+        unless args.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking] && !options[:snapshot] && !options[:check]
           raise OptionParser::InvalidArgument, 'db:authz:sql aceita somente --root e opções de schema/papéis'
         end
         result = Graph::Compiler.new(root: options[:root]).read_artifact

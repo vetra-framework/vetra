@@ -68,7 +68,8 @@ a cobri-los.
 - **C5:** gerar FKs só a partir de `belongs_to` deixaria de fora o tenant implícito (ver a lacuna acima).
 - **K7:** o `pg_dump` muda entre o 17 e o 18. A normalização do retrato não pode esconder diferenças de dono,
   privilégios ou RLS. A tabela de locks do ADR-015, §3 não cobre a criação de tabelas, funções e triggers; a K7
-  acrescenta essas classificações para o banco vazio.
+  acrescenta essas classificações para o banco vazio. O retrato sai com `--no-owner` até a C6: com os papéis do ADR-005
+  e donos explícitos, a C6 passa a incluir os donos nele ([guia](db-plan.md#retrato)).
 - **C6:** a guarda de rotinas da C2 (`lib/vetra/sql/authorization.rb`) recusa funções `SECURITY DEFINER` executáveis
   pela aplicação cujo dono tem poder sobre as tabelas protegidas, e as funções de contexto do ADR-005 têm essa forma.
   A C6 decide como reconhecer as funções do próprio framework sem enfraquecer a guarda, por exemplo pela assinatura,

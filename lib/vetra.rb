@@ -22,6 +22,10 @@ require_relative "vetra/graph/diff_source"
 require_relative "vetra/graph/diff"
 require_relative "vetra/sql/authorization"
 require_relative "vetra/sql/schema"
+require_relative "vetra/sql/statement_scanner"
+require_relative "vetra/sql/plan"
+require_relative "vetra/sql/scratch_database"
+require_relative "vetra/sql/planner"
 
 module Vetra
   def self.app(name, &block)

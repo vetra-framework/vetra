@@ -90,3 +90,43 @@ jobs:
       - run: ruby script/sonda_adr019.rb
       - run: ruby script/sonda_adr020.rb
       - run: ruby script/sonda_adr031.rb
+
+  db-plan:
+    name: db:plan (PostgreSQL ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["17", "18"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      VETRA_PG_DUMP: /usr/lib/postgresql/${{ matrix.postgres }}/bin/pg_dump
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      # O retrato só é reproduzível com o pg_dump da mesma versão principal do servidor.
+      - name: Cliente do PostgreSQL ${{ matrix.postgres }}
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-${{ matrix.postgres }}
+      - name: db:plan --check em todos os exemplos
+        run: |
+          for app in examples/*/; do
+            bundle exec bin/vetra db:plan --check --root "${app%/}"
+          done
