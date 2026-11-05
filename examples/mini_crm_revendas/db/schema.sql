@@ -165,11 +165,276 @@ $_$;
 
 ALTER FUNCTION vetra.current_tenant() OWNER TO vetra_owner;
 
+CREATE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_old ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT "company_id"::text AS tenant_id FROM vt_old UNION SELECT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_update() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "id"::text AS tenant_id FROM vt_old ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_delete() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_insert() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT "id"::text AS tenant_id FROM vt_old UNION SELECT "id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_update() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_old ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT "company_id"::text AS tenant_id FROM vt_old UNION SELECT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_old ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_delete() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_insert() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT "company_id"::text AS tenant_id FROM vt_old UNION SELECT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_update() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_old ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT DISTINCT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE affected_tenant text;
+BEGIN
+  FOR affected_tenant IN SELECT "company_id"::text AS tenant_id FROM vt_old UNION SELECT "company_id"::text AS tenant_id FROM vt_new ORDER BY tenant_id LOOP
+    INSERT INTO "vetra"."authz_revisions" AS stored (tenant_id, revision) VALUES (affected_tenant, 1)
+      ON CONFLICT (tenant_id) DO UPDATE SET revision = stored.revision + 1;
+    PERFORM pg_notify('vetra_authz', affected_tenant);
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+ALTER FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.vt_transition_f11b74e8383ca04610952e448ddcd983() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE token text; payload_part text; command_name text;
+BEGIN
+  IF current_user = 'vetra_migrator' THEN RETURN NEW; END IF;
+  -- A função de contexto valida o token inteiro, inclusive cmd, antes de extrair a claim.
+  token := pg_catalog.current_setting('vetra.ctx', true);
+  IF vetra.current_tenant() IS NULL THEN
+    RAISE EXCEPTION 'transition_violation' USING ERRCODE = '42501';
+  END IF;
+  payload_part := pg_catalog.split_part(token, '.', 3);
+  command_name := pg_catalog.convert_from(pg_catalog.decode(pg_catalog.translate(payload_part, '-_', '+/') ||
+    pg_catalog.repeat('=', (4 - pg_catalog.length(payload_part) % 4) % 4), 'base64'), 'UTF8')::jsonb->>'cmd';
+IF ((TG_OP = 'INSERT' AND NEW."status" = E'won') OR (TG_OP = 'UPDATE' AND NEW."status" IS DISTINCT FROM OLD."status" AND (NEW."status" = E'won' OR OLD."status" = E'won'))) AND (command_name IS NULL OR command_name NOT IN (E'crm.win_lead')) THEN
+  RAISE EXCEPTION 'transition_violation' USING ERRCODE = '42501';
+END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION vetra.vt_transition_f11b74e8383ca04610952e448ddcd983() OWNER TO vetra_owner;
+
 CREATE TABLE public.companies (
     created_at timestamp(6) with time zone NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL
 );
+
+ALTER TABLE ONLY public.companies FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE public.companies OWNER TO vetra_owner;
 
@@ -179,6 +444,8 @@ CREATE TABLE public.dealers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL
 );
+
+ALTER TABLE ONLY public.dealers FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE public.dealers OWNER TO vetra_owner;
 
@@ -201,6 +468,8 @@ CREATE TABLE public.leads (
     CONSTRAINT vt_ck_8917258bea0d4daa1b638f66d025afff CHECK ((valor_currency = ANY (ARRAY['AED'::text, 'AFN'::text, 'ALL'::text, 'AMD'::text, 'AOA'::text, 'ARS'::text, 'AUD'::text, 'AWG'::text, 'AZN'::text, 'BAM'::text, 'BBD'::text, 'BDT'::text, 'BIF'::text, 'BMD'::text, 'BND'::text, 'BOB'::text, 'BOV'::text, 'BRL'::text, 'BSD'::text, 'BTN'::text, 'BWP'::text, 'BYN'::text, 'BZD'::text, 'CAD'::text, 'CDF'::text, 'CHE'::text, 'CHF'::text, 'CHW'::text, 'CLP'::text, 'CNY'::text, 'COP'::text, 'COU'::text, 'CRC'::text, 'CUP'::text, 'CVE'::text, 'CZK'::text, 'DJF'::text, 'DKK'::text, 'DOP'::text, 'DZD'::text, 'EGP'::text, 'ERN'::text, 'ETB'::text, 'EUR'::text, 'FJD'::text, 'FKP'::text, 'GBP'::text, 'GEL'::text, 'GHS'::text, 'GIP'::text, 'GMD'::text, 'GNF'::text, 'GTQ'::text, 'GYD'::text, 'HKD'::text, 'HNL'::text, 'HTG'::text, 'HUF'::text, 'IDR'::text, 'ILS'::text, 'INR'::text, 'IRR'::text, 'ISK'::text, 'JMD'::text, 'JPY'::text, 'KES'::text, 'KGS'::text, 'KHR'::text, 'KMF'::text, 'KPW'::text, 'KRW'::text, 'KYD'::text, 'KZT'::text, 'LAK'::text, 'LBP'::text, 'LKR'::text, 'LRD'::text, 'LSL'::text, 'MAD'::text, 'MDL'::text, 'MGA'::text, 'MKD'::text, 'MMK'::text, 'MNT'::text, 'MOP'::text, 'MRU'::text, 'MUR'::text, 'MVR'::text, 'MWK'::text, 'MXN'::text, 'MXV'::text, 'MYR'::text, 'MZN'::text, 'NAD'::text, 'NGN'::text, 'NIO'::text, 'NOK'::text, 'NPR'::text, 'NZD'::text, 'PAB'::text, 'PEN'::text, 'PGK'::text, 'PHP'::text, 'PKR'::text, 'PLN'::text, 'PYG'::text, 'QAR'::text, 'RON'::text, 'RSD'::text, 'RUB'::text, 'RWF'::text, 'SAR'::text, 'SBD'::text, 'SCR'::text, 'SDG'::text, 'SEK'::text, 'SGD'::text, 'SHP'::text, 'SLE'::text, 'SOS'::text, 'SRD'::text, 'SSP'::text, 'STN'::text, 'SVC'::text, 'SYP'::text, 'SZL'::text, 'THB'::text, 'TJS'::text, 'TMT'::text, 'TOP'::text, 'TRY'::text, 'TTD'::text, 'TWD'::text, 'TZS'::text, 'UAH'::text, 'UGX'::text, 'USD'::text, 'USN'::text, 'UYI'::text, 'UYU'::text, 'UZS'::text, 'VED'::text, 'VES'::text, 'VND'::text, 'VUV'::text, 'WST'::text, 'XAD'::text, 'XAF'::text, 'XCD'::text, 'XCG'::text, 'XOF'::text, 'XPF'::text, 'YER'::text, 'ZAR'::text, 'ZMW'::text, 'ZWG'::text])))
 );
 
+ALTER TABLE ONLY public.leads FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE public.leads OWNER TO vetra_owner;
 
 CREATE TABLE public.memberships (
@@ -213,6 +482,8 @@ CREATE TABLE public.memberships (
     CONSTRAINT vt_ck_65b396fea188eea8a1e8dbf919dbc23e CHECK ((role = ANY (ARRAY['gerente'::text, 'vendedor'::text])))
 );
 
+ALTER TABLE ONLY public.memberships FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE public.memberships OWNER TO vetra_owner;
 
 CREATE TABLE public.users (
@@ -223,7 +494,17 @@ CREATE TABLE public.users (
     name text NOT NULL
 );
 
+ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE public.users OWNER TO vetra_owner;
+
+CREATE TABLE vetra.authz_revisions (
+    tenant_id text NOT NULL,
+    revision bigint NOT NULL,
+    CONSTRAINT authz_revisions_revision_check CHECK ((revision >= 0))
+);
+
+ALTER TABLE vetra.authz_revisions OWNER TO vetra_owner;
 
 CREATE TABLE vetra_private.keys (
     kid text NOT NULL,
@@ -267,6 +548,9 @@ ALTER TABLE ONLY public.dealers
 ALTER TABLE ONLY public.memberships
     ADD CONSTRAINT vt_uq_f193c8e4d9da74f0e30aad2549ccca62 UNIQUE (company_id, user_id, dealer_id, role);
 
+ALTER TABLE ONLY vetra.authz_revisions
+    ADD CONSTRAINT authz_revisions_pkey PRIMARY KEY (tenant_id);
+
 ALTER TABLE ONLY vetra_private.keys
     ADD CONSTRAINT keys_pkey PRIMARY KEY (kid);
 
@@ -279,6 +563,70 @@ CREATE INDEX vt_ix_ba6fa65b14061f8852d348fd2cc40b43 ON public.memberships USING 
 CREATE INDEX vt_ix_f72a7756af1519cd4c2c3c51d5ec8b22 ON public.leads USING btree (company_id, seller_id);
 
 CREATE UNIQUE INDEX vt_keys_active ON vetra_private.keys USING btree (status) WHERE (status = 'active'::text);
+
+CREATE TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_delete AFTER DELETE ON public.users REFERENCING OLD TABLE AS vt_old FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete();
+
+ALTER TABLE public.users ENABLE ALWAYS TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_delete;
+
+CREATE TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_insert AFTER INSERT ON public.users REFERENCING NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert();
+
+ALTER TABLE public.users ENABLE ALWAYS TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_insert;
+
+CREATE TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_update AFTER UPDATE ON public.users REFERENCING OLD TABLE AS vt_old NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_update();
+
+ALTER TABLE public.users ENABLE ALWAYS TRIGGER vt_authz_01e3b579ef1811b6be2c64ee_update;
+
+CREATE TRIGGER vt_authz_5aab7bffb3a1c59035452764_delete AFTER DELETE ON public.companies REFERENCING OLD TABLE AS vt_old FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_delete();
+
+ALTER TABLE public.companies ENABLE ALWAYS TRIGGER vt_authz_5aab7bffb3a1c59035452764_delete;
+
+CREATE TRIGGER vt_authz_5aab7bffb3a1c59035452764_insert AFTER INSERT ON public.companies REFERENCING NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_insert();
+
+ALTER TABLE public.companies ENABLE ALWAYS TRIGGER vt_authz_5aab7bffb3a1c59035452764_insert;
+
+CREATE TRIGGER vt_authz_5aab7bffb3a1c59035452764_update AFTER UPDATE ON public.companies REFERENCING OLD TABLE AS vt_old NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_update();
+
+ALTER TABLE public.companies ENABLE ALWAYS TRIGGER vt_authz_5aab7bffb3a1c59035452764_update;
+
+CREATE TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_delete AFTER DELETE ON public.leads REFERENCING OLD TABLE AS vt_old FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete();
+
+ALTER TABLE public.leads ENABLE ALWAYS TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_delete;
+
+CREATE TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_insert AFTER INSERT ON public.leads REFERENCING NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert();
+
+ALTER TABLE public.leads ENABLE ALWAYS TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_insert;
+
+CREATE TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_update AFTER UPDATE ON public.leads REFERENCING OLD TABLE AS vt_old NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update();
+
+ALTER TABLE public.leads ENABLE ALWAYS TRIGGER vt_authz_7bf2063f1fe867c04fa2ed84_update;
+
+CREATE TRIGGER vt_authz_86073356dc99948c9f46bbfd_delete AFTER DELETE ON public.dealers REFERENCING OLD TABLE AS vt_old FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_delete();
+
+ALTER TABLE public.dealers ENABLE ALWAYS TRIGGER vt_authz_86073356dc99948c9f46bbfd_delete;
+
+CREATE TRIGGER vt_authz_86073356dc99948c9f46bbfd_insert AFTER INSERT ON public.dealers REFERENCING NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_insert();
+
+ALTER TABLE public.dealers ENABLE ALWAYS TRIGGER vt_authz_86073356dc99948c9f46bbfd_insert;
+
+CREATE TRIGGER vt_authz_86073356dc99948c9f46bbfd_update AFTER UPDATE ON public.dealers REFERENCING OLD TABLE AS vt_old NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_update();
+
+ALTER TABLE public.dealers ENABLE ALWAYS TRIGGER vt_authz_86073356dc99948c9f46bbfd_update;
+
+CREATE TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_delete AFTER DELETE ON public.memberships REFERENCING OLD TABLE AS vt_old FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete();
+
+ALTER TABLE public.memberships ENABLE ALWAYS TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_delete;
+
+CREATE TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_insert AFTER INSERT ON public.memberships REFERENCING NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert();
+
+ALTER TABLE public.memberships ENABLE ALWAYS TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_insert;
+
+CREATE TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_update AFTER UPDATE ON public.memberships REFERENCING OLD TABLE AS vt_old NEW TABLE AS vt_new FOR EACH STATEMENT EXECUTE FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update();
+
+ALTER TABLE public.memberships ENABLE ALWAYS TRIGGER vt_authz_d19ed6c10293be4bf7dd9b93_update;
+
+CREATE TRIGGER vt_transition_f11b74e8383ca04610952e448ddcd983 BEFORE INSERT OR UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION vetra.vt_transition_f11b74e8383ca04610952e448ddcd983();
+
+ALTER TABLE public.leads ENABLE ALWAYS TRIGGER vt_transition_f11b74e8383ca04610952e448ddcd983;
 
 ALTER TABLE ONLY public.memberships
     ADD CONSTRAINT vt_fk_057ae10e2c51523cc3a35350d3d8ed01 FOREIGN KEY (company_id, user_id) REFERENCES public.users(company_id, id) DEFERRABLE;
@@ -304,6 +652,64 @@ ALTER TABLE ONLY public.users
 ALTER TABLE ONLY public.leads
     ADD CONSTRAINT vt_fk_f0816bdf4c58bac7b3046779037a72d2 FOREIGN KEY (company_id, seller_id) REFERENCES public.users(company_id, id) DEFERRABLE;
 
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dealers ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY vt_access ON public.companies TO vetra_app USING (true) WITH CHECK (true);
+
+CREATE POLICY vt_access ON public.memberships TO vetra_app USING (true) WITH CHECK (true);
+
+CREATE POLICY vt_access ON public.users TO vetra_app USING (true) WITH CHECK (true);
+
+CREATE POLICY vt_scope_create ON public.leads FOR INSERT TO vetra_app WITH CHECK (((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_5
+  WHERE ((vt_scope_5.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_5.dealer_id = leads.dealer_id) AND ((vt_scope_5.role = 'gerente'::text) AND (vt_scope_5.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_6
+  WHERE ((vt_scope_6.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_6.dealer_id = leads.dealer_id) AND ((vt_scope_6.role = 'vendedor'::text) AND (vt_scope_6.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_delete ON public.leads FOR DELETE TO vetra_app USING ((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_9
+  WHERE ((vt_scope_9.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_9.dealer_id = leads.dealer_id) AND ((vt_scope_9.role = 'gerente'::text) AND (vt_scope_9.user_id = ( SELECT vetra.current_actor() AS current_actor)))))));
+
+CREATE POLICY vt_scope_read ON public.dealers FOR SELECT TO vetra_app USING (((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_1
+  WHERE ((vt_scope_1.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_1.dealer_id = dealers.id) AND ((vt_scope_1.role = 'gerente'::text) AND (vt_scope_1.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_2
+  WHERE ((vt_scope_2.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_2.dealer_id = dealers.id) AND ((vt_scope_2.role = 'vendedor'::text) AND (vt_scope_2.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_read ON public.leads FOR SELECT TO vetra_app USING (((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_3
+  WHERE ((vt_scope_3.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_3.dealer_id = leads.dealer_id) AND ((vt_scope_3.role = 'gerente'::text) AND (vt_scope_3.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_4
+  WHERE ((vt_scope_4.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_4.dealer_id = leads.dealer_id) AND ((vt_scope_4.role = 'vendedor'::text) AND (vt_scope_4.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_update ON public.leads FOR UPDATE TO vetra_app USING (((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_7
+  WHERE ((vt_scope_7.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_7.dealer_id = leads.dealer_id) AND ((vt_scope_7.role = 'gerente'::text) AND (vt_scope_7.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_8
+  WHERE ((vt_scope_8.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_8.dealer_id = leads.dealer_id) AND ((vt_scope_8.role = 'vendedor'::text) AND (vt_scope_8.user_id = ( SELECT vetra.current_actor() AS current_actor)))))))) WITH CHECK (((EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_7
+  WHERE ((vt_scope_7.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_7.dealer_id = leads.dealer_id) AND ((vt_scope_7.role = 'gerente'::text) AND (vt_scope_7.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
+   FROM public.memberships vt_scope_8
+  WHERE ((vt_scope_8.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_8.dealer_id = leads.dealer_id) AND ((vt_scope_8.role = 'vendedor'::text) AND (vt_scope_8.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_tenant ON public.companies AS RESTRICTIVE TO vetra_app USING ((id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
+CREATE POLICY vt_tenant ON public.dealers AS RESTRICTIVE TO vetra_app USING ((company_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((company_id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
+CREATE POLICY vt_tenant ON public.leads AS RESTRICTIVE TO vetra_app USING ((company_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((company_id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
+CREATE POLICY vt_tenant ON public.memberships AS RESTRICTIVE TO vetra_app USING ((company_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((company_id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
+CREATE POLICY vt_tenant ON public.users AS RESTRICTIVE TO vetra_app USING ((company_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((company_id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO vetra_app;
 
@@ -315,6 +721,38 @@ GRANT ALL ON FUNCTION vetra.current_actor() TO vetra_app;
 REVOKE ALL ON FUNCTION vetra.current_tenant() FROM PUBLIC;
 GRANT ALL ON FUNCTION vetra.current_tenant() TO vetra_app;
 
+REVOKE ALL ON FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_01e3b579ef1811b6be2c64ee_update() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_delete() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_5aab7bffb3a1c59035452764_update() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_delete() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_86073356dc99948c9f46bbfd_update() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION vetra.vt_transition_f11b74e8383ca04610952e448ddcd983() FROM PUBLIC;
+
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.companies TO vetra_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.dealers TO vetra_app;
@@ -324,3 +762,5 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.leads TO vetra_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.memberships TO vetra_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO vetra_app;
+
+GRANT SELECT ON TABLE vetra.authz_revisions TO vetra_app;
