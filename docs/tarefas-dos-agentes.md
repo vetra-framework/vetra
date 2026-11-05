@@ -52,9 +52,32 @@ incorpora o parecer do Codex.
 |---|---|---|---|---|---|
 | C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
-| C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | concluída | este commit | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-036 aceito por delegação ([auditoria](#auditoria-c6)) |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
+
+## Auditoria C6
+
+Implementado pelo Codex sobre `07737ca`; auditado pelo Claude; decisão do Claude. O sandbox do Codex não alcança o
+PostgreSQL: as sondas, o bootstrap e os retratos foram rodados pelo Claude no PostgreSQL 18.6; o 17 roda na CI.
+
+**Rodada 1 — devolvida.** ADR-036 proposto: bootstrap dos papéis à parte e repetível, plano que só confere papéis,
+`vetra_owner` dono dos objetos, `vetra_app` com DML, `USAGE` e as duas funções de contexto, token
+`v1.kid.payload.mac` com HMAC-SHA256 verificado no banco, chaves em `vetra_private.keys` fora dos artefatos, e exceção
+exata (assinatura, dono, atributos, configuração e hash do corpo) na guarda de rotinas da C2. Verificado: suíte com 454
+testes, 167/167; bootstrap duas vezes; `--snapshot` e `--check` nos quatro exemplos; sonda ADR-031 59/59; a sonda nova
+57/57 só numa cópia corrigida em `/tmp`.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O plano inicial exigia superusuário para revogar `EXECUTE` dos membros do `pgcrypto`, o que o ADR-002 §3 e o ADR-005 não admitem e que serviços gerenciados não oferecem | sim | Ajustar: `pgcrypto` em `vetra_private`, onde a aplicação não tem `USAGE`, sem revogar os membros; o migrador, dono do banco, aplica o plano; a sonda aplica como `vetra_migrator` |
+| A sonda não rodava: `base64` fora do Ruby 4, comparação de UTF-8 com binário e parâmetro de conexão vazio | sim | Ajustar |
+| O custo do HMAC por instrução não foi medido (ADR-023) | não | Não ajustar: fica para a rodada de medições |
+
+**Rodada 2 — aprovada.** Suíte com 457 testes e 6.122 asserções, 167/167; bootstrap repetível; a sonda do contexto
+assinado passou 58/58, com o plano aplicado pelo `vetra_migrator` (dono do banco, sem superusuário, `CREATEDB` ou
+`CREATEROLE`); sonda ADR-031 59/59; retratos regenerados pelo Claude com donos e `--check` nos quatro exemplos, sem
+banco temporário restante. O Claude aceitou o ADR-036 por delegação do mantenedor e acertou nos docs o estado final.
 
 ## Auditoria K7
 

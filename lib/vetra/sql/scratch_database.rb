@@ -125,7 +125,7 @@ module Vetra
         end.join(' ')
         environment = CLEARED_ENV.to_h { |name| [name, nil] }
         environment['PGPASSWORD'] = effective['password'] if effective['password'] && !effective['password'].empty?
-        [environment, ['--schema-only', '--no-owner', '--dbname', conninfo]]
+        [environment, ['--schema-only', '--dbname', conninfo]]
       end
     end
 

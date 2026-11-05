@@ -75,7 +75,7 @@ module Vetra
       def header
         (["-- Vetra: bootstrap de revisão de autorização; SQL para revisão, sem aplicação automática.",
           "-- Grafo #{@document['digest']}; aplicação #{JSON.generate(@document.dig('app', 'name'))}.",
-          '-- Requer PostgreSQL 17+, tabelas existentes, papéis existentes e schema de infraestrutura novo.',
+          '-- Requer PostgreSQL 17+, tabelas existentes, papéis existentes e schema novo ou vetra do plano inicial.',
           '-- Instalação: bloqueia escritas com SHARE ROW EXCLUSIVE; lock_timeout = 3s; lê os IDs da raiz.'] +
           @tables.map { |table| "-- #{table['entity']}: #{relation(table)}; tenant pela coluna #{quote(table['tenant_column'])}." }).join("\n")
       end
@@ -153,12 +153,29 @@ module Vetra
 
       def infrastructure
         <<~SQL
-          CREATE SCHEMA #{quote(@schema)} AUTHORIZATION #{quote(@owner)};
+          #{infrastructure_schema}
           CREATE TABLE #{revisions} (tenant_id text PRIMARY KEY, revision bigint NOT NULL CHECK (revision >= 0));
           ALTER TABLE #{revisions} OWNER TO #{quote(@owner)};
           REVOKE ALL ON #{revisions} FROM PUBLIC, #{quote(@app)};
           GRANT USAGE ON SCHEMA #{quote(@schema)} TO #{quote(@app)};
           GRANT SELECT ON #{revisions} TO #{quote(@app)};
+        SQL
+      end
+
+      def infrastructure_schema
+        return "CREATE SCHEMA #{quote(@schema)} AUTHORIZATION #{quote(@owner)};" unless @schema == 'vetra' && @owner == 'vetra_owner'
+        <<~SQL.chomp
+          DO $vetra_shared_schema$
+          BEGIN
+            IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'vetra') THEN
+              IF NOT EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner
+                WHERE n.nspname = 'vetra' AND r.rolname = 'vetra_owner') THEN
+                RAISE EXCEPTION 'Schema vetra existente deve pertencer a vetra_owner';
+              END IF;
+            ELSE
+              CREATE SCHEMA "vetra" AUTHORIZATION "vetra_owner";
+            END IF;
+          END $vetra_shared_schema$;
         SQL
       end
 
@@ -173,6 +190,7 @@ module Vetra
           BEGIN
             WITH RECURSIVE definers AS MATERIALIZED (
               SELECT p.oid, p.proowner FROM pg_proc p WHERE p.prosecdef AND p.prokind IN ('f', 'p')
+                AND NOT #{Context.trusted_routine_sql}
             ), owner_roles AS MATERIALIZED (
               SELECT p.proowner, r.oid FROM (SELECT DISTINCT proowner FROM definers) p
                 JOIN pg_roles r ON pg_has_role(p.proowner, r.oid, 'SET')
@@ -199,6 +217,7 @@ module Vetra
                   OR has_table_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES')
                   OR has_any_column_privilege(r.oid, #{literal(revisions)}, 'INSERT,UPDATE,REFERENCES')
                   OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = #{literal(@schema)}::regnamespace
+                    AND NOT #{Context.trusted_routine_sql}
                     AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))
                   OR EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.admin_option AND pg_has_role(r.oid, m.member, 'USAGE'))
                   OR pg_has_role(r.oid, 'pg_create_subscription'::regrole, 'USAGE')
@@ -292,7 +311,8 @@ module Vetra
               RAISE EXCEPTION 'Privilégio herdado ou assumível por SET ROLE permite escrita nas revisões';
             END IF;
             IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-              WHERE n.nspname = #{literal(@schema)} AND EXISTS (SELECT 1 FROM #{assumable_roles} AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))) THEN
+              WHERE n.nspname = #{literal(@schema)} AND NOT #{Context.trusted_routine_sql}
+                AND EXISTS (SELECT 1 FROM #{assumable_roles} AND has_function_privilege(r.oid, p.oid, 'EXECUTE'))) THEN
               RAISE EXCEPTION 'Execução herdada ou assumível por SET ROLE das funções de revisão não é permitida';
             END IF;
           END $vetra_privileges$;

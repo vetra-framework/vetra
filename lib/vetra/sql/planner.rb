@@ -11,7 +11,7 @@ module Vetra
       PLANS = 'db/plans'
       SCHEMA = 'db/schema.sql'
       SCHEMA_HEADER = "-- Retrato do esquema: resultado de aplicar db/plans/ num banco vazio (vetra db:plan --snapshot).\n" \
-                      "-- Gerado a partir do pg_dump --schema-only --no-owner normalizado; não edite à mão.\n\n"
+                      "-- Gerado a partir do pg_dump --schema-only normalizado, com donos; não edite à mão.\n\n"
 
       Result = Struct.new(:status, :plans, :path, keyword_init: true)
 

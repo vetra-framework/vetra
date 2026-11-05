@@ -4,11 +4,11 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-03, sobre `e0ee3ad`, com a K7 da [persistência](plano-persistencia.md): `vetra db:plan`
-  grava o plano inicial em `db/plans/`, e `--snapshot`/`--check` aplicam os planos num banco descartável e conferem o
-  retrato `db/schema.sql` ([guia](db-plan.md)). Antes, a C5 gerou o esquema físico do
-  [ADR-035](adr/035-mapeamento-fisico-inicial.md). A IR permanece 0.6; `db:migrate`, papéis, RLS e triggers de transição
-  seguem pendentes.
+- **Atualizado em:** 2026-11-05, sobre `07737ca`, com a C6 da [persistência](plano-persistencia.md) aprovada pela
+  auditoria do Claude: papéis por bootstrap operacional, donos explícitos e contexto assinado por HMAC no plano
+  inicial, aplicável pelo `vetra_migrator` sem superusuário. O [ADR-036](adr/036-papeis-e-contexto-assinado.md) foi
+  aceito pelo Claude, por delegação do mantenedor; o [guia](db-plan.md) descreve bootstrap, chaves e sonda.
+  A IR permanece 0.6; RLS, revisão nos planos e triggers de transição são da C7; `db:migrate` é da K8.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -16,14 +16,15 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 35 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034 |
-| Testes do compilador e exemplos | 447 testes e 4.804 asserções, sem falhas; 166/166 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 36 aceitos: os 21 fundadores, 6 ADRs de resolução (022 a 026 e 030), as evoluções de formato 027/028, as declarações live 029, o gerador SQL inicial 031, os comandos de vínculo 032 e o arredondamento monetário 033 e o limite de taxa 034, além do mapeamento físico 035 e dos papéis e do contexto assinado 036 |
+| Testes do compilador e exemplos | 457 testes e 6.122 asserções, sem falhas; 167/167 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
-| Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação no PostgreSQL 17/18 pendente da auditoria do Claude. |
+| Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
+| Verificação da C6 | Planos com 33 passos no blog e no mini CRM, 49 no chat e 59 no mini CRM com revendas. No PostgreSQL 18.6: bootstrap repetível, sonda do contexto assinado 58/58 com o plano aplicado pelo `vetra_migrator` sem superusuário, sonda ADR-031 59/59, retratos com donos e `--check` nos quatro exemplos |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 11 em `script/`, mais o simulador do gate da CI; 9 rodam na CI (002, 003, 008, 009, 011, 015, 019, 020 e 031) |
-| Runtime | Não existe. Há compilador, gerador de esquema físico e SQL de revisão; aplicação de migrações e execução de operações seguem pendentes |
+| Sondas | 12 em `script/`, mais o simulador do gate; contexto assinado com 58 verificações programadas no job de planos 17/18, além das 9 sondas anteriores na CI |
+| Runtime | Não existe. Há compilador, plano inicial com infraestrutura de contexto HMAC e SQL de revisão; RLS, aplicação de migrações e execução de operações seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -60,6 +61,25 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
+
+**Papéis e contexto assinado**
+
+- [x] `Vetra::SQL::Context.roles_sql` gera bootstrap global separado e repetível; o plano apenas confere
+  atributos e vínculos de `vetra_app`, `vetra_migrator` e `vetra_owner`. Nenhum papel é alterado pelo
+  executor temporário. O operador cria o banco com `vetra_migrator` como dono; o plano é aplicável por
+  ele sem superusuário e concede CREATE no banco a `vetra_owner` para receber os schemas. Os membros
+  SECURITY INVOKER de `pgcrypto` conservam EXECUTE; a aplicação não tem USAGE no schema privado.
+- [x] Plano inicial com `vetra_private.keys` vazia, contexto HMAC-SHA256, validade, rotação por estados,
+  donos fixos, concessões mínimas e classificação de todos os passos. Chaves ficam fora dos artefatos.
+- [x] Guarda de autorização reconhece somente as duas funções exatas por assinatura, schema, dono,
+  atributos, configuração e hash do corpo; reutiliza `vetra` do plano sem substituir infraestrutura.
+- [x] Testes sem banco para geração, identificadores, classificação, hashes e retrato com donos.
+  `sonda_contexto_assinado.rb` verifica o plano gerado, privilégios e tokens válidos/recusados, rotação e
+  mutações da exceção, aplicando os planos com session_user/current_user `vetra_migrator` e sem poderes
+  administrativos: 58/58 no PostgreSQL 18.6, e na CI no 17 e 18.
+- [x] ADR-036 aceito em 2026-11-05 pelo Claude, por delegação do mantenedor. A C7 implementa RLS, permissivas de escopo, revisão nos planos e
+  triggers de transição; autenticação, emissão em runtime, contexto visitante/global e keys:rotate
+  continuam pendentes.
 
 **Compilador da fase 0** (DSL Ruby, registro congelado, build em IR 0.6, leitura da 0.1/0.2/0.3/0.4/0.5, validação)
 - [x] `graph:build`, `graph:check`, `graph:validate`, `graph:diff` e `graph:link`
@@ -156,7 +176,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **CI e sondas**
 - [x] `db:authz:sql`: gera SQL determinístico da IR validada, sem conectar ou aplicar mudanças.
   Seleciona leituras das políticas e a raiz do tenant, usa armazenamento físico e gera três triggers por
-  tabela, revisão transacional, privilégios restritos e preenchimento inicial. O SQL recusa schema existente,
+  tabela, revisão transacional, privilégios restritos e preenchimento inicial. O SQL aceita `vetra`
+  preexistente com o dono esperado (ADR-036); schemas customizados exigem criação nova. Recusa
   tipos/colunas incompatíveis, partições/herança e poderes perigosos, inclusive privilégios padrão herdados e
   papéis que a aplicação pode assumir por `SET ROLE` ou conceder a si com `ADMIN OPTION`, além de `REFERENCES`
   subscriptions de replicação lógica e papéis de acesso ao servidor; os triggers ficam `ENABLE ALWAYS` (K5). A
@@ -496,8 +517,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   particionada (o 18 aceita `NOT VALID` na chave do pai), a herança do índice por partição nova, a chave composta
   por tenant com o índice de apoio, o `VALIDATE` sem bloquear escrita e o `enum` por `CHECK` (K6). O custo na
   escrita do índice de apoio sob carga continua por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
-  tem protótipo, e nada do `db:plan`, do retrato `db/schema.sql` e do mapa de `enum` para `text` com `CHECK`
-  existe
+  tem protótipo. `db:plan`, retrato `db/schema.sql` e enum como texto com CHECK estão implementados;
+  a atualização dos retratos para incluir contexto e donos depende da auditoria da C6
 - [ ] **ADR-030/020/031:** integrar o bootstrap SQL a planos de migração e gerar upgrades; definir a chave de revisão de aplicações sem
   tenant; exercitar particionamento, cascatas, combinações de eventos e deadlocks entre instruções.
   O custo de reler campos pessoais por grupo continua por medir no gate G4
@@ -518,7 +539,7 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
    A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
-2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) da rodada 3 leva cada exemplo a um banco
-   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. A C5 entrega o modelo físico e o
-   DDL inicial; faltam K7, C6, C7 e K8 do quadro. Plano incremental, repositórios sobre o Sequel e outbox
+2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
+   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
+   de contexto estão implementados; faltam a auditoria com banco da C6, C7 e K8 do quadro. Plano incremental, repositórios sobre o Sequel e outbox
    continuam fora da implementação inicial

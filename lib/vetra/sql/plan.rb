@@ -22,11 +22,18 @@ module Vetra
       # Classificação dos comandos do DDL de banco vazio (ADR-035). Em banco vazio todas as tabelas nascem no próprio
       # plano: as travas não esperam por leitores nem escritores, mas ficam registradas para o revisor e para a rodada 4.
       CLASSIFICATION = [
+        [/\ADO \$vetra_(context_roles|database_privileges)\$/, 'nenhum', 'catalogo'],
         [/\ACREATE SCHEMA /, 'nenhum', 'catalogo'],
+        [/\ACREATE EXTENSION /, 'nenhum', 'catalogo'],
         [/\ACREATE TABLE /, 'nenhum', 'catalogo'],
         [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ UNIQUE /, 'AccessExclusive', 'tabela_vazia'],
-        [/\ACREATE INDEX /, 'Share', 'tabela_vazia'],
-        [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ FOREIGN KEY /, 'ShareRowExclusive', 'tabela_vazia']
+        [/\ACREATE (UNIQUE )?INDEX /, 'Share', 'tabela_vazia'],
+        [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ FOREIGN KEY /, 'ShareRowExclusive', 'tabela_vazia'],
+        [/\AALTER TABLE \S+ OWNER TO /, 'AccessExclusive', 'tabela_vazia'],
+        [/\AALTER SCHEMA \S+ OWNER TO /, 'nenhum', 'catalogo'],
+        [/\ACREATE FUNCTION /, 'nenhum', 'catalogo'],
+        [/\AALTER FUNCTION \S+ OWNER TO /, 'nenhum', 'catalogo'],
+        [/\A(REVOKE|GRANT) .+ ON (SCHEMA|TABLE|FUNCTION) /, 'nenhum', 'catalogo']
       ].freeze
 
       attr_reader :number, :name, :transaction, :steps
@@ -43,7 +50,7 @@ module Vetra
 
       # Primeiro plano de uma aplicação, a partir do resultado de Vetra::SQL::Schema.
       def self.initial(schema)
-        statements = schema.blocks.flat_map { |block| block['statements'] }
+        statements = Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Context.suffix(schema.tables)
         steps = statements.each_with_index.map do |sql, index|
           _, lock, cost = CLASSIFICATION.find { |pattern, *| pattern.match?(sql) }
           raise Graph::Error.single('db_plan_step', "Comando do esquema sem classificação de lock: #{sql.lines.first.strip}") unless lock

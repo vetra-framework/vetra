@@ -46,11 +46,11 @@ class DBPlanTest < GraphTest
       text = File.read(plan_path(root))
       assert text.start_with?("-- vetra:plano 0001 inicial\n-- vetra:transacao unica\n")
       plan = Vetra::SQL::Plan.parse(text, file: 'db/plans/0001_inicial.sql')
-      statements = schema.blocks.flat_map { |block| block['statements'] }
+      statements = Vetra::SQL::Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Vetra::SQL::Context.suffix(schema.tables)
       assert_equal statements, plan.steps.map(&:sql)
       assert_equal (1..statements.size).to_a, plan.steps.map(&:number)
       assert_equal ['expand'], plan.steps.map(&:phase).uniq
-      locks = plan.steps.to_h { |step| [step.sql[/\A(CREATE TABLE|CREATE INDEX|ALTER TABLE \S+ ADD CONSTRAINT \S+ (UNIQUE|FOREIGN KEY))/, 1]&.sub(/\AALTER TABLE \S+ ADD CONSTRAINT \S+ /, ''), step.lock] }
+      locks = plan.steps.select { |step| step.sql.match?(/\A(CREATE TABLE|CREATE INDEX|ALTER TABLE \S+ ADD CONSTRAINT)/) }.to_h { |step| [step.sql[/\A(CREATE TABLE|CREATE INDEX|ALTER TABLE \S+ ADD CONSTRAINT \S+ (UNIQUE|FOREIGN KEY))/, 1]&.sub(/\AALTER TABLE \S+ ADD CONSTRAINT \S+ /, ''), step.lock] }
       assert_equal({ 'CREATE TABLE' => 'nenhum', 'UNIQUE' => 'AccessExclusive', 'CREATE INDEX' => 'Share', 'FOREIGN KEY' => 'ShareRowExclusive' }, locks)
       assert_equal %w[catalogo tabela_vazia], plan.steps.map(&:cost).uniq.sort
       # As FKs vêm depois de todas as tabelas, como nos blocos do ADR-035.
@@ -84,7 +84,7 @@ class DBPlanTest < GraphTest
   end
 
   def test_statement_without_lock_classification_is_refused
-    schema = Struct.new(:blocks).new([{ 'kind' => 'tables', 'statements' => ['DROP TABLE "public"."x";'] }])
+    schema = Struct.new(:blocks, :tables).new([{ 'kind' => 'tables', 'statements' => ['DROP TABLE "public"."x";'] }], [])
     error = assert_graph_error('db_plan_step') { Vetra::SQL::Plan.initial(schema) }
     assert_includes error.message, 'DROP TABLE'
   end
@@ -101,10 +101,10 @@ class DBPlanTest < GraphTest
       $corpo$
       );
     SQL
-    schema = Struct.new(:blocks).new([{ 'kind' => 'tables', 'statements' => [sql, 'CREATE INDEX "i" ON "public"."t" ("nota");'] }])
+    schema = Struct.new(:blocks, :tables).new([{ 'kind' => 'tables', 'statements' => [sql, 'CREATE INDEX "i" ON "public"."t" ("nota");'] }], [])
     plan = Vetra::SQL::Plan.initial(schema)
     parsed = Vetra::SQL::Plan.parse(plan.render, file: 'db/plans/0001_inicial.sql')
-    assert_equal [sql, 'CREATE INDEX "i" ON "public"."t" ("nota");'], parsed.steps.map(&:sql)
+    assert_equal [*Vetra::SQL::Context.prefix, sql, 'CREATE INDEX "i" ON "public"."t" ("nota");', *Vetra::SQL::Context.suffix([])], parsed.steps.map(&:sql)
     assert_equal plan.render, parsed.render
   end
 
@@ -216,7 +216,7 @@ class DBPlanTest < GraphTest
                   'password' => 'segredo', 'sslmode' => 'disable', 'options' => '-c x=1 -c endpoint=ep\\ a',
                   'target_session_attrs' => 'read-write', 'hostaddr' => '' }
     environment, arguments = Vetra::SQL::ScratchDatabase.pg_dump_invocation(effective)
-    assert_equal ['--schema-only', '--no-owner', '--dbname'], arguments.first(3)
+    assert_equal ['--schema-only', '--dbname'], arguments.first(2)
     conninfo = arguments.last
     assert_equal "host='/tmp/sock dir' port='5432' user='o\\'ne' dbname='vetra_plan_abc' options='-c x=1 -c endpoint=ep\\\\ a' " \
                  "target_session_attrs='read-write' sslmode='disable'", conninfo

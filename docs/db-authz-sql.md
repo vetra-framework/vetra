@@ -52,7 +52,7 @@ A instalação do SQL segue esta ordem:
 3. Obtém locks `SHARE ROW EXCLUSIVE` nas tabelas selecionadas, em ordem estável.
 4. Confere tabelas comuns, ausência de herança/partições, coluna de tenant não nula e tipo compatível com
    o ID da raiz; a raiz precisa de PK simples em `id`. Recusa propriedade pela aplicação.
-5. Cria um schema novo, `authz_revisions` e funções/triggers de inserção, atualização e exclusão. Os triggers
+5. Cria o schema (ou valida `vetra` preexistente com dono `vetra_owner`), `authz_revisions` e funções/triggers de inserção, atualização e exclusão. Os triggers
    ficam `ENABLE ALWAYS`: disparam também com `session_replication_role = replica`, que suprime triggers
    comuns e pode ser concedido a um papel comum com `GRANT SET ON PARAMETER`.
 6. Restringe privilégios; revoga `TRUNCATE`, `TRIGGER` e `REFERENCES` das tabelas protegidas e recusa esses
@@ -191,3 +191,16 @@ As funções de privilégio e as relações de transição seguem as referência
 [privilégios](https://www.postgresql.org/docs/18/functions-info.html) e
 [triggers](https://www.postgresql.org/docs/18/sql-createtrigger.html) do PostgreSQL.
 O [ADR-031](adr/031-geracao-de-sql-de-revisao-de-autorizacao.md) registra as decisões deste incremento.
+
+## Convivência com o contexto assinado
+
+O plano inicial cria `vetra` para as funções de contexto. O gerador de revisão reutiliza esse schema
+quando o dono é `vetra_owner`; schemas customizados continuam exigindo criação nova. A tabela de
+revisões e suas funções nunca são substituídas. A guarda conservadora de rotinas usa a exceção do
+[ADR-036](adr/036-papeis-e-contexto-assinado.md): apenas `current_tenant()` e `current_actor()`
+com assinatura, dono, linguagem, atributos, configuração e SHA-256 do corpo exatos ficam fora do
+fecho de escalada. Uma função parecida ou uma cópia em outro schema continua sujeita à recusa.
+As guardas de execução de funções de revisão e de poderes dos donos usam a mesma identidade exata.
+
+A integração da revisão como passos do plano, junto das políticas RLS e dos triggers de transição,
+pertence à C7. O [guia de planos](db-plan.md) descreve as chaves e a sonda que verifica essa convivência.

@@ -2,8 +2,8 @@
 
 `Vetra::SQL::Schema` traduz a IR validada para o modelo físico do
 [ADR-035](adr/035-mapeamento-fisico-inicial.md) e para DDL de PostgreSQL 17+ em banco vazio.
-Não abre conexão, não lê `DATABASE_URL`, fontes ou relógio e não executa o SQL. Não há comando novo;
-`db:plan` e os passos de plano pertencem à K7.
+Não abre conexão, não lê `DATABASE_URL`, fontes ou relógio e não executa o SQL.
+[`db:plan`](db-plan.md) compõe esse DDL com donos, privilégios e infraestrutura de contexto assinado.
 
 ## API
 
@@ -38,7 +38,7 @@ da IR; no blog e chat, é nulo. A C7 deve usar esse dado para proteger também a
 O primeiro bloco cria schemas de aplicação diferentes de `public`; o segundo cria todas as tabelas,
 checks, PKs, chaves únicas e índices; o terceiro acrescenta todas as FKs. Blocos vazios continuam presentes.
 Cada elemento de `statements` é uma instrução completa; não divida SQL por ponto e vírgula, pois literais
-podem contê-lo. Não há transação embutida: a K7 define as unidades transacionais, locks e custos dos passos.
+podem contê-lo. Não há transação embutida: o plano define as unidades transacionais, locks e custos dos passos.
 
 IDs são UUIDs, com default v4 somente na PK `id`. Textos usam `text` com checks de comprimento;
 `integer` usa `bigint`; decimais e dinheiro usam `numeric(p,s)`; `timestamp` usa fuso e microssegundos;
@@ -80,8 +80,10 @@ A validação da IR pode recusar o documento antes dessas verificações, com se
 Falhas não retornam modelo ou SQL parcial. Não se resolve colisão por truncamento, nem se aceita predicado
 parcial ignorando `where`. Este gerador exige banco vazio e falha se objetos já existirem.
 
-Não há migração incremental, aplicação, papéis, concessões, RLS, infraestrutura de revisão ou triggers de
-transição. A K7 cria o plano; C6/C7 acrescentam papéis e integridade no banco.
+Esta API continua sendo o mapeamento físico puro: não inclui concessões, RLS, revisão ou triggers de
+transição. `Plan.initial` acrescenta a infraestrutura do contexto, confere papéis operacionais e atribui
+donos e DML (ADR-036). RLS, revisão nos planos e triggers de transição pertencem à C7; aplicação
+com histórico e migração incremental ainda não existem.
 
 ## Referências de auditoria
 

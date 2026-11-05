@@ -125,6 +125,11 @@ jobs:
         run: |
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y --no-install-recommends postgresql-client-${{ matrix.postgres }}
+      - name: Bootstrap operacional dos papéis (idempotente, fora dos planos)
+        run: |
+          bundle exec ruby -Ilib -rvetra -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| 2.times { c.exec(Vetra::SQL::Context.roles_sql) } }'
+      - name: Contexto assinado e privilégios do plano gerado
+        run: bundle exec ruby script/sonda_contexto_assinado.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do
