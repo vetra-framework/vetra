@@ -52,7 +52,7 @@ incorpora o parecer do Codex.
 |---|---|---|---|---|---|
 | C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
-| C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
+| C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | a fazer | — | Auditoria pelo Claude, com sonda |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
 
