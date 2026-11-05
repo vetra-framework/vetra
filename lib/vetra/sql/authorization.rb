@@ -3,7 +3,7 @@ require 'digest'
 module Vetra
   module SQL
     class Authorization
-      Result = Struct.new(:sql, :tables, :warnings, keyword_init: true)
+      Result = Struct.new(:sql, :tables, :warnings, :statements, keyword_init: true)
 
       def initialize(document, schema: 'vetra', owner_role: 'vetra_owner', app_role: 'vetra_app')
         @document = Graph::Data.copy(document)
@@ -36,12 +36,14 @@ module Vetra
           raise Graph::Error.single('authz_storage', 'Use raiz com PK id, tabelas físicas distintas e schema de infraestrutura separado das tabelas da aplicação.')
         end
         @tables = tables.sort_by { |table| table.values_at('schema', 'table') }
-        sql = [header, 'BEGIN;', "SET LOCAL lock_timeout = '3s';", 'SET LOCAL search_path = pg_catalog, pg_temp;', role_guards,
+        body = [role_guards,
                "LOCK TABLE #{@tables.map { |table| "ONLY #{relation(table)}" }.join(', ')} IN SHARE ROW EXCLUSIVE MODE;",
                storage_guards, infrastructure, *@tables.map { |table| triggers(table) }, privilege_guards, routine_guards,
                "-- Varredura da raiz do tenant para preencher revisões iniciais.",
-               "INSERT INTO #{revisions} (tenant_id, revision) SELECT #{quote('id')}::text, 0 FROM #{root_relation};", 'COMMIT;', ''].join("\n")
-        Graph::Data.freeze(Result.new(sql: sql, tables: @tables, warnings: warnings))
+               "INSERT INTO #{revisions} (tenant_id, revision) SELECT #{quote('id')}::text, 0 FROM #{root_relation};"].join("\n")
+        statements = StatementScanner.statements(body)
+        sql = [header, 'BEGIN;', "SET LOCAL lock_timeout = '3s';", 'SET LOCAL search_path = pg_catalog, pg_temp;', body, 'COMMIT;', ''].join("\n")
+        Graph::Data.freeze(Result.new(sql: sql, tables: @tables, warnings: warnings, statements: statements))
       end
 
       private

@@ -47,6 +47,7 @@ class DBPlanTest < GraphTest
       assert text.start_with?("-- vetra:plano 0001 inicial\n-- vetra:transacao unica\n")
       plan = Vetra::SQL::Plan.parse(text, file: 'db/plans/0001_inicial.sql')
       statements = Vetra::SQL::Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Vetra::SQL::Context.suffix(schema.tables)
+      statements += Vetra::SQL::Security.new(schema).generate.statements + Vetra::SQL::Authorization.new(document).generate.statements
       assert_equal statements, plan.steps.map(&:sql)
       assert_equal (1..statements.size).to_a, plan.steps.map(&:number)
       assert_equal ['expand'], plan.steps.map(&:phase).uniq
@@ -54,7 +55,7 @@ class DBPlanTest < GraphTest
       assert_equal({ 'CREATE TABLE' => 'nenhum', 'UNIQUE' => 'AccessExclusive', 'CREATE INDEX' => 'Share', 'FOREIGN KEY' => 'ShareRowExclusive' }, locks)
       assert_equal %w[catalogo tabela_vazia], plan.steps.map(&:cost).uniq.sort
       # As FKs vêm depois de todas as tabelas, como nos blocos do ADR-035.
-      last_table = plan.steps.rindex { |step| step.sql.start_with?('CREATE TABLE') }
+      last_table = plan.steps.rindex { |step| step.sql.match?(/\ACREATE TABLE "public"/) }
       assert plan.steps.drop(last_table + 1).any? { |step| step.sql.include?('FOREIGN KEY') }
       refute plan.steps.take(last_table).any? { |step| step.sql.include?('FOREIGN KEY') }
       assert_equal text, plan.render

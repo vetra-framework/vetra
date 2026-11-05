@@ -23,6 +23,9 @@ module Vetra
       # plano: as travas não esperam por leitores nem escritores, mas ficam registradas para o revisor e para a rodada 4.
       CLASSIFICATION = [
         [/\ADO \$vetra_(context_roles|database_privileges)\$/, 'nenhum', 'catalogo'],
+        [/\ADO \$vetra_(roles|shared_schema|privileges|routines)\$/, 'nenhum', 'catalogo'],
+        [/\ADO \$vetra_tables\$/, 'AccessShare', 'tabela_vazia'],
+        [/\ALOCK TABLE /, 'ShareRowExclusive', 'tabela_vazia'],
         [/\ACREATE SCHEMA /, 'nenhum', 'catalogo'],
         [/\ACREATE EXTENSION /, 'nenhum', 'catalogo'],
         [/\ACREATE TABLE /, 'nenhum', 'catalogo'],
@@ -30,10 +33,16 @@ module Vetra
         [/\ACREATE (UNIQUE )?INDEX /, 'Share', 'tabela_vazia'],
         [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ FOREIGN KEY /, 'ShareRowExclusive', 'tabela_vazia'],
         [/\AALTER TABLE \S+ OWNER TO /, 'AccessExclusive', 'tabela_vazia'],
+        [/\AALTER TABLE \S+ ENABLE ALWAYS TRIGGER /, 'ShareRowExclusive', 'tabela_vazia'],
+        [/\AALTER TABLE \S+ (ENABLE|FORCE) ROW LEVEL SECURITY/, 'AccessExclusive', 'tabela_vazia'],
+        [/\ACREATE POLICY /, 'AccessExclusive', 'tabela_vazia'],
+        [/\ACREATE TRIGGER /, 'ShareRowExclusive', 'tabela_vazia'],
+        [/\AINSERT INTO /, 'RowExclusive', 'tabela_vazia'],
         [/\AALTER SCHEMA \S+ OWNER TO /, 'nenhum', 'catalogo'],
         [/\ACREATE FUNCTION /, 'nenhum', 'catalogo'],
         [/\AALTER FUNCTION \S+ OWNER TO /, 'nenhum', 'catalogo'],
-        [/\A(REVOKE|GRANT) .+ ON (SCHEMA|TABLE|FUNCTION) /, 'nenhum', 'catalogo']
+        [/\A(REVOKE|GRANT) .+ ON (SCHEMA|TABLE|FUNCTION) /, 'nenhum', 'catalogo'],
+        [/\A(REVOKE|GRANT) .+ ON "[a-z][a-z0-9_]*"\."[a-z][a-z0-9_]*" /, 'nenhum', 'catalogo']
       ].freeze
 
       attr_reader :number, :name, :transaction, :steps
@@ -51,6 +60,12 @@ module Vetra
       # Primeiro plano de uma aplicação, a partir do resultado de Vetra::SQL::Schema.
       def self.initial(schema)
         statements = Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Context.suffix(schema.tables)
+        if schema.respond_to?(:document) && schema.document
+          statements.concat(Security.new(schema).generate.statements)
+          if schema.document.dig('app', 'tenant')
+            statements.concat(Authorization.new(schema.document).generate.statements)
+          end
+        end
         steps = statements.each_with_index.map do |sql, index|
           _, lock, cost = CLASSIFICATION.find { |pattern, *| pattern.match?(sql) }
           raise Graph::Error.single('db_plan_step', "Comando do esquema sem classificação de lock: #{sql.lines.first.strip}") unless lock

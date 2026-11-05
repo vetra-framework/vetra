@@ -10,6 +10,7 @@ module Vetra
     class Planner
       PLANS = 'db/plans'
       SCHEMA = 'db/schema.sql'
+      POLICIES = 'db/policies/0001_seguranca.sql'
       SCHEMA_HEADER = "-- Retrato do esquema: resultado de aplicar db/plans/ num banco vazio (vetra db:plan --snapshot).\n" \
                       "-- Gerado a partir do pg_dump --schema-only normalizado, com donos; não edite à mão.\n\n"
 
@@ -28,6 +29,8 @@ module Vetra
           FileUtils.mkdir_p(File.join(@root, PLANS))
           path = File.join(@root, PLANS, expected.file_name)
           File.write(path, expected.render)
+          FileUtils.mkdir_p(File.dirname(File.join(@root, POLICIES)))
+          File.write(File.join(@root, POLICIES), @security.artifact)
           return Result.new(status: :written, plans: [expected], path: path)
         end
         ensure_current!(plans, expected)
@@ -74,16 +77,25 @@ module Vetra
 
       def expected_plan
         document = Graph::Compiler.new(root: @root).read_artifact.document
-        Plan.initial(Schema.new(document).generate)
+        schema = Schema.new(document).generate
+        @security = Security.new(schema).generate
+        Plan.initial(schema)
       end
 
       def ensure_current!(plans, expected)
         unless plans.size == 1 && plans.first.file_name == expected.file_name
           raise Graph::Error.single('db_plan_incremental', "#{PLANS} tem planos além do inicial; o plano incremental ainda não existe (rodada 4).")
         end
-        return if plans.first.render == expected.render
-        raise Graph::Error.single('db_plan_stale', "#{PLANS}/#{expected.file_name} difere do que a IR gera. Um banco vazio pode " \
-                                                   'recomeçar removendo o plano e executando vetra db:plan; um banco aplicado exige o plano incremental.')
+        unless plans.first.render == expected.render
+          raise Graph::Error.single('db_plan_stale', "#{PLANS}/#{expected.file_name} difere do que a IR gera. Um banco vazio pode " \
+                                                     'recomeçar removendo o plano e executando vetra db:plan; um banco aplicado exige o plano incremental.')
+        end
+        directory = File.join(@root, 'db/policies')
+        path = File.join(@root, POLICIES)
+        unless File.directory?(directory) && Dir.children(directory).sort == [File.basename(POLICIES)] &&
+               File.file?(path) && File.binread(path) == @security.artifact.b
+          raise Graph::Error.single('db_policies_stale', "#{POLICIES} deve ser o espelho exato da segurança gerada; revise a IR e regenere os artefatos do banco vazio juntos.")
+        end
       end
 
       def read_plans

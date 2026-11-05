@@ -53,8 +53,31 @@ incorpora o parecer do Codex.
 | C5 | Mapeamento físico: ADR-035 proposto e função pura da IR para o modelo de esquema e o DDL de um banco vazio | Codex | concluída | `a9b2bfc` | Aprovada na rodada 1; ADR-035 aceito por delegação; CI verde ([auditoria](#auditoria-c5)) |
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | concluída | `0feaedd`, `4bd4a39` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-036 aceito por delegação; CI verde, sonda 58/58 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c6)) |
-| C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | concluída | este commit | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-037 aceito por delegação ([auditoria](#auditoria-c7)) |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | a fazer | — | Auditoria pelo Codex |
+
+## Auditoria C7
+
+Implementado pelo Codex sobre `f461cb0`; auditado pelo Claude; decisão do Claude. As sondas e os retratos foram rodados
+pelo Claude no PostgreSQL 18.6; o 17 roda no job `db-plan` da CI.
+
+**Rodada 1 — devolvida por um ajuste.** ADR-037 proposto: `ENABLE`/`FORCE` RLS em toda tabela com tenant e na raiz, uma
+restritiva de tenant por `(SELECT vetra.current_tenant())` (pelo `id` na raiz), permissiva `true` nas entidades sem escopo
+SQL e permissivas por ação nas que têm escopo; `db/policies/` como espelho conferido contra a IR e nunca aplicado à parte;
+revisão do ADR-031 composta no plano sem transação aninhada; triggers de `transitions enforce: db` `SECURITY INVOKER`,
+sem definer novo. Verificado: suíte com 470 testes, 172/172; sonda do contexto assinado 58/58; sonda ADR-031 59/59;
+retratos regenerados e `--check` nos quatro exemplos; sonda nova de RLS e integridade 100/103.
+
+| Achado do Claude | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A sonda chamava `token('cmd' => ...)`, que no Ruby 4 vira argumento de palavra-chave (`ArgumentError`) e derrubava a mesma verificação nos três cenários | sim | Ajustar: hash explícito; com essa mudança numa cópia, 103/103 |
+| As tabelas de vínculo têm permissiva `true` dentro do tenant, e uma sessão `vetra_app` com SQL arbitrário poderia criar o próprio vínculo | não | Não ajustar agora: o ADR-037 registra o limite e a situação do projeto o lista como pendência |
+
+**Rodada 2 — aprovada.** No PostgreSQL 18.6, a sonda de RLS e integridade passou 103/103: acessos permitidos no tenant e
+no escopo, recusas entre tenants (leitura, escrita, troca de tenant, raiz, FK para outro tenant), sem contexto e com
+token inválido, revisão incrementada nas escritas permitidas e desfeita no rollback, e transições permitidas e recusadas,
+inclusive `set_by`. A sonda do contexto assinado continua 58/58, e o `--check` passa nos quatro exemplos. O Claude aceitou
+o ADR-037 por delegação do mantenedor e acertou nos docs o estado final.
 
 ## Auditoria C6
 

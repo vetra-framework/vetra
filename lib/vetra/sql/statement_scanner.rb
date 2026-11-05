@@ -9,6 +9,22 @@ module Vetra
     class StatementScanner
       DOLLAR = /\$([A-Za-z_][A-Za-z0-9_]*)?\$/
 
+      # Para SQL do gerador: cada instrução termina no fim de uma linha. Não divide corpos por ';'.
+      def self.statements(sql)
+        scanner, pending, statements = new, +'', []
+        sql.each_line do |line|
+          next if pending.empty? && (line.strip.empty? || line.lstrip.start_with?('--'))
+          pending << line
+          scanner.feed(line.chomp)
+          if scanner.boundary?
+            statements << pending.strip
+            pending = +''
+          end
+        end
+        raise ArgumentError, 'SQL gerado incompleto' unless pending.empty?
+        statements
+      end
+
       def initialize
         @mode = nil
         @dollar = nil

@@ -6,7 +6,7 @@ module Vetra
   module SQL
     # Mapeamento físico do ADR-035. Não lê fontes, ambiente, relógio ou banco.
     class Schema
-      Result = Struct.new(:tables, :blocks, :sql, :warnings, keyword_init: true)
+      Result = Struct.new(:tables, :blocks, :sql, :warnings, :document, keyword_init: true)
       TYPES = {
         'id' => 'uuid', 'string' => 'text', 'text' => 'text', 'email' => 'text',
         'integer' => 'bigint', 'boolean' => 'boolean', 'date' => 'date',
@@ -52,7 +52,7 @@ module Vetra
           block('tables', @tables.flat_map { |table| table_sql(table) }),
           block('foreign_keys', @tables.flat_map { |table| table['foreign_keys'].map { |key| foreign_key_sql(table, key) } })
         ]
-        Graph::Data.freeze(Result.new(tables: @tables, blocks: blocks, sql: blocks.map { |part| part['sql'] }.join, warnings: warnings))
+        Graph::Data.freeze(Result.new(tables: @tables, blocks: blocks, sql: blocks.map { |part| part['sql'] }.join, warnings: warnings, document: @document))
       end
 
       private

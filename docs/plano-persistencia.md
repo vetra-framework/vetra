@@ -18,10 +18,12 @@ sonda do contexto assinado aplica o plano como `vetra_migrator`, dono do banco, 
 [guia](db-plan.md) descreve bootstrap, provisionamento por parâmetros, rotação e resultados esperados.
 Nenhuma chave, nem mesmo de teste, entra nos artefatos.
 
-O objetivo restante é aplicar os planos com `db:migrate` e isolar os tenants por RLS: com `vetra_app`,
-uma sessão de um tenant lê e grava somente o que suas políticas permitem. A concessão de DML atual
-não implementa esse isolamento. O runtime e os repositórios ainda não emitem contexto nem executam
-operações.
+O plano dos CRMs inclui ENABLE/FORCE RLS, tenant restritivo (inclusive raiz por id), permissivas de
+escopo, revisão de autorização e triggers de transição. `db/policies/` espelha a segurança aplicada
+pelo plano, com divergência recusada antes de acessar o banco. O [ADR-037](adr/037-politicas-e-transicoes-no-plano-inicial.md)
+define a tradução das concessões e seus limites; o [guia](db-rls.md) descreve a sonda integrada.
+O objetivo restante é aplicar os planos com `db:migrate`. O runtime e os repositórios ainda não emitem
+contexto nem executam operações.
 
 ## Entregas e dependências
 
@@ -30,7 +32,7 @@ operações.
 | C5 — mapeamento físico | Codex | — | ADR-035 aceito, modelo puro e DDL determinístico dos quatro exemplos, identificadores validados |
 | K7 — planos e retrato | Claude | C5 | `db:plan`, executor comum, retrato e `--check`, CI no PostgreSQL 17/18 |
 | C6 — papéis e contexto | Codex | K7 | ADR-036 aceito, bootstrap global separado, donos, privilégios, contexto HMAC e sonda no PostgreSQL 17/18 |
-| C7 — RLS e integridade | Codex | C6 | Tenant restritivo, permissivas de escopo em `db/policies/`, revisão de autorização nos planos e triggers de `transitions enforce: db` |
+| C7 — RLS e integridade | Codex | C6 | ADR-037 aceito; tenant restritivo, permissivas de escopo em `db/policies/`, revisão nos planos, triggers de transição e sonda de RLS e integridade no PostgreSQL 17/18 |
 | K8 — executor persistente | Claude | C7 | `db:migrate`, hashes em `vetra.migrations`, lock consultivo, tentativas de lock_timeout, introspecção e retomada |
 
 Só um implementa por vez no checkout compartilhado. O Claude executa as sondas no 17 e 18 na auditoria
@@ -70,13 +72,15 @@ lotes, repositórios sobre Sequel, outbox e `vetra.instances` ficam fora do plan
   faz duas. O gate do ADR-023 (0,5 ms/instrução e 25% da latência do comando) requer medição com RLS,
   concorrência e pooler no 17/18. PL/pgSQL não garante tempo constante de máquina. REPEATABLE READ pode
   conservar chave revogada no snapshot; emissão/rotação e escolha de isolamento são operacionais.
-- **C7:** blog e chat não têm tenant e `db:authz:sql` os recusa (ADR-031). Não se inventa tenant nem
-  revisão para eles. A sonda de RLS deve provar acessos permitidos e recusados, inclusive raiz, FKs,
-  views e funções, para não passar porque ninguém acessa nada. Contexto assinado inicial exige UUIDs
+- **RLS:** blog e chat não têm tenant e `db:authz:sql` os recusa (ADR-031). Não se inventa tenant nem
+  revisão para eles. A sonda integrada programa 103 verificações de acessos permitidos e recusados,
+  inclusive raiz, FKs, views invoker e funções invoker; execução 17/18 pertence à auditoria.
+  Contexto assinado inicial exige UUIDs
   de tenant/ator; visitante/global sem essas identidades precisa de contrato posterior.
-- **C7:** transições preservam suas colunas; os dois CRMs com `transitions enforce: db` ainda exigem
-  triggers. Revisão de autorização deve compor o plano sem transações aninhadas: o SQL standalone já
-  contém BEGIN/COMMIT e as guardas precisam continuar efetivas depois dos REVOKEs.
+- **Escopo e transições:** sem escopo SQL, a permissiva `true` deixa o RBAC na aplicação, inclusive
+  administração de vínculos. Predicados sem tradução são registrados no espelho. Os triggers invoker
+  dos CRMs validam o token antes de ler cmd e não ampliam a exceção C2. Revisão é composta sem
+  BEGIN/COMMIT interno, com guardas depois dos REVOKEs. Eventos e histórico continuam no runtime.
 - **K8:** introspecção deve reconhecer banco vazio e cada etapa concluída, sem comparar só com o
   retrato final. Precisa recusar deriva, plano alterado e segundo migrador, conservar o lock consultivo
   e registrar DDL/conclusão atomicamente. Uma interrupção deve permitir retomada verificável.

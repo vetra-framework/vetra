@@ -18,7 +18,9 @@ class SignedContextProbe
     @plan = Vetra::SQL::Plan.initial(@schema)
     # A sonda confere também o artefato que será aplicado por --snapshot/--check.
     raise 'Plano do exemplo divergente' unless @plan.render == File.read(File.expand_path('../examples/mini_crm_revendas/db/plans/0001_inicial.sql', __dir__), encoding: 'UTF-8')
-    @authz = Vetra::SQL::Authorization.new(@document).generate.sql.sub("\nBEGIN;\n", "\n").delete_suffix("COMMIT;\n")
+    # A infraestrutura já pertence ao plano; reexecuta somente as guardas, depois das mutações.
+    @authz = Vetra::SQL::Authorization.new(@document).generate.statements
+      .select { |sql| sql.match?(/\ADO \$vetra_(roles|tables|privileges|routines)\$/) }.join("\n")
   end
 
   def run
@@ -88,14 +90,18 @@ class SignedContextProbe
         WHERE e.extname = 'pgcrypto'
       SQL
     end
-    check('DML de vetra_app funciona antes da instalação de RLS') do
+    check('DML de vetra_app funciona dentro do tenant com o RLS do plano') do
+      provision('dml', @secret)
       as_app do
+        @connection.exec_params("SELECT set_config('vetra.ctx', $1, true)", [token({}, kid: 'dml')])
         @connection.exec_params('INSERT INTO public.companies (id, name, created_at) VALUES ($1, $2, transaction_timestamp())', [@tenant, 'Sonda'])
         found = @connection.exec_params('SELECT id FROM public.companies WHERE id = $1', [@tenant]).getvalue(0, 0) == @tenant
         updated = @connection.exec_params('UPDATE public.companies SET name = $2 WHERE id = $1', [@tenant, 'Alterada']).cmd_tuples == 1
         deleted = @connection.exec_params('DELETE FROM public.companies WHERE id = $1', [@tenant]).cmd_tuples == 1
         found && updated && deleted
       end
+    ensure
+      write_key("DELETE FROM vetra_private.keys WHERE kid = 'dml'")
     end
     {
       'leitura de keys' => 'SELECT * FROM vetra_private.keys',

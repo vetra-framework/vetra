@@ -130,6 +130,8 @@ jobs:
           bundle exec ruby -Ilib -rvetra -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| 2.times { c.exec(Vetra::SQL::Context.roles_sql) } }'
       - name: Contexto assinado e privilégios do plano gerado
         run: bundle exec ruby script/sonda_contexto_assinado.rb
+      - name: RLS, escopos, revisão e transições dos planos gerados
+        run: bundle exec ruby script/sonda_rls_integridade.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

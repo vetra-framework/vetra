@@ -1,7 +1,7 @@
 # SQL de revisão de autorização
 
 `db:authz:sql` gera o SQL inicial de revisão por tenant do ADR-030. É um gerador sem conexão ao banco;
-o plano completo de persistência e o runtime live continuam pendentes.
+o runtime live continua pendente. `db:plan` compõe essa revisão com contexto, RLS e transições.
 
 ## Gerar para revisão
 
@@ -102,7 +102,7 @@ isso **não** significa que `SET ROLE` funcione
 dentro de um definer. O PostgreSQL o proíbe (a sonda confere SQLSTATE `42501`), tanto na função quanto em
 chamadas sob esse contexto. Veja [SET ROLE](https://www.postgresql.org/docs/18/sql-set-role.html).
 
-Não há lista de exceções nem revogação automática de rotinas externas. Revise a lista da recusa e revogue
+Há somente a exceção exata das duas funções de contexto do ADR-036, sem revogação automática de rotinas externas. Revise a lista da recusa e revogue
 `EXECUTE` antes de tentar instalar novamente, incluindo `PUBLIC`, cada papel que empresta a permissão e
 os donos intermediários que dão acesso a rotinas internas:
 
@@ -138,7 +138,8 @@ desta instalação inicial.
 
 ```ruby
 result = Vetra::SQL::Authorization.new(document, schema: 'infra').generate
-result.sql       # SQL congelado
+result.sql       # SQL standalone congelado, com BEGIN/COMMIT
+result.statements # mesmas instruções sem transação, SETs de sessão ou cabeçalho, para compor o plano
 result.tables    # entidades, tabelas físicas e colunas do tenant
 result.warnings  # diagnósticos do grafo
 ```
@@ -170,8 +171,9 @@ por isso não há exclusão desses schemas.
 
 ## Limites
 
-Não há `db:plan`, `db:migrate`, atualização de instalações existentes, chave global sem tenant, geração de
-RLS ou eventos de linha, assinaturas, executor de operações ou entrega de dados live. O schema novo é uma
+Este gerador standalone não aplica planos; `db:plan` compõe suas instruções sem transação aninhada.
+Não há `db:migrate`, atualização de instalações existentes, chave global sem tenant, eventos de linha,
+assinaturas, executor de operações ou entrega de dados live. O schema novo é uma
 pré-condição: colisões falham sem substituir objetos. O mesmo vale para dados particionados ou herdados.
 A introspecção gerada verifica somente as colunas e os poderes necessários a este SQL, não o esquema
 completo da aplicação. Os poderes e as rotinas preexistentes são conferidos na instalação; novas rotinas,
@@ -202,5 +204,6 @@ com assinatura, dono, linguagem, atributos, configuração e SHA-256 do corpo ex
 fecho de escalada. Uma função parecida ou uma cópia em outro schema continua sujeita à recusa.
 As guardas de execução de funções de revisão e de poderes dos donos usam a mesma identidade exata.
 
-A integração da revisão como passos do plano, junto das políticas RLS e dos triggers de transição,
-pertence à C7. O [guia de planos](db-plan.md) descreve as chaves e a sonda que verifica essa convivência.
+A revisão integra os passos do plano inicial, depois das políticas RLS e dos triggers de transição.
+As guardas de privilégios e rotinas continuam depois dos REVOKEs; blog e chat não recebem revisão.
+O [guia de planos](db-plan.md) descreve chaves, e o [guia de RLS](db-rls.md) detalha a sonda integrada.

@@ -25,6 +25,11 @@ DATABASE_URL=... VETRA_PG_DUMP=... bundle exec bin/vetra db:plan --check --root 
 - **`db:plan --check`** falha se o plano não for o que a IR gera ou se o retrato não for o resultado de aplicar os planos
   (ADR-025, §1, item 3). É o que a CI roda nos quatro exemplos, no PostgreSQL 17 e no 18.
 
+Os três modos também conferem `db/policies/0001_seguranca.sql`, espelho das instruções de RLS e
+transições aplicadas pelo plano. Ausência, edição ou arquivo adicional gera `db_policies_stale` antes
+de acessar o banco. A primeira geração grava plano e espelho juntos; só `db/plans/` é aplicado.
+O [guia de RLS e integridade](db-rls.md) descreve permissivas, limites e a sonda dos CRMs.
+
 `--snapshot` e `--check` usam o servidor de `DATABASE_URL` só para criar um banco temporário `vetra_plan_*` a partir do
 `template0`, com `UTF8` e `LOCALE 'C'`. O papel precisa poder criar bancos. O banco da URL nunca é alterado, e o
 temporário é removido também numa falha. A gem `pg` é exigida só nesses dois modos. Um erro de conexão ou de URL vira
@@ -156,6 +161,14 @@ Os novos passos de contexto também são `expand`: guardas `DO`, ajustes dos pri
 As classificações novas precisam ser conferidas pelo auditor no PostgreSQL 17/18; as medições acima
 referem-se somente aos comandos de tabelas/chaves/índices/FKs do mapeamento físico.
 
+Na segurança, ENABLE/FORCE RLS e CREATE POLICY são `AccessExclusive`; CREATE TRIGGER, ENABLE ALWAYS
+TRIGGER e LOCK TABLE da revisão são `ShareRowExclusive`; a carga inicial de revisões é `RowExclusive`.
+São passos `expand` com custo `tabela_vazia`. As guardas de catálogo são `nenhum`/`catalogo`, e a guarda
+de armazenamento usa `AccessShare`/`tabela_vazia`. Os locks de política e trigger seguem os fontes do
+PostgreSQL 17 em [policy.c](https://github.com/postgres/postgres/blob/REL_17_STABLE/src/backend/commands/policy.c)
+e [tablecmds.c](https://github.com/postgres/postgres/blob/REL_17_STABLE/src/backend/commands/tablecmds.c);
+a conferência de execução no 17/18 pertence à auditoria.
+
 O leitor é estrito (`db_plan_format`): nome, cabeçalho, transação, numeração dos passos, fase, lock, custo, marcadores
 `-- vetra:` desconhecidos, SQL fora de um passo, passo vazio, CRLF e qualquer diferença do formato canônico são recusados.
 Assim o executor nunca precisa adivinhar onde um passo começa ou em que transação ele roda. Os marcadores só contam
@@ -188,9 +201,9 @@ grupos transacionais; esses modos entram no formato e no executor antes dela.
 
 ## Limites
 
-Não há plano incremental ou `db:migrate` (K8). RLS, revisão de autorização nos planos e triggers de
-transição ficam para a C7. Os testes da suíte não usam banco; a aplicação real é conferida pela CI no
-17 e 18. O DML concedido nesta etapa ainda não isola tenants.
+Não há plano incremental ou `db:migrate` (K8). O plano inicial gera RLS, revisão e triggers de
+transição, com os limites de RBAC descritos no [guia](db-rls.md). Os testes da suíte não usam banco;
+a aplicação real exige as sondas e o `--check` da matriz PostgreSQL 17/18.
 
 ## Sonda do contexto
 
@@ -216,8 +229,13 @@ chaves aleatórias apenas em memória, por parâmetros e como migrador. São esp
   adulteração de MAC/payload, sintaxe/claims inválidos e not_before incompatível retornam dois NULLs.
 - `SET LOCAL` não sobrevive à transação; `verify_only` e nova `active` validam; `revoked` recusa na
   instrução seguinte de uma transação aberta; chave removida recusa.
-- A revisão aceita as funções exatas e recusa corpo parecido, cópia em outro schema, search_path ou dono
-  alterados. Cada instalação de revisão é revertida, inclusive as bem sucedidas.
+- A revisão instalada pelo plano aceita as funções exatas e recusa corpo parecido, cópia em outro schema,
+  search_path ou dono alterados. As guardas são reexecutadas; as mutações são revertidas.
 
 Sintaxe e testes sem banco podem ser verificados localmente. A evidência de execução das 58 verificações
 e a estabilidade dos retratos no 17/18 dependem da auditoria com PostgreSQL; não são resultados da suíte.
+
+O plano dos CRMs também instala revisão, RLS e triggers de transição, sem transação aninhada. Blog e
+chat permanecem sem tenant/RLS de tenant/revisão. Execute ainda
+`DATABASE_URL=... bundle exec ruby script/sonda_rls_integridade.rb`: são 103 verificações de acessos
+permitidos e recusados, detalhadas no [guia](db-rls.md#sonda-no-postgresql-17-e-18).

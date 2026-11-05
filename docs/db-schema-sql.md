@@ -27,10 +27,11 @@ dos nós, campos, índices e relações. As versões 0.1 a 0.6 são lidas com su
 Cada tabela informa `entity`, `schema`, `table`, `columns` (`name`, `field` lógico, `type` SQL, `nullable`
 e `default` SQL ou nulo), `checks` (`name`, `expression`), `primary_key`, `unique_keys` e `indexes`
 (`name`, `columns`), além de `foreign_keys` (colunas, destino e ações). `assignments` preserva os defaults
-da IR, geração, normalização e donos de transição; `transitions` preserva `enforce` para a C7.
+da IR, geração, normalização e donos de transição; `transitions` preserva `enforce` para o plano.
+`document` conserva a IR validada e congelada para os consumidores de segurança do plano.
 
 `scope` distingue `tenant_root`, `tenant` e `global`. Na raiz, `tenant_column` é `id`; nas filhas, é o campo
-da IR; no blog e chat, é nulo. A C7 deve usar esse dado para proteger também a raiz. A ausência de
+da IR; no blog e chat, é nulo. O plano usa esse dado para proteger também a raiz. A ausência de
 `entity.tenant` na raiz não significa ausência de proteção.
 
 ## Ordem e representação
@@ -82,7 +83,7 @@ parcial ignorando `where`. Este gerador exige banco vazio e falha se objetos já
 
 Esta API continua sendo o mapeamento físico puro: não inclui concessões, RLS, revisão ou triggers de
 transição. `Plan.initial` acrescenta a infraestrutura do contexto, confere papéis operacionais e atribui
-donos e DML (ADR-036). RLS, revisão nos planos e triggers de transição pertencem à C7; aplicação
+donos e DML (ADR-036), RLS, revisão e triggers de transição ([guia](db-rls.md)). Aplicação
 com histórico e migração incremental ainda não existem.
 
 ## Referências de auditoria
@@ -108,5 +109,5 @@ repetido deve falhar na única e email fora da forma normalizada deve falhar no 
 junções deve ocorrer uma vez. Inserções cíclicas em uma fixture adicional podem usar
 `SET CONSTRAINTS ALL DEFERRED`, mantendo falha no commit quando falta o destino.
 
-Este DDL ainda não isola leituras por RLS nem impede uma transição de comando indevida; esses testes
-passam a ser exigíveis com a C7. Não há resultado de execução em banco registrado nesta entrega.
+O DDL puro não inclui RLS ou triggers. O plano inicial acrescenta essas garantias, exercitadas pela
+[sonda integrada](db-rls.md#sonda-no-postgresql-17-e-18); testes sem banco não provam sua execução.

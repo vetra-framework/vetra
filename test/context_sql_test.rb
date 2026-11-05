@@ -18,7 +18,8 @@ class ContextSQLTest < GraphTest
         assert_includes sql, 'ALTER SCHEMA "public" OWNER TO "vetra_owner"'
         assert_includes sql, 'REVOKE CREATE, TEMPORARY ON DATABASE %I FROM PUBLIC, "vetra_app"'
         assert_includes sql, 'GRANT CREATE ON DATABASE %I TO "vetra_owner"'
-        refute_match(/CREATE ROLE|ALTER ROLE|DROP ROLE|INSERT INTO|PASSWORD|SET ROLE|GRANT "vetra_owner"/, sql)
+        refute_match(/CREATE ROLE|ALTER ROLE|DROP ROLE|PASSWORD|GRANT "vetra_owner"/, sql)
+        refute_includes sql, 'INSERT INTO "vetra_private"."keys"'
         schema.tables.each do |table|
           relation = table.values_at('schema', 'table').map { |v| %Q{"#{v}"} }.join('.')
           assert_includes sql, "ALTER TABLE #{relation} OWNER TO \"vetra_owner\""
