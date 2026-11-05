@@ -153,16 +153,48 @@ class MigrateProbe
         owner.close
       end
     end
+    check('large object criado depois é deriva, embora o pg_dump --schema-only não o mostre') do
+      owner = connect(name, as: nil)
+      begin
+        owner.exec("SELECT pg_catalog.lo_from_bytea(1234, '\\x616263'::bytea)")
+        drift = refused('db_migrate_drift') { migrate(connection) }
+        owner.exec('SELECT pg_catalog.lo_unlink(1234)')
+        drift && migrate(connection).status == :up_to_date
+      ensure
+        owner.close
+      end
+    end
+    check('parâmetro por banco definido depois é deriva, embora o pg_dump --schema-only não o mostre') do
+      owner = connect(name, as: nil)
+      quoted = PG::Connection.quote_ident(name)
+      begin
+        owner.exec("ALTER DATABASE #{quoted} SET session_replication_role = replica")
+        drift = refused('db_migrate_drift') { migrate(connection) }
+        owner.exec("ALTER DATABASE #{quoted} RESET session_replication_role")
+        drift && migrate(connection).status == :up_to_date
+      ensure
+        owner.close
+      end
+    end
     connection.close
 
-    { 'tabela' => 'CREATE TABLE public.legado (id integer)',
-      'collation' => 'CREATE COLLATION public.legado FROM pg_catalog."C"',
-      'privilégio padrão' => 'ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO vetra_app' }.each do |kind, sql|
+    subscription = 'CREATE SUBSCRIPTION legado CONNECTION \'dbname=inexistente\' PUBLICATION legado ' \
+                   'WITH (connect = false, enabled = false, create_slot = false, slot_name = NONE)'
+    { 'tabela' => ['CREATE TABLE public.legado (id integer)', nil],
+      'collation' => ['CREATE COLLATION public.legado FROM pg_catalog."C"', nil],
+      'privilégio padrão' => ['ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO vetra_app', nil],
+      'subscription' => [subscription, 'DROP SUBSCRIPTION legado'],
+      'publicação' => ['CREATE PUBLICATION legado FOR ALL TABLES', nil],
+      'large object de OID baixo' => ["SELECT pg_catalog.lo_from_bytea(1234, '\\x616263'::bytea)", nil],
+      'parâmetro por banco' => ['ALTER DATABASE %<db>s SET session_replication_role = replica', nil],
+      'parâmetro de papel no banco' => ['ALTER ROLE vetra_app IN DATABASE %<db>s SET work_mem = \'8MB\'', nil] }.each do |kind, (sql, cleanup)|
       check("banco com #{kind} e sem registro é recusado antes de aplicar qualquer passo") do
         dirty = database
         setup = connect(dirty, as: nil)
         begin
-          setup.exec(sql)
+          # A subscription sem conexão gera um aviso esperado do PostgreSQL.
+          setup.exec('SET client_min_messages = error')
+          setup.exec(format(sql, db: PG::Connection.quote_ident(dirty)))
           migrator = connect(dirty)
           begin
             refused('db_migrate_not_empty') { migrate(migrator) } &&
@@ -171,6 +203,8 @@ class MigrateProbe
             migrator.close
           end
         ensure
+          # Uma subscription impede remover o banco; sai antes do DROP DATABASE do ensure da sonda.
+          setup.exec(cleanup) if cleanup
           setup.close
         end
       end

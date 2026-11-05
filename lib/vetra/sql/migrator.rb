@@ -64,11 +64,13 @@ module Vetra
       end
 
       # O esquema precisa ser o do retrato e o banco, ter os privilégios que o plano deu (ADR-036): o pg_dump
-      # --schema-only não inclui os privilégios do próprio banco, então eles são conferidos pelo catálogo.
+      # --schema-only não inclui os privilégios do próprio banco, subscriptions nem large objects, então esses são
+      # conferidos pelo catálogo.
       def verify_state!(snapshot, before:)
         problems = []
         problems << "o esquema difere de #{Planner::SCHEMA}" unless snapshot == Planner::SCHEMA_HEADER + @database.dump
         problems.concat(@database.database_privilege_problems)
+        problems.concat(@database.undumped_objects.map { |object| "o banco tem #{object}" })
         return if problems.empty?
         detail = problems.join('; ')
         if before
@@ -191,7 +193,32 @@ module Vetra
                  AND nspacl::text = '{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}'
             FROM pg_catalog.pg_namespace WHERE nspname = 'public'
         SQL
-        public_default ? found : found + ['schema public com dono ou privilégios alterados']
+        found += ['schema public com dono ou privilégios alterados'] unless public_default
+        found + undumped_objects
+      end
+
+      # Objetos e configurações do banco que o pg_dump --schema-only não mostra ao migrador e que a regra do OID não alcança:
+      # subscriptions (pg_subscription é compartilhado e o pg_dump só as lê como superusuário), large objects (aceitam OID
+      # explícito baixo), parâmetros por banco ou por papel no banco (ALTER DATABASE/ROLE ... SET, que só entram no dump com
+      # --create e podem mudar o comportamento, como session_replication_role = replica) e rótulos de segurança, inclusive
+      # em objetos do sistema e no próprio banco. Contam como objeto estranho antes de aplicar e como deriva depois; nenhum
+      # plano os cria. Comentários em objetos do sistema ficam fora: não mudam execução nem permissões.
+      def undumped_objects
+        row = @connection.exec(<<~SQL).first
+          WITH current AS (SELECT d.oid FROM pg_catalog.pg_database d WHERE d.datname = pg_catalog.current_database())
+          SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_subscription s, current WHERE s.subdbid = current.oid) AS subscriptions,
+                 EXISTS (SELECT 1 FROM pg_catalog.pg_largeobject_metadata) AS large_objects,
+                 EXISTS (SELECT 1 FROM pg_catalog.pg_db_role_setting r, current WHERE r.setdatabase = current.oid) AS settings,
+                 EXISTS (SELECT 1 FROM pg_catalog.pg_seclabel)
+                   OR EXISTS (SELECT 1 FROM pg_catalog.pg_shseclabel l, current
+                               WHERE l.classoid = 'pg_catalog.pg_database'::regclass AND l.objoid = current.oid) AS labels
+        SQL
+        found = []
+        found << 'subscription de replicação lógica (pg_subscription)' if row['subscriptions'] == 't'
+        found << 'large object (pg_largeobject_metadata)' if row['large_objects'] == 't'
+        found << 'parâmetro por banco ou por papel no banco (pg_db_role_setting)' if row['settings'] == 't'
+        found << 'rótulo de segurança (pg_seclabel ou pg_shseclabel)' if row['labels'] == 't'
+        found
       end
 
       # Privilégios do próprio banco que o plano inicial deixa (ADR-036) e que o pg_dump --schema-only não mostra.

@@ -22,8 +22,9 @@ O plano dos CRMs inclui ENABLE/FORCE RLS, tenant restritivo (inclusive raiz por 
 escopo, revisão de autorização e triggers de transição. `db/policies/` espelha a segurança aplicada
 pelo plano, com divergência recusada antes de acessar o banco. O [ADR-037](adr/037-politicas-e-transicoes-no-plano-inicial.md)
 define a tradução das concessões e seus limites; o [guia](db-rls.md) descreve a sonda integrada.
-O objetivo restante é aplicar os planos com `db:migrate`. O runtime e os repositórios ainda não emitem
-contexto nem executam operações.
+O [`db:migrate`](db-migrate.md) aplica o plano num banco real como `vetra_migrator`, o que fecha a rodada 3. O runtime e
+os repositórios ainda não emitem contexto nem executam operações; isso, o plano incremental e a outbox ficam para a
+rodada 4.
 
 ## Entregas e dependências
 

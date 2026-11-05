@@ -54,7 +54,48 @@ incorpora o parecer do Codex.
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | concluída | `0feaedd`, `4bd4a39` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-036 aceito por delegação; CI verde, sonda 58/58 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c6)) |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | concluída | `afb3009`, `92aa04f` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-037 aceito por delegação; CI verde, sonda 103/103 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c7)) |
-| K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | em auditoria | — | Auditoria pelo Codex |
+| K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | concluída | este commit | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada ([auditoria](#auditoria-k8)) |
+
+## Auditoria K8
+
+Implementado pelo Claude sobre `8ab5f1b`; auditado pelo Codex; decisão do Claude. As sondas e a CLI conectada foram rodadas
+pelo Claude no PostgreSQL 18.6; o 17 roda no job `db-plan` da CI.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A deriva não via os privilégios do próprio banco, que o `pg_dump --schema-only` não inclui: um `GRANT CREATE ON DATABASE` dado depois à aplicação passaria | sim | Ajustar: privilégios do banco conferidos pelo catálogo, antes e depois de aplicar |
+| A conferência de banco vazio era uma lista de catálogos e deixava passar uma collation, que só aparecia na deriva depois do commit, com a mensagem "Nada foi alterado" | sim | Ajustar: todo catálogo local com OID a partir de 16384 e o `public` com dono e ACL padrão; mensagem própria para a deriva depois do commit |
+| A sonda podia esperar sem prazo e não limpar os bancos | não | Ajustar: prazos e `ensure` |
+| O guia do `db:plan` dizia que o `db:migrate` não existia | não | Ajustar |
+
+**Rodada 2 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Uma subscription do banco não era vista (catálogo compartilhado, fora do dump do migrador) | sim | Ajustar: conferida por `pg_subscription.subdbid` |
+| Um large object com OID explícito baixo não era visto | sim | Ajustar: qualquer linha em `pg_largeobject_metadata` |
+
+**Rodada 3 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Parâmetros por banco ou por papel no banco (`ALTER DATABASE/ROLE ... SET`), como `session_replication_role = replica`, que desliga a checagem das FKs, não eram vistos | sim | Ajustar: qualquer linha de `pg_db_role_setting` do banco |
+| Rótulos de segurança em objetos do sistema não eram vistos | sim | Ajustar: `pg_seclabel` e `pg_shseclabel` do banco; a sonda não os cria, porque exigem provider |
+| Publicações | não | Não ajustar o código: já eram vistas; caso acrescentado à sonda |
+| Comentários em objetos do sistema | não | Não ajustar: não mudam execução nem permissões; limite documentado |
+
+**Rodada 4 — aprovada pelo Codex**, com um ajuste de texto no plano da persistência, feito pelo Claude.
+
+Verificado pelo Claude no PostgreSQL 18.6: sonda do `db:migrate` 21/21, sem banco nem configuração restante. Ela cobre
+aplicação e registro do hash; segunda execução; registro inacessível à aplicação; segundo migrador; superusuário e
+aplicação recusados; deriva de esquema, de privilégio do banco, de large object e de parâmetro por banco; plano alterado;
+banco com tabela, collation, privilégio padrão, subscription, publicação, large object de OID baixo, parâmetro por banco
+ou de papel no banco recusado sem aplicar nada; nova tentativa de `lock_timeout` que aplica; tentativas esgotadas com
+retomada; e conexão derrubada no meio do plano com retomada. A CLI conectada como `vetra_migrator` aplica e, na segunda
+vez, não acha nada pendente. Sondas de RLS 103/103 e do contexto 58/58; `--check` nos quatro exemplos. Suíte com 477
+testes e 7.548 asserções, 179/179.
 
 ## Auditoria C7
 

@@ -26,13 +26,18 @@ exigido, como no `db:plan --check`.
    correspondente também (`db_migrate_unknown`).
 4. Sem plano pendente, compara o esquema do banco com `db/schema.sql` (o `pg_dump` normalizado, sem a tabela de
    registro) e confere pelo catálogo os privilégios do próprio banco, que o `pg_dump --schema-only` não mostra:
-   `vetra_app` sem `CREATE` nem `TEMPORARY` e sem ser dono, `vetra_owner` com `CREATE` (ADR-036). Uma mudança feita
+   `vetra_app` sem `CREATE` nem `TEMPORARY` e sem ser dono, `vetra_owner` com `CREATE` (ADR-036). Subscriptions, large
+   objects, parâmetros por banco ou por papel no banco e rótulos de segurança, que o dump também não mostra ao migrador,
+   contam como deriva; um `session_replication_role = replica` por banco, por exemplo, desligaria a checagem das FKs. Uma mudança feita
    fora dos planos é recusada como deriva (`db_migrate_drift`), sem alterar nada.
 5. Com plano pendente, exige um banco vazio, conferido antes de qualquer passo: nenhum objeto com OID a partir de
    16384 (`FirstNormalObjectId`, o primeiro OID de objetos criados depois do `initdb`) em nenhum catálogo local com OID,
    o que cobre tabelas, tipos, collations, operadores, extensões, gatilhos de evento, privilégios padrão e qualquer
    outra espécie sem lista à mão (o migrador não lê `pg_user_mapping`, mas um mapeamento exige um servidor estrangeiro,
-   visível em `pg_foreign_server`), e o schema `public` com o dono e os privilégios padrão. Um banco com objetos e sem
+   visível em `pg_foreign_server`), o schema `public` com o dono e os privilégios padrão, e nenhuma subscription do banco,
+   large object, parâmetro por banco ou por papel no banco (`ALTER DATABASE/ROLE ... SET`) nem rótulo de segurança, que
+   a regra do OID não alcança (um large object aceita OID explícito baixo; os outros ficam em catálogos sem `oid` próprio
+   ou compartilhados). Um banco com objetos e sem
    registro é recusado (`db_migrate_not_empty`), com os catálogos encontrados, sem aplicar nada.
 6. Aplica cada plano pendente numa transação, com `lock_timeout` de 3 s, e grava o registro na mesma transação: plano e
    registro entram juntos ou nenhum dos dois. O primeiro plano cria `vetra.migrations` depois de criar o schema `vetra`;
@@ -55,13 +60,16 @@ aplicar, novas tentativas com espera e esgotamento, e planos que a IR não gera.
 [sonda](../script/sonda_db_migrate.rb) aplica o plano do mini CRM com revendas num PostgreSQL real, como
 `vetra_migrator`, e confere: aplicação com o hash registrado; segunda execução sem mudanças; `vetra_app` sem acesso ao
 registro; segundo migrador recusado; superusuário e aplicação recusados; deriva recusada; plano alterado recusado pelo
-hash; `CREATE` e `TEMPORARY` no banco dados à aplicação recusados como deriva; banco com tabela, collation ou privilégio
-padrão recusado sem aplicar nada; nova tentativa que aplica depois que o bloqueio sai; tentativas
+hash; `CREATE` e `TEMPORARY` no banco dados à aplicação, large object e parâmetro por banco criados depois recusados como
+deriva; banco com tabela, collation, privilégio padrão, subscription, publicação, large object de OID baixo, parâmetro
+por banco ou parâmetro de papel no banco recusado sem aplicar nada; nova tentativa que aplica depois que o bloqueio sai; tentativas
 esgotadas sem nada aplicado, com retomada; e conexão derrubada no meio do plano sem nada aplicado, com retomada. Ela roda
 no job `db-plan` da CI, no PostgreSQL 17 e 18.
 
 ## Limites
 
 Não há plano incremental, `--dry-run`, relatório de estado nem fase contract (`vetra.instances`, ADR-025 §5). A deriva é
-conferida pelo esquema inteiro do retrato, não só pelos objetos que um plano toca: basta para o plano inicial e será
-refinada com o plano incremental.
+conferida pelo esquema inteiro do retrato e pelos catálogos citados acima, não só pelos objetos que um plano toca: basta
+para o plano inicial e será refinada com o plano incremental. Ficam fora da garantia os comentários em objetos do sistema
+e no próprio banco, que não mudam execução nem permissões. Os rótulos de segurança são conferidos pelo catálogo, mas a
+sonda não os cria, porque exigem um provider carregado (como o `sepgsql`).

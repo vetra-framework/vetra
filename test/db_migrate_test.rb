@@ -4,12 +4,12 @@ class DBMigrateTest < GraphTest
   # Banco falso do Migrator: guarda o estado em memória, para testar a lógica sem PostgreSQL. A aplicação real é
   # conferida pela sonda script/sonda_db_migrate.rb.
   class FakeDatabase
-    attr_accessor :user, :locked, :records, :objects, :dumped, :timeouts, :privilege_problems
+    attr_accessor :user, :locked, :records, :objects, :dumped, :timeouts, :privilege_problems, :undumped
     attr_reader :applied_plans, :unlocked
 
     def initialize(dumped:)
       @user, @locked, @records, @objects, @dumped, @timeouts = 'vetra_migrator', false, [], [], dumped, 0
-      @applied_plans, @unlocked, @privilege_problems = [], false, []
+      @applied_plans, @unlocked, @privilege_problems, @undumped = [], false, [], []
     end
 
     def ensure_migrator!
@@ -26,6 +26,7 @@ class DBMigrateTest < GraphTest
     def applied = @records.map(&:dup)
     def foreign_objects = @objects
     def database_privilege_problems = @privilege_problems
+    def undumped_objects = @undumped
     def dump = @dumped
 
     def apply(plan, name, digest)
@@ -106,6 +107,11 @@ class DBMigrateTest < GraphTest
       fresh.privilege_problems = ['vetra_app pode criar objetos no banco (CREATE)']
       error = assert_graph_error('db_migrate_drift') { migrator(root, fresh).migrate }
       assert_includes error.message, 'vetra_app pode criar objetos'
+      # Subscriptions e large objects, que o pg_dump --schema-only não mostra, também.
+      fresh.privilege_problems = []
+      fresh.undumped = ['large object (pg_largeobject_metadata)']
+      error = assert_graph_error('db_migrate_drift') { migrator(root, fresh).migrate }
+      assert_includes error.message, 'o banco tem large object'
       # O esquema que diverge do retrato logo depois da aplicação também é apontado, sem dizer que nada mudou.
       drifted = FakeDatabase.new(dumped: "CREATE TABLE public.outra ();\n")
       error = assert_graph_error('db_migrate_drift') { migrator(root, drifted).migrate }

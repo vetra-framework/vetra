@@ -16,7 +16,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 37 aceitos (001 a 037), com o índice em [adr/README.md](adr/README.md); os últimos são o mapeamento físico 035, os papéis e o contexto assinado 036 e as políticas e transições 037 |
-| Testes do compilador e exemplos | 477 testes e 7.543 asserções, sem falhas; 179/179 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador e exemplos | 477 testes e 7.548 asserções, sem falhas; 179/179 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
