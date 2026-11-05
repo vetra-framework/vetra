@@ -54,7 +54,7 @@ incorpora o parecer do Codex.
 | K7 | `db:plan`: formato do plano, executor comum em banco descartável, retrato `db/schema.sql` e `--check` na CI | Claude | concluída | `c6c68e6`, `9f48cd7` | Rodadas 1 a 4 devolvidas pelo Codex; rodada 5 aprovada; CI verde, `--check` no PostgreSQL 17 e 18 ([auditoria](#auditoria-k7)) |
 | C6 | Papéis, `vetra_private`, contexto assinado e provisionamento mínimo das chaves | Codex | concluída | `0feaedd`, `4bd4a39` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-036 aceito por delegação; CI verde, sonda 58/58 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c6)) |
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | concluída | `afb3009`, `92aa04f` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-037 aceito por delegação; CI verde, sonda 103/103 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c7)) |
-| K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | concluída | este commit | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada ([auditoria](#auditoria-k8)) |
+| K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | concluída | `da3dda9`, `5b15437` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 21/21 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k8)) |
 
 ## Auditoria K8
 
@@ -96,6 +96,12 @@ ou de papel no banco recusado sem aplicar nada; nova tentativa de `lock_timeout`
 retomada; e conexão derrubada no meio do plano com retomada. A CLI conectada como `vetra_migrator` aplica e, na segunda
 vez, não acha nada pendente. Sondas de RLS 103/103 e do contexto 58/58; `--check` nos quatro exemplos. Suíte com 477
 testes e 7.548 asserções, 179/179.
+
+O commit `da3dda9` foi feito fora do protocolo durante a auditoria, com o estado da rodada 1 e mensagem fora do
+formato; não foi reescrito, porque já estava publicado. O `5b15437` traz as correções das rodadas 2 a 4 e o registro da
+auditoria. Na CI ([execução 42056786455](https://github.com/vetra-framework/vetra/actions/runs/42056786455)), a sonda do
+`db:migrate` passou 21/21, a de RLS 103/103 e a do contexto 58/58 no PostgreSQL 17.11 e no 18.6, com o `--check` dos
+quatro exemplos nos dois. Com a K8, a rodada 3 está concluída.
 
 ## Auditoria C7
 
