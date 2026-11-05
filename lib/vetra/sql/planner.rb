@@ -62,6 +62,14 @@ module Vetra
         Result.new(status: :checked, plans: plans, path: path)
       end
 
+      # Planos que o db:migrate pode aplicar: os commitados, conferidos contra a IR antes de qualquer acesso ao banco.
+      def migration_plans
+        plans = read_plans
+        raise Graph::Error.single('db_plan_missing', "Nenhum plano em #{PLANS}; execute vetra db:plan.") if plans.empty?
+        ensure_current!(plans, expected_plan)
+        plans
+      end
+
       def compare_schema!(committed, produced)
         return if committed == produced
         line = committed.lines.zip(produced.lines).index { |a, b| a != b } || [committed.lines.size, produced.lines.size].min

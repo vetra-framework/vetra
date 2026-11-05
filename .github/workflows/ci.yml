@@ -132,6 +132,8 @@ jobs:
         run: bundle exec ruby script/sonda_contexto_assinado.rb
       - name: RLS, escopos, revisão e transições dos planos gerados
         run: bundle exec ruby script/sonda_rls_integridade.rb
+      - name: db:migrate num banco real como vetra_migrator
+        run: bundle exec ruby script/sonda_db_migrate.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

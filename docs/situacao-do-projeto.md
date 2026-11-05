@@ -4,11 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-05, sobre `f461cb0`, com a C7 da [persistência](plano-persistencia.md) aprovada pela
-  auditoria do Claude: RLS restritivo de tenant e raiz, permissivas de escopo, revisão e triggers de transição no
-  plano inicial, com a sonda de RLS e integridade em 103/103 no PostgreSQL 18.6. O
-  [ADR-037](adr/037-politicas-e-transicoes-no-plano-inicial.md) foi aceito pelo Claude, por delegação do mantenedor; o
-  [guia](db-rls.md) descreve os limites. A IR permanece 0.6; `db:migrate` pertence à K8.
+- **Atualizado em:** 2026-11-05, sobre `8ab5f1b`, com a K8 da [persistência](plano-persistencia.md): `vetra db:migrate`
+  aplica o plano inicial num banco real como `vetra_migrator`, com registro por hash em `vetra.migrations`, migrador
+  único, novas tentativas de `lock_timeout`, banco vazio ou registrado, deriva e retomada ([guia](db-migrate.md)). Antes,
+  a C7 trouxe RLS, escopo, revisão e transições (ADR-037). A IR permanece 0.6.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -17,7 +16,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 37 aceitos (001 a 037), com o índice em [adr/README.md](adr/README.md); os últimos são o mapeamento físico 035, os papéis e o contexto assinado 036 e as políticas e transições 037 |
-| Testes do compilador e exemplos | 470 testes e 7.454 asserções, sem falhas; 172/172 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador e exemplos | 477 testes e 7.543 asserções, sem falhas; 179/179 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
@@ -59,6 +58,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] `vetra db:plan` (K7): plano inicial em `db/plans/` com fase, lock e custo por passo e transação única; retrato
   `db/schema.sql` pelo `pg_dump` normalizado de um banco descartável; `--check` na CI no PostgreSQL 17 e 18, num job
   próprio, verde nos dois ([execução 41902986720](https://github.com/vetra-framework/vetra/actions/runs/41902986720)). Os quatro exemplos têm plano e retrato. [Guia](db-plan.md).
+- [x] `vetra db:migrate` (K8): aplica o plano inicial como `vetra_migrator`, com o hash de cada plano em
+  `vetra.migrations` na mesma transação, lock consultivo de migrador único, `lock_timeout` de 3 s com novas
+  tentativas, recusa de banco não vazio, de plano alterado e de deriva, e retomada. Sonda no PostgreSQL 17 e 18.
+  [Guia](db-migrate.md).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
@@ -556,5 +559,5 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
-   de contexto, RLS, revisão e transições estão implementados; falta a K8 (`db:migrate`). Plano incremental, repositórios sobre o Sequel e outbox
+   de contexto, RLS, revisão e transições estão implementados; a K8 aplica o plano com `db:migrate`. Plano incremental, repositórios sobre o Sequel e outbox
    continuam fora da implementação inicial

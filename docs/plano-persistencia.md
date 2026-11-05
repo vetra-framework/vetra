@@ -33,7 +33,7 @@ contexto nem executam operações.
 | K7 — planos e retrato | Claude | C5 | `db:plan`, executor comum, retrato e `--check`, CI no PostgreSQL 17/18 |
 | C6 — papéis e contexto | Codex | K7 | ADR-036 aceito, bootstrap global separado, donos, privilégios, contexto HMAC e sonda no PostgreSQL 17/18 |
 | C7 — RLS e integridade | Codex | C6 | ADR-037 aceito; tenant restritivo, permissivas de escopo em `db/policies/`, revisão nos planos, triggers de transição e sonda de RLS e integridade no PostgreSQL 17/18 |
-| K8 — executor persistente | Claude | C7 | `db:migrate`, hashes em `vetra.migrations`, lock consultivo, tentativas de lock_timeout, introspecção e retomada |
+| K8 — executor persistente | Claude | C7 | `db:migrate` ([guia](db-migrate.md)): hashes em `vetra.migrations`, lock consultivo, tentativas de lock_timeout, banco vazio ou registrado, deriva e retomada, com sonda no PostgreSQL 17/18 |
 
 Só um implementa por vez no checkout compartilhado. O Claude executa as sondas no 17 e 18 na auditoria
 das entregas do Codex. Plano incremental expand/migrate/contract com dados, `CONCURRENTLY`, `NOT VALID`,

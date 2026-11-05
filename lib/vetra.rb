@@ -28,6 +28,7 @@ require_relative "vetra/sql/security"
 require_relative "vetra/sql/plan"
 require_relative "vetra/sql/scratch_database"
 require_relative "vetra/sql/planner"
+require_relative "vetra/sql/migrator"
 
 module Vetra
   def self.app(name, &block)

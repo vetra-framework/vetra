@@ -6,7 +6,7 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]\n     vetra db:migrate [--root diretório]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
@@ -21,7 +21,7 @@ module Vetra
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan db:migrate].include?(command)
         err.puts(parser)
         return 2
       end
@@ -40,6 +40,27 @@ module Vetra
         return 0
       end
       raise OptionParser::InvalidArgument, '--snapshot e --check exigem db:plan' if options[:snapshot] || options[:check]
+      if command == 'db:migrate'
+        unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
+          raise OptionParser::InvalidArgument, 'db:migrate aceita somente --root'
+        end
+        url = ENV['DATABASE_URL']
+        raise Graph::Error.single('db_database_url', 'Defina DATABASE_URL com o banco alvo, conectando como vetra_migrator.') if url.nil? || url.empty?
+        connection = SQL::MigrationDatabase.connect(url)
+        begin
+          database = SQL::MigrationDatabase.new(connection: connection, pg_dump: ENV.fetch('VETRA_PG_DUMP', 'pg_dump'))
+          result = SQL::Migrator.new(root: options[:root], database: database).migrate
+        ensure
+          connection.close
+        end
+        if result.status == :applied
+          retries = result.attempts - result.applied.size
+          out.puts("db:migrate: OK — aplicado #{result.applied.map(&:file_name).join(', ')}#{" (#{retries} nova(s) tentativa(s) por lock_timeout)" if retries.positive?}; esquema confere com db/schema.sql")
+        else
+          out.puts('db:migrate: OK — nenhum plano pendente; esquema confere com db/schema.sql')
+        end
+        return 0
+      end
       if command == 'db:authz:sql'
         unless args.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking] && !options[:snapshot] && !options[:check]
           raise OptionParser::InvalidArgument, 'db:authz:sql aceita somente --root e opções de schema/papéis'

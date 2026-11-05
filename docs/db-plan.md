@@ -193,15 +193,15 @@ PostgreSQL 17 e 18.
 ## Executor
 
 `Vetra::SQL::PlanExecutor` aplica uma lista de planos numa conexão, cada plano numa transação. É o mesmo executor que o
-`--snapshot` e o `--check` usam; a K8 acrescenta o registro em `vetra.migrations`, o lock consultivo, as novas tentativas
-de `lock_timeout` e a verificação prévia do `db:migrate`. Uma falha diz o plano e o passo (`db_plan_apply`).
+`--snapshot` e o `--check` usam; o [`db:migrate`](db-migrate.md) acrescenta o registro em `vetra.migrations`, o lock consultivo, as novas tentativas
+de `lock_timeout` e a verificação prévia. Uma falha diz o plano e o passo (`db_plan_apply`).
 
 O formato só tem a transação `unica`. O plano incremental precisa de passos fora de transação (`CREATE INDEX CONCURRENTLY`) e de
 grupos transacionais; esses modos entram no formato e no executor antes dela.
 
 ## Limites
 
-Não há plano incremental ou `db:migrate` (K8). O plano inicial gera RLS, revisão e triggers de
+Não há plano incremental; a aplicação num banco de verdade é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
 transição, com os limites de RBAC descritos no [guia](db-rls.md). Os testes da suíte não usam banco;
 a aplicação real exige as sondas e o `--check` da matriz PostgreSQL 17/18.
 
