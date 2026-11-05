@@ -4,7 +4,8 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-05, sobre `8ab5f1b`, com a K8 da [persistência](plano-persistencia.md): `vetra db:migrate`
+- **Atualizado em:** 2026-11-05, sobre `088e317`, com o planejamento da rodada 4 da [persistência](plano-persistencia.md)
+  (K9 a K13, a fazer). A rodada 3 terminou com a K8: `vetra db:migrate`
   aplica o plano inicial num banco real como `vetra_migrator`, com registro por hash em `vetra.migrations`, migrador
   único, novas tentativas de `lock_timeout`, banco vazio ou registrado, deriva e retomada ([guia](db-migrate.md)). Antes,
   a C7 trouxe RLS, escopo, revisão e transições (ADR-037). A IR permanece 0.6.
@@ -24,7 +25,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
 | Sondas | 13 em `script/`, mais o simulador do gate; contexto assinado (58) e RLS/integridade (103) programados no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Não existe. Há compilador e plano inicial com contexto HMAC, RLS, revisão e transições; aplicação persistente de migrações e execução de operações seguem pendentes |
+| Runtime | Não existe. Há compilador e plano inicial com contexto HMAC, RLS, revisão e transições; o `db:migrate` aplica o plano inicial; o plano incremental, os repositórios e a execução de operações seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -515,7 +516,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
   (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
-  aplicação, repositórios e as medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
+  o `db:migrate` aplica o plano inicial; o plano incremental, os repositórios e as medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
@@ -559,5 +560,8 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
-   de contexto, RLS, revisão e transições estão implementados; a K8 aplica o plano com `db:migrate`. Plano incremental, repositórios sobre o Sequel e outbox
-   continuam fora da implementação inicial
+   de contexto, RLS, revisão e transições estão implementados; a K8 aplica o plano com `db:migrate`, o que fecha a
+   rodada 3. A [rodada 4](plano-persistencia.md#rodada-4-plano-incremental-repositórios-e-outbox) está planejada
+   (K9 a K13): plano incremental (fundação, diferenças aditivas e `db:migrate` por passo), unidade de trabalho e repositórios sobre o Sequel
+   com o contexto emitido em Ruby, outbox com relay e entregas, e a medição do custo do contexto. O executor das oito
+   etapas, os handlers com ator de sistema e a fase contract ficam para a rodada 5

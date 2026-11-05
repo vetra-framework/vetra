@@ -56,6 +56,52 @@ incorpora o parecer do Codex.
 | C7 | RLS de tenant e de escopo, revisão de autorização como passos do plano e triggers de `transitions enforce: db` | Codex | concluída | `afb3009`, `92aa04f` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; ADR-037 aceito por delegação; CI verde, sonda 103/103 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c7)) |
 | K8 | `db:migrate`: `vetra.migrations`, lock consultivo, `lock_timeout` com novas tentativas, verificação prévia e retomada | Claude | concluída | `da3dda9`, `5b15437` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 21/21 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k8)) |
 
+Rodada concluída. Todos os exemplos vão do banco vazio ao plano inicial aplicado por `db:migrate`.
+
+## Rodada 4 (2026-11-05)
+
+Persistência, parte 2: o banco da rodada 3 evolui por plano incremental, e o Vetra Data grava nele pelos
+repositórios, com contexto emitido em Ruby e eventos na outbox. O objetivo, as decisões a tomar, os riscos e o que
+fica para a rodada 5 estão no [plano da persistência](plano-persistencia.md#rodada-4-plano-incremental-repositórios-e-outbox).
+O planejamento foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer do Codex (abaixo). As
+tarefas seguem a ordem da tabela.
+
+| ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
+|---|---|---|---|---|---|
+| K9 | Fundação do plano incremental: ADR-038 proposto, modelo físico versionado, modo de transação por passo, validação integral das instruções no lugar da regeneração, execução sem privilégio administrativo, `--check` com N planos | Claude | a fazer | — | — |
+| C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 proposto | Codex | a fazer | — | — |
+| C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | a fazer | — | — |
+| K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
+| C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | a fazer | — | — |
+| K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | a fazer | — | — |
+| K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | a fazer | — | — |
+| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
+
+### Parecer do Codex sobre o plano
+
+Pedido sobre `088e317`, em modo somente leitura. O Codex devolveu a primeira versão do plano; a decisão de cada
+achado é do Claude.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A classificação por prefixo não substitui a proteção atual do `--check`, que só aplica um plano igual ao regenerado: um passo com `CREATE TABLE` e `COMMENT ON DATABASE` passa | sim | Ajustar: a K9 entrega validação integral das formas, modelos exatos de rotinas, execução sem privilégio administrativo e a exceção estrita dos privilégios do banco corrente |
+| Introspectar o banco no planejamento contraria o ADR-025, §1, que reserva a introspecção à verificação | sim | Ajustar: modelo físico versionado e vinculado ao plano, conferido pelo replay e pelo retrato no `--check`; o ADR-038 declara essa leitura do §1 |
+| A K9 prometia `CONCURRENTLY` e N planos, mas o executor descartável envolve o plano inteiro numa transação | sim | Ajustar: a K9 vira a fundação (modelo, formato, validação e executor) e as diferenças aditivas vão para a C9; a K10 cobre a queda depois do DDL fora de transação, inclusive com o índice válido não registrado. A C8 deixa de depender da K9 |
+| As partições criadas pela manutenção apareceriam como deriva no `db:migrate` | sim | Ajustar: o ADR-040 decide como a deriva as reconhece; a K12 tem sonda que aceita a manutenção e recusa uma partição adulterada |
+| A K11 prometia entregar a handlers, mas o executor e o ator de sistema ficam para a rodada 5 | sim | Ajustar: a outbox foi dividida em K11 (armazenamento e emissão) e K12 (relay com consumidores simulados); handlers reais vão para a rodada 5. O ADR-040 cobre quem grava, o relay e a manutenção, sem `vetra_migrator` no runtime |
+| Blog e chat são globais, e o ADR-036 exige tenant e ator; faltavam formas usadas pelos corpos, como os métodos de vínculo | sim | Ajustar: o ADR-039 define o contexto global sem inventar tenant; a C10 lista `update!` por registro e por ID, `first(n)`/`last(n)`, `add_member!`/`remove_member!`, atribuições de contexto, normalização e geração |
+| A K12 não especificava a matriz do gate do ADR-023 e não podia medir o percentual por comando sem executor | sim | Ajustar: K13 como medição preliminar por instrução na matriz do ADR-023, com o gate dos `Data`; o percentual por comando vai para a rodada 5, e uma fusão de funções exige ADR |
+| O `pg` continua como dependência de desenvolvimento | não | Ajustar: a C8 promove `sequel` e `pg` |
+| A situação ainda dava a aplicação de migrações como pendente | não | Ajustar: distingue o plano inicial aplicado do incremental pendente |
+
+Na segunda rodada, o Codex aprovou o plano e confirmou os nove achados como resolvidos. Restaram dois achados não
+bloqueantes:
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
+| Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
 ## Auditoria K8
 
 Implementado pelo Claude sobre `8ab5f1b`; auditado pelo Codex; decisão do Claude. As sondas e a CLI conectada foram rodadas

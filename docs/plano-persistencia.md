@@ -3,8 +3,123 @@
 A persistência transforma o grafo em banco PostgreSQL 17+, por plano versionado, com papéis, contexto
 assinado e RLS. O mapeamento físico está no ADR-035 aceito; o bootstrap dos papéis globais e o contexto
 assinado estão no [ADR-036](adr/036-papeis-e-contexto-assinado.md), também aceito. Responsáveis e decisões de auditoria ficam no [quadro dos agentes](tarefas-dos-agentes.md).
+A rodada 3 levou cada exemplo de um banco vazio ao plano inicial aplicado; a rodada 4 faz esse banco evoluir e
+ser usado pelo Vetra Data.
 
-## Estado e objetivo
+## Rodada 4: plano incremental, repositórios e outbox
+
+### Objetivo
+
+Um banco que já recebeu o plano inicial recebe as mudanças do modelo por planos incrementais seguros (ADR-015 e
+ADR-025), e o Vetra Data lê e grava nele como `vetra_app`. O código Ruby emite o contexto assinado, os
+repositórios gerados fazem as leituras e as gravações, e os eventos entram na outbox na mesma transação (ADR-003 e
+ADR-022, ADR-014 e ADR-024, ADR-008). Ao fim da rodada:
+
+- os três exemplos com eventos (blog e os dois CRMs) recebem um `0002` com a outbox, gerado pelo plano
+  incremental e aplicado por `db:migrate` sobre o banco da rodada 3;
+- uma sonda grava pelos repositórios numa unidade de trabalho e emite o evento; o relay materializa as entregas e
+  as leva a consumidores simulados, no PostgreSQL 17 e 18. Os handlers reais, com o ator de sistema e os comandos
+  dos `calls`, dependem do executor da rodada 5;
+- o custo do contexto assinado por instrução tem uma medição preliminar, na matriz do ADR-023. O gate completo,
+  por comando, volta quando houver o executor.
+
+A IR permanece 0.6: nada desta rodada muda o formato do grafo.
+
+### Entregas e dependências
+
+As tarefas rodam nesta ordem, uma por vez no checkout compartilhado:
+
+| Tarefa | Implementador | Dependência | Entrega |
+|---|---|---|---|
+| K9 — fundação do plano incremental | Claude | — | ADR-038 proposto. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Validação integral das instruções permitidas, no lugar da regeneração (ver as decisões abaixo). `--check` com N planos. Nenhuma diferença nova ainda: um modelo que mudou continua recusado |
+| C8 — unidade de trabalho e contexto emitido | Codex | — | ADR-039 proposto, com o contrato da unidade de trabalho, dos repositórios e do contexto global. `sequel` e `pg` passam a dependências de runtime, com janela `~>` e instalação conferida fora do grupo de desenvolvimento, com `pg_auto_parameterize`, `fiber_concurrency` e sem statements nomeados. O token `v1` é emitido em Ruby, com a chave fora dos artefatos. `set_config` é chamado uma vez, na transação mais externa; as consultas rodam em `read_only` e a composição usa savepoints. Tabela multiempresa acessada fora de transação é recusada com erro. A sonda roda com o Claude, no 17 e no 18 |
+| C9 — diferenças aditivas | Codex | K9 | Diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `000N_<nome>.sql` e o modelo. O Claude roda o `--check` no 17 e no 18 |
+| K10 — `db:migrate` incremental | Claude | K9 e C9 | Progresso por passo em `vetra.migrations`, passos fora de transação, `lock_timeout` e novas tentativas por passo. A base de cada plano é conferida antes de aplicá-lo, e a execução retoma do passo seguinte ao último concluído, conferindo o estado intermediário. A sonda interrompe em cada passo, inclusive depois de um DDL fora de transação e antes do registro, com o índice válido ainda não registrado e com o índice inválido |
+| C10 — repositórios gerados | Codex | C8 | Um repositório por entidade, gerado da IR, sem expor o dataset. Operações: `find!`, `lock!`, `create!`, `update!` por registro e por ID, `delete!`, os métodos de vínculo (`add_member!` e `remove_member!`) e uma consulta restrita (`where` por igualdade, `order`, `first(n)`, `last(n)` e `all`). Inclui as atribuições de contexto, a normalização e a geração de valores previstas no ADR-035. O registro é um `Data` congelado em profundidade, com os predicados dos grupos de `enum`. O acesso `read`/`read_write` da capacidade é respeitado. Na sonda (com o Claude), os corpos dos quatro exemplos rodam contra o banco, com o contexto global do ADR-039 no blog e no chat |
+| K11 — outbox: armazenamento e emissão | Claude | K10 e C8 | ADR-040 proposto, sobre os papéis e o RLS da outbox. `vetra.outbox` e `vetra.deliveries` particionadas por `created_at`, com partição `DEFAULT`, e `vetra.dead_deliveries`, num `0002` gerado pelo plano incremental para os três exemplos com eventos. O evento é gravado na unidade de trabalho com `xid8`, `seq`, `event_id` e o payload projetado. Um payload com campo pessoal desfaz a unidade de trabalho inteira, enquanto a cifra do ADR-013 não existe |
+| K12 — relay, entregas e manutenção | Claude | K11 | Relay por intervalos de `xid8`, materialização das entregas, reserva por lease com `SKIP LOCKED`, tentativas, entrega morta e cópia para `dead_deliveries`, tudo com consumidores simulados. Um comando de manutenção cria as partições antes de liberar quem grava, recupera uma `DEFAULT` populada e purga por `DETACH`/`DROP`. As partições operacionais são reconhecidas pela deriva do `db:migrate` sem esconder adulteração |
+| K13 — custo do contexto, medição preliminar | Claude | C10 | Custo por instrução no 17 e no 18, na matriz do ADR-023: 16 clientes, comparação com o RLS ingênuo, vínculos em escala de milhões e o limiar de 1 ms da questão 2. Inclui o pooler transacional quando houver um na CI, e o gate da construção dos `Data` (ADR-022, §3). O percentual por comando volta com o executor. Fundir as funções de contexto exigiria ADR próprio e a atualização coordenada das políticas e da guarda de rotinas do ADR-036 |
+
+Fora as dependências da tabela, a ordem é só a da árvore compartilhada: a C8 não depende da K9. A sonda de cada
+entrega do Codex roda com o Claude, porque o sandbox do Codex não alcança o PostgreSQL.
+
+### Decisões que a rodada precisa tomar
+
+Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita depois da auditoria.
+
+- **ADR-038 (K9, C9 e K10), a base do plano incremental.** O ADR-025, §1 manda planejar contra o retrato e
+  reserva a introspecção à verificação. A decisão é planejar contra um **modelo físico versionado**, gravado pelo
+  `db:plan` junto com cada plano e vinculado a ele por hash, para que o `db:plan` continue sem conexão e os estados
+  históricos possam ser comparados. O `--check` reaplica os planos num banco descartável e confere o modelo e o
+  retrato contra o resultado: a introspecção fica na verificação, como o ADR-025 decide. O §1 compara com
+  `db/schema.sql`, e o plano incremental passa a comparar com o modelo. Por isso o ADR-038 diz expressamente como
+  complementa o §1, cobrindo também segurança e infraestrutura além das tabelas das entidades, e o replay prova a
+  equivalência entre modelo, planos e retrato. O ADR-038 fixa também:
+  - o formato versionado do modelo;
+  - o modo de transação por passo no formato do plano;
+  - o registro por passo, a conferência do estado intermediário na retomada e a da base antes de cada plano;
+  - o que o `--check` confere quando há N planos.
+- **Segurança do servidor da CI sem regenerar planos antigos (K9).** Hoje o `--check` só aplica um plano igual ao
+  que a IR gera, e essa é a proteção do servidor: a classificação por prefixo não basta, porque um passo com
+  `CREATE TABLE` seguido de `COMMENT ON DATABASE` recebe classificação conhecida. Um plano antigo não pode ser
+  regenerado de uma IR que já mudou. A K9 substitui essa proteção por três coisas:
+  - validação integral das formas permitidas, instrução por instrução, com modelos exatos para rotinas e blocos
+    procedurais;
+  - nenhuma instrução sobre objeto global (papel, tablespace ou outro banco). A exceção estrita são os privilégios
+    do banco corrente que o plano inicial concede (ADR-036);
+  - execução dos planos com um papel sem privilégios administrativos, separado da conexão administrativa que
+    cria o banco temporário.
+- **ADR-039 (C8 e C10), a unidade de trabalho e os repositórios.**
+  - As operações e a consulta restrita, com as formas que os corpos dos exemplos usam e hoje só rodam com duplos
+    de memória.
+  - Os erros de registro ausente e de conflito, e a forma do registro, conforme o ADR-022, §3.
+  - A API da unidade de trabalho e de onde o emissor lê a chave e o `kid`.
+  - O **contexto global**: blog e chat não têm tenant, e o ADR-036 exige tenant e ator UUID, reservando visitante
+    e global para um contrato posterior. O ADR-039 define esse contrato sem inventar tenant para eles.
+- **ADR-040 (K11 e K12), os papéis e o RLS da outbox.** O ADR-024 decide a partição e as entregas, mas não diz com
+  que papel o relay lê a outbox de todos os tenants, nem se ela tem RLS. O ADR-040 decide os privilégios de quem
+  grava, do relay e da manutenção, sem usar o `vetra_migrator` no runtime. Um papel global novo entra no bootstrap
+  operacional do ADR-036, nunca num plano. O ADR-040 também decide como a deriva reconhece as partições
+  operacionais, conferindo limites, vínculo ao pai, índices, donos e privilégios.
+
+### Riscos e verificações
+
+- **Modelo e versões.** A introspecção e o `pg_dump` mudam entre versões principais. O modelo conferido pelo
+  replay precisa sair igual no 17 e no 18, como o retrato já sai.
+- **Passos fora de transação.** Com `CONCURRENTLY`, um plano deixa de ser tudo ou nada. Cada passo precisa ser
+  registrado e retomável. Um índice inválido de uma falha anterior é detectado e refeito, nunca aceito. Um índice
+  válido criado antes de uma queda, mas ainda não registrado, também é reconhecido.
+- **Dependências de runtime.** O `sequel` entra e o `pg` deixa o grupo de desenvolvimento, os dois com janela
+  `~>` (ADR-022, §5). Os lockfiles dos exemplos mudam junto.
+- **Partições operacionais.** A manutenção cria partições que o retrato não tem. A deriva precisa aceitá-las sem
+  aceitar uma partição adulterada. A sonda roda a manutenção, depois o `db:migrate` sem deriva, e recusa uma
+  partição alterada.
+- **Chave do emissor.** Fica só na memória do processo: nunca vai para log, mensagem de erro ou artefato. Os
+  testes geram chaves próprias.
+- **Outbox e o `xmin`.** Uma transação longa atrasa o relay de todos os tenants (ADR-008, §5). A sonda confere a
+  continuidade dos intervalos com transações concorrentes e com uma transação que é desfeita.
+- **Determinismo.** As partições diárias dependem da data, então não entram no plano: o plano cria o pai e a
+  `DEFAULT`, e a manutenção cria as demais. Uma emissão anterior à primeira manutenção cai na `DEFAULT`, e o
+  PostgreSQL recusa anexar uma partição cujo intervalo tem linhas nela. A K12 prepara as partições antes de
+  liberar quem grava, e uma sonda recupera uma `DEFAULT` populada sem perder nem duplicar eventos.
+
+### Fora da rodada 4
+
+Ficam para a rodada 5:
+
+- o executor das oito etapas do ADR-016 e os adaptadores, e com eles o gate do ADR-023 por comando;
+- os handlers reais, com o ator de sistema (`is_system_actor`, ADR-024, §4) e a autoridade dos `calls`;
+- `vetra.instances`, `vetra.schema_state` e a fase contract (ADR-025, §5), que precisam de processos com
+  batimento;
+- o preenchimento em lotes, as mudanças de tipo e as renomeações declaradas;
+- as políticas de administração dos vínculos, dentro do limite que o ADR-037 já documenta;
+- a cifra dos campos pessoais (ADR-013) e o distribuidor do live.
+
+Na C9, cada uma dessas mudanças de modelo é recusada com código próprio, sem plano parcial.
+
+## Rodada 3 (concluída)
+
+### Estado e objetivo
 
 `Vetra::SQL::Schema` gera o DDL puro das tabelas, chaves e índices dos quatro exemplos. `db:plan` gera o
 plano inicial determinístico com fase, lock e custo por passo, transação única e `lock_timeout` de 3 s.
@@ -26,7 +141,7 @@ O [`db:migrate`](db-migrate.md) aplica o plano num banco real como `vetra_migrat
 os repositórios ainda não emitem contexto nem executam operações; isso, o plano incremental e a outbox ficam para a
 rodada 4.
 
-## Entregas e dependências
+### Entregas e dependências da rodada 3
 
 | Tarefa | Implementador | Dependência | Entrega |
 |---|---|---|---|
@@ -40,7 +155,7 @@ Só um implementa por vez no checkout compartilhado. O Claude executa as sondas 
 das entregas do Codex. Plano incremental expand/migrate/contract com dados, `CONCURRENTLY`, `NOT VALID`,
 lotes, repositórios sobre Sequel, outbox e `vetra.instances` ficam fora do plano inicial.
 
-## Decisões físicas e de segurança
+### Decisões físicas e de segurança
 
 - IDs UUID com default v4; texto com checks de comprimento; `bigint`, `numeric(p,s)`, `boolean`, `date`,
   timestamp com fuso/microssegundos e `jsonb`. `enum` é texto com CHECK e `money` usa valor/moeda com
@@ -64,7 +179,7 @@ lotes, repositórios sobre Sequel, outbox e `vetra.instances` ficam fora do plan
 - A exceção da guarda de rotinas da C2 confere assinatura, schema, dono, atributos, configuração e hash
   do corpo exatos. Nome/schema isolados não dão confiança. A sonda recusa cópias e mutações.
 
-## Riscos e verificações restantes
+### Riscos e verificações da rodada 3
 
 - **Donos e retrato:** `pg_dump` da mesma versão principal do servidor; normalização conserva OWNER,
   ACLs, RLS e corpos de funções. O `--check` da CI confere os retratos no 17 e no 18.
