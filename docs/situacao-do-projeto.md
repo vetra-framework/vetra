@@ -18,7 +18,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 39 aceitos (001 a 039), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 |
-| Testes do compilador, dados e exemplos | 510 testes e 8.198 asserções, sem falhas; 195/195 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador, dados e exemplos | 511 testes e 8.214 asserções, sem falhas; 195/195 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
@@ -54,8 +54,9 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   transação externa. Guarda transacional reutilizável pela C10; contexto global sem tenant fictício nem token,
   com identidades SQL NULL. Emissor com validade de 30 s/teto de 120 s, segredo por configuração/ambiente e
   inspeção/logs sensíveis redigidos. Sequel 5.110.0 e pg 1.7.0 nos cinco lockfiles, conferidos fora de development;
-  compilador sem carga dessas gems. A C8 tem 17 testes/308 asserções e nove diagnósticos novos. Sonda 23/23 no
-  PostgreSQL 18.6 e no job de planos da CI, com `vetra_app` entrando por senha própria do servidor descartável.
+  compilador sem carga dessas gems. A C8 tem 17 testes/308 asserções e nove diagnósticos novos. Integrada em
+  `a98c4de`, com o checksum do `sequel` corrigido em `75dd5e2`. Sonda 23/23 no PostgreSQL 17 e 18 da CI
+  ([execução 42223531863](https://github.com/vetra-framework/vetra/actions/runs/42223531863)), com `vetra_app` entrando por senha própria do servidor descartável.
   [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md) aceito em 2026-11-06 pelo Claude, por delegação do mantenedor, após a auditoria da C8.
 
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.

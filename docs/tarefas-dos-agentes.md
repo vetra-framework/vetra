@@ -69,7 +69,7 @@ tarefas seguem a ordem da tabela.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | `5fa7a3a` | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; CI verde, sonda 18/18 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k9)) |
-| C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | ver histórico | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; sonda 23/23 no PostgreSQL 18.6 ([auditoria](#auditoria-c8)) |
+| C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | `a98c4de`, `75dd5e2` | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; CI verde depois da correção dos lockfiles, sonda 23/23 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c8)) |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | a fazer | — | — |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | a fazer | — | — |
@@ -124,6 +124,19 @@ Implementado pelo Codex sobre `b0483bc`; auditado pelo Claude, que rodou a suít
 | `rollback!` repassa `Sequel::Rollback` a quem chamou a unidade | não | Não ajustar: é o comportamento escolhido e documentado no ADR-039, §1 |
 
 ADR-039 aceito pelo Claude por delegação do mantenedor.
+
+**Envio e CI.** O commit `a98c4de` entrou na `main`, mas a CI ([execução 42221425042](https://github.com/vetra-framework/vetra/actions/runs/42221425042)) falhou nos jobs `test` e `db:plan` ao
+instalar as gems. Os lockfiles tinham sido resolvidos sem rede, e a entrada do `sequel` em `CHECKSUMS` ficou vazia;
+o Bundler congelado da CI recusa isso.
+
+A correção `75dd5e2`, do Claude e aprovada pelo Codex:
+
+- preenche o hash com `bundle lock --add-checksums`, conferido contra o publicado no RubyGems;
+- reconstrói os grafos, que só mudam no hash do lockfile;
+- acrescenta `test/lockfile_test.rb`, que recusa uma entrada sem hash.
+
+A CI ([execução 42223531863](https://github.com/vetra-framework/vetra/actions/runs/42223531863)) passou nos cinco jobs. No job de planos, o PostgreSQL 17.11 e o 18.6 deram Vetra Data 23/23, plano
+incremental 18/18, contexto 58/58, RLS 103/103 e `db:migrate` 21/21.
 
 ## Auditoria K9
 
