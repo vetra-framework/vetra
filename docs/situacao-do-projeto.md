@@ -77,8 +77,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   - com mais de um plano, o `--check` prova a convergência com o plano inicial da IR;
   - o retrato ganhou uma linha `-- vetra:base` por plano.
 
-  A diferença entre modelos é da C9; o `db:migrate` recusa planos depois do inicial até a K10. Sonda 18/18 no
-  PostgreSQL 18.6 e no job de planos da CI. [Guia](db-plan.md).
+  A diferença entre modelos é da C9; o `db:migrate` recusa planos depois do inicial até a K10. Integrada em `5fa7a3a`,
+  com a sonda em 18/18 no PostgreSQL 17 e 18 da CI ([execução 42215134526](https://github.com/vetra-framework/vetra/actions/runs/42215134526)). [Guia](db-plan.md).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.

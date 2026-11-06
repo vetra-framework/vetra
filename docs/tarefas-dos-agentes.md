@@ -68,7 +68,7 @@ tarefas seguem a ordem da tabela.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | ver histórico | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; sonda 18/18 no PostgreSQL 18.6 ([auditoria](#auditoria-k9)) |
+| K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | `5fa7a3a` | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; CI verde, sonda 18/18 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k9)) |
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 proposto | Codex | a fazer | — | — |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | a fazer | — | — |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
@@ -160,6 +160,10 @@ por integração sustentam a garantia da história integrada. Antes da integraç
 do servidor descartável, do login restrito e do catálogo, com as exclusões declaradas no ADR-038. Suíte com 493
 testes, 7.890 asserções e 186/186 diagnósticos. Sondas no PostgreSQL 18.6: plano incremental 18/18, contexto 58/58,
 RLS 103/103 e `db:migrate` 21/21. ADR-038 aceito pelo Claude por delegação do mantenedor.
+
+**Envio.** Commit `5fa7a3a` na `main`. A CI ([execução 42215134526](https://github.com/vetra-framework/vetra/actions/runs/42215134526)) passou nos cinco jobs. No job de planos, o PostgreSQL 17.11 e
+o 18.6 deram plano incremental 18/18, contexto 58/58, RLS 103/103 e `db:migrate` 21/21, com o `--check` dos quatro
+exemplos aplicado como `vetra_migrator`, que entrou com a senha própria do servidor descartável.
 
 ## Auditoria K8
 
