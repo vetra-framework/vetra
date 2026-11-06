@@ -115,6 +115,8 @@ jobs:
       VETRA_PG_DUMP: /usr/lib/postgresql/${{ matrix.postgres }}/bin/pg_dump
       # Senha só deste servidor descartável: o db:plan --check entra como vetra_migrator (ADR-038, §3).
       VETRA_MIGRATOR_PASSWORD: vetra-migrator-ci
+      # Idem para vetra_app: a sonda do Vetra Data conecta o pool do runtime como a aplicação (ADR-039).
+      VETRA_APP_PASSWORD: vetra-app-ci
     steps:
       - uses: actions/checkout@v7
         with:
@@ -130,11 +132,13 @@ jobs:
       - name: Bootstrap operacional dos papéis (idempotente, fora dos planos)
         run: |
           bundle exec ruby -Ilib -rvetra -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| 2.times { c.exec(Vetra::SQL::Context.roles_sql) } }'
-      - name: Senha de login do vetra_migrator neste servidor descartável
+      - name: Senhas de login do vetra_migrator e do vetra_app neste servidor descartável
         run: |
-          bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_migrator PASSWORD #{c.escape_literal(ENV.fetch("VETRA_MIGRATOR_PASSWORD"))}") }'
+          bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_migrator PASSWORD #{c.escape_literal(ENV.fetch("VETRA_MIGRATOR_PASSWORD"))}"); c.exec("ALTER ROLE vetra_app PASSWORD #{c.escape_literal(ENV.fetch("VETRA_APP_PASSWORD"))}") }'
       - name: Fundação do plano incremental como vetra_migrator
         run: bundle exec ruby script/sonda_plano_incremental.rb
+      - name: Vetra Data, unidade de trabalho e contexto emitido em Ruby
+        run: bundle exec ruby script/sonda_vetra_data.rb
       - name: Contexto assinado e privilégios do plano gerado
         run: bundle exec ruby script/sonda_contexto_assinado.rb
       - name: RLS, escopos, revisão e transições dos planos gerados

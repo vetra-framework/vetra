@@ -32,7 +32,7 @@ As tarefas rodam nesta ordem, uma por vez no checkout compartilhado:
 | Tarefa | Implementador | Dependência | Entrega |
 |---|---|---|---|
 | K9 — fundação do plano incremental | Claude | — | ADR-038 proposto. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Cadeia dos planos, filtro de instruções globais, aplicação como `vetra_migrator` e catálogo de papéis conferido, no lugar da regeneração dos planos antigos (ver as decisões abaixo). `--check` com N planos e convergência. Nenhuma diferença nova ainda: um modelo que mudou continua recusado |
-| C8 — unidade de trabalho e contexto emitido | Codex | — | ADR-039 proposto, com o contrato da unidade de trabalho, dos repositórios e do contexto global. `sequel` e `pg` passam a dependências de runtime, com janela `~>` e instalação conferida fora do grupo de desenvolvimento, com `pg_auto_parameterize`, `fiber_concurrency` e sem statements nomeados. O token `v1` é emitido em Ruby, com a chave fora dos artefatos. `set_config` é chamado uma vez, na transação mais externa; as consultas rodam em `read_only` e a composição usa savepoints. Tabela multiempresa acessada fora de transação é recusada com erro. A sonda roda com o Claude, no 17 e no 18 |
+| C8 — unidade de trabalho e contexto emitido | Codex | — | Implementados a unidade de trabalho e o emissor Ruby, conforme o [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md): transação externa, savepoints, `read_only`, guarda por fibra e contexto global sem token nem tenant fictício. `sequel` e `pg` são dependências de runtime com janela `~>`, sem carga no compilador. Sonda escrita para auditoria do Claude no 17/18; [guia](vetra-data.md) |
 | C9 — diferenças aditivas | Codex | K9 | Diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `000N_<nome>.sql` e o modelo. O Claude roda o `--check` no 17 e no 18 |
 | K10 — `db:migrate` incremental | Claude | K9 e C9 | Progresso por passo em `vetra.migrations`, passos fora de transação, `lock_timeout` e novas tentativas por passo. A base de cada plano é conferida antes de aplicá-lo, e a execução retoma do passo seguinte ao último concluído, conferindo o estado intermediário. A sonda interrompe em cada passo, inclusive depois de um DDL fora de transação e antes do registro, com o índice válido ainda não registrado e com o índice inválido |
 | C10 — repositórios gerados | Codex | C8 | Um repositório por entidade, gerado da IR, sem expor o dataset. Operações: `find!`, `lock!`, `create!`, `update!` por registro e por ID, `delete!`, os métodos de vínculo (`add_member!` e `remove_member!`) e uma consulta restrita (`where` por igualdade, `order`, `first(n)`, `last(n)` e `all`). Inclui as atribuições de contexto, a normalização e a geração de valores previstas no ADR-035. O registro é um `Data` congelado em profundidade, com os predicados dos grupos de `enum`. O acesso `read`/`read_write` da capacidade é respeitado. Na sonda (com o Claude), os corpos dos quatro exemplos rodam contra o banco, com o contexto global do ADR-039 no blog e no chat |
@@ -73,7 +73,7 @@ Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita d
   - os planos são aplicados por uma conexão que entra como `vetra_migrator`, separada da conexão administrativa que
     cria o banco temporário;
   - o catálogo dos papéis Vetra é conferido antes e depois.
-- **ADR-039 (C8 e C10), a unidade de trabalho e os repositórios.**
+- **[ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md), aceito (C8 e C10), a unidade de trabalho e os repositórios.**
   - As operações e a consulta restrita, com as formas que os corpos dos exemplos usam e hoje só rodam com duplos
     de memória.
   - Os erros de registro ausente e de conflito, e a forma do registro, conforme o ADR-022, §3.
@@ -93,13 +93,22 @@ Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita d
 - **Passos fora de transação.** Com `CONCURRENTLY`, um plano deixa de ser tudo ou nada. Cada passo precisa ser
   registrado e retomável. Um índice inválido de uma falha anterior é detectado e refeito, nunca aceito. Um índice
   válido criado antes de uma queda, mas ainda não registrado, também é reconhecido.
-- **Dependências de runtime.** O `sequel` entra e o `pg` deixa o grupo de desenvolvimento, os dois com janela
-  `~>` (ADR-022, §5). Os lockfiles dos exemplos mudam junto.
+- **Dependências de runtime.** `sequel ~> 5.110` e `pg ~> 1.7` são dependências de runtime (ADR-022, §5),
+  resolvidas localmente nos cinco lockfiles. O compilador não carrega nenhuma das duas. Os grafos têm só os
+  hashes de entrada/digest atualizados por causa dos lockfiles; os modelos e os artefatos SQL não mudam.
 - **Partições operacionais.** A manutenção cria partições que o retrato não tem. A deriva precisa aceitá-las sem
   aceitar uma partição adulterada. A sonda roda a manutenção, depois o `db:migrate` sem deriva, e recusa uma
   partição alterada.
 - **Chave do emissor.** Fica só na memória do processo: nunca vai para log, mensagem de erro ou artefato. Os
-  testes geram chaves próprias.
+  testes geram chaves próprias. Configuração entrega bytes binários, ou o ambiente entrega kid e segredo
+  hexadecimal; não há leitura de chave de artefato. A chamada de contexto é excluída dos logs SQL do Sequel.
+- **Contexto global.** Blog e chat usam unidade sem emissor, tenant ou token. Ator UUID ou visitante ficam no
+  contexto Ruby; as funções SQL devolvem NULL e a autorização é da aplicação. A guarda recusa tabela
+  multiempresa nesse modo. Isso usa o plano atual, sem alterar banco; reforço de identidade global no banco
+  exigirá plano incremental e contrato próprios.
+- **Evidência da unidade de trabalho.** Testes sem banco cobrem token, sigilo, transações, parametrização,
+  fibras e recusas. A sonda `sonda_vetra_data.rb` confere os efeitos no banco (23 verificações, descritas no
+  [guia](vetra-data.md#sonda-no-postgresql-17-e-18)) no job de planos da CI, no PostgreSQL 17 e 18.
 - **Outbox e o `xmin`.** Uma transação longa atrasa o relay de todos os tenants (ADR-008, §5). A sonda confere a
   continuidade dos intervalos com transações concorrentes e com uma transação que é desfeita.
 - **Determinismo.** As partições diárias dependem da data, então não entram no plano: o plano cria o pai e a
@@ -141,9 +150,9 @@ O plano dos CRMs inclui ENABLE/FORCE RLS, tenant restritivo (inclusive raiz por 
 escopo, revisão de autorização e triggers de transição. `db/policies/` espelha a segurança aplicada
 pelo plano, com divergência recusada antes de acessar o banco. O [ADR-037](adr/037-politicas-e-transicoes-no-plano-inicial.md)
 define a tradução das concessões e seus limites; o [guia](db-rls.md) descreve a sonda integrada.
-O [`db:migrate`](db-migrate.md) aplica o plano num banco real como `vetra_migrator`, o que fecha a rodada 3. O runtime e
-os repositórios ainda não emitem contexto nem executam operações; isso, o plano incremental e a outbox ficam para a
-rodada 4.
+O [`db:migrate`](db-migrate.md) aplica o plano num banco real como `vetra_migrator`. O emissor Ruby e a unidade de
+trabalho do [Vetra Data](vetra-data.md) usam essa infraestrutura; repositórios, executor de operações e outbox
+continuam pendentes.
 
 ### Entregas e dependências da rodada 3
 

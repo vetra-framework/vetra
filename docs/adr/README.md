@@ -6,7 +6,8 @@ componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos**
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
 há seis ADRs de resolução aceitos (022 a 026 e 030), duas evoluções de formato aceitas (027 e 028) e o suporte
 declarativo a live (029), além da geração inicial de SQL de revisão (031). O ADR-032, também aceito, gera os
-comandos de vínculo de `many_to_many`. O runtime segue pendente.
+comandos de vínculo de `many_to_many`. O executor de operações segue pendente; a infraestrutura do Vetra Data
+está descrita no ADR-039.
 
 O [ADR-033](033-arredondamento-monetario-e-ir-0-5.md), também aceito, declara o arredondamento monetário da
 aplicação e evolui o build para a IR 0.5.
@@ -16,7 +17,7 @@ permissão, ator e tenant, com IR 0.6. O limite em execução e seus contadores 
 
 O [ADR-035](035-mapeamento-fisico-inicial.md), aceito, define o mapeamento físico inicial,
 com modelo e DDL puro para banco vazio nos quatro exemplos. O [guia](../db-schema-sql.md) descreve a API
-e os limites; o plano inicial e o retrato são gerados por `db:plan`. `db:migrate` permanece pendente.
+e os limites; o plano inicial e o retrato são gerados por `db:plan` e aplicados por `db:migrate`.
 
 O [ADR-036](036-papeis-e-contexto-assinado.md), aceito, define bootstrap de papéis globais, donos,
 privilégios e contexto HMAC no plano inicial. O [guia](../db-plan.md) documenta operação, chaves e sonda.
@@ -24,6 +25,10 @@ privilégios e contexto HMAC no plano inicial. O [guia](../db-plan.md) documenta
 O [ADR-037](037-politicas-e-transicoes-no-plano-inicial.md), aceito, define a tradução das políticas
 da IR, o espelho revisável e a integração de RLS, revisão e transições no plano inicial.
 O [guia](../db-rls.md) registra os limites e as verificações esperadas no PostgreSQL 17/18.
+
+O [ADR-039](039-unidade-de-trabalho-e-repositorios.md), aceito, define a unidade de trabalho sobre o Sequel,
+o emissor Ruby do token, o contexto global sem tenant e o contrato que os repositórios da C10 seguirão.
+A unidade e o emissor estão implementados, com a sonda PostgreSQL no job de planos da CI. [Guia](../vetra-data.md).
 
 ## Escritos
 
@@ -67,6 +72,7 @@ O [guia](../db-rls.md) registra os limites e as verificações esperadas no Post
 | [036](036-papeis-e-contexto-assinado.md) | Papéis globais, donos e contexto assinado no plano inicial | aceito |
 | [037](037-politicas-e-transicoes-no-plano-inicial.md) | Políticas e transições no plano inicial | aceito |
 | [038](038-fundacao-do-plano-incremental.md) | Fundação do plano incremental: modelo versionado, transação por passo e contenção | aceito |
+| [039](039-unidade-de-trabalho-e-repositorios.md) | Unidade de trabalho, emissão do contexto e contrato dos repositórios | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

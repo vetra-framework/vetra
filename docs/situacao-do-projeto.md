@@ -4,13 +4,12 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-06, sobre `d70a00f`, com a K9 da rodada 4 da [persistência](plano-persistencia.md): a fundação do
-  plano incremental (ADR-038 aceito), com modelo físico versionado em `db/models/`, transação por passo, história dos
-  planos ancorada no gate e `--check`/`--snapshot` aplicando como `vetra_migrator` ([guia](db-plan.md)). A rodada 3 terminou
-  com a K8: `vetra db:migrate`
-  aplica o plano inicial num banco real como `vetra_migrator`, com registro por hash em `vetra.migrations`, migrador
-  único, novas tentativas de `lock_timeout`, banco vazio ou registrado, deriva e retomada ([guia](db-migrate.md)). Antes,
-  a C7 trouxe RLS, escopo, revisão e transições (ADR-037). A IR permanece 0.6.
+- **Atualizado em:** 2026-11-06, sobre `b0483bc`, com a C8 da rodada 4: a unidade de trabalho e o emissor Ruby do Vetra Data
+  ([ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md) aceito, [guia](vetra-data.md)): contexto local,
+  savepoints, consultas READ ONLY, guarda por fibra e contexto global sem token. Sonda do Vetra Data 23/23 no
+  PostgreSQL 18.6, no job de planos da CI. A fundação do plano incremental (ADR-038 aceito)
+  e o `db:migrate` inicial estão integrados; repositórios, diferenças de modelo, aplicação incremental e outbox
+  continuam pendentes. A IR permanece 0.6; planos, modelos físicos, retratos e espelhos dos exemplos não mudam.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -18,16 +17,16 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 38 aceitos (001 a 038), com o índice em [adr/README.md](adr/README.md); os últimos são os papéis e o contexto assinado 036, as políticas e transições 037 e a fundação do plano incremental 038 |
-| Testes do compilador e exemplos | 493 testes e 7.890 asserções, sem falhas; 186/186 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 39 aceitos (001 a 039), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 |
+| Testes do compilador, dados e exemplos | 510 testes e 8.198 asserções, sem falhas; 195/195 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
 | Verificação da C6 | Planos com 33 passos no blog e no mini CRM, 49 no chat e 59 no mini CRM com revendas. No PostgreSQL 18.6: bootstrap repetível, sonda do contexto assinado 58/58 com o plano aplicado pelo `vetra_migrator` sem superusuário, sonda ADR-031 59/59, retratos com donos e `--check` nos quatro exemplos |
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 15 em `script/`, mais o simulador do gate; plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Não existe. Há compilador e plano inicial com contexto HMAC, RLS, revisão e transições; o `db:migrate` aplica o plano inicial; o plano incremental, os repositórios e a execução de operações seguem pendentes |
+| Sondas | 16 em `script/`, mais o simulador do gate; Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Runtime | Unidade de trabalho e emissor HMAC em Ruby implementados, com dependências Sequel/pg de runtime e carregamento explícito. Repositórios, executor de operações e outbox seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -49,6 +48,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Infraestrutura do [Vetra Data](vetra-data.md): `transaction`, `read`, `compose` e `rollback!`, com
+  `pg_auto_parameterize`, concorrência por fibra, sem statements nomeados e contexto instalado uma vez na
+  transação externa. Guarda transacional reutilizável pela C10; contexto global sem tenant fictício nem token,
+  com identidades SQL NULL. Emissor com validade de 30 s/teto de 120 s, segredo por configuração/ambiente e
+  inspeção/logs sensíveis redigidos. Sequel 5.110.0 e pg 1.7.0 nos cinco lockfiles, conferidos fora de development;
+  compilador sem carga dessas gems. A C8 tem 17 testes/308 asserções e nove diagnósticos novos. Sonda 23/23 no
+  PostgreSQL 18.6 e no job de planos da CI, com `vetra_app` entrando por senha própria do servidor descartável.
+  [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md) aceito em 2026-11-06 pelo Claude, por delegação do mantenedor, após a auditoria da C8.
 
 - [x] Versão do compilador preparada como `0.1.0-alpha.5`, com lockfiles e quatro grafos reconstruídos.
   Publicação da gem continua sendo uma etapa separada.
@@ -405,6 +413,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 
 - [x] **035** Mapeamento físico inicial: modelo e DDL de banco vazio; aceito em 2026-11-03 pelo Claude por delegação
   do mantenedor, após a auditoria da C5
+- [x] **039** Unidade de trabalho, emissão do contexto e contrato dos repositórios; aceito em 2026-11-06 pelo
+  Claude por delegação do mantenedor, após a auditoria da C8
 - [x] **038** Fundação do plano incremental: modelo físico versionado, transação por passo, história ancorada no gate
   e contenção do `--check`; aceito em 2026-11-06 pelo Claude por delegação do mantenedor, após a auditoria da K9
 
@@ -460,7 +470,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   reconhecidos, sem executor), incluindo preservação de `include_on_create`, locks e idempotência dos vínculos
 - [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
   as exposições e a exigência de idempotência já são compiladas e validadas
-- [ ] Persistência e o Vetra Data
+- [ ] Repositórios do Vetra Data e executor de operações; unidade de trabalho e emissor Ruby já implementados
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
@@ -578,8 +588,7 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
-   de contexto, RLS, revisão e transições estão implementados; a K8 aplica o plano com `db:migrate`, o que fecha a
-   rodada 3. A [rodada 4](plano-persistencia.md#rodada-4-plano-incremental-repositórios-e-outbox) está planejada
-   (K9 a K13): plano incremental (fundação, diferenças aditivas e `db:migrate` por passo), unidade de trabalho e repositórios sobre o Sequel
-   com o contexto emitido em Ruby, outbox com relay e entregas, e a medição do custo do contexto. O executor das oito
-   etapas, os handlers com ator de sistema e a fase contract ficam para a rodada 5
+   de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial. A fundação do
+   plano incremental e a unidade de trabalho com contexto emitido em Ruby também existem. Faltam diferenças
+   aditivas, `db:migrate` por passo, repositórios, outbox com relay/entregas e medição do custo do contexto.
+   Executor das oito etapas, handlers com ator de sistema e fase contract têm entregas posteriores próprias

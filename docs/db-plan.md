@@ -106,7 +106,9 @@ A chave tem pelo menos 32 bytes aleatórios. Há no máximo uma `active`; `verif
 `revoked` recusa. Rotação normal troca a antiga para `verify_only` e insere a nova `active` na mesma
 transação; conserva a antiga por pelo menos 5 minutos antes de removê-la. Emergência usa `revoked`.
 A próxima instrução em READ COMMITTED vê a revogação; REPEATABLE READ conserva a visão antiga. O comando
-operacional `keys:rotate` e a integração com `config/secrets.enc` ainda dependem do runtime.
+operacional `keys:rotate` e a integração com `config/secrets.enc` continuam pendentes. O
+[Vetra Data](vetra-data.md) já emite o token em Ruby a partir de configuração ou ambiente e o instala pela
+unidade de trabalho. Aplicações globais usam o contrato sem token do ADR-039, com as duas identidades SQL NULL.
 
 O emissor assina `v1.<kid>.<payload>` com HMAC-SHA256 e acrescenta `.<mac>`. Payload é JSON UTF-8 em
 base64url canônico sem padding, com `tenant_id`, `actor_id`, `op_id` (UUIDs canônicos minúsculos), `cmd`
