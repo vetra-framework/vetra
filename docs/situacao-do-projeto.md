@@ -102,7 +102,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   - seis escritas concorrentes que concluem sob `ShareUpdateExclusive`, em tabelas de 1 milhão de linhas;
   - catálogo global preservado.
 
-  99/99 no PostgreSQL 18.6, em 106 s.
+  99/99 no PostgreSQL 18.6, em 106 s, e no 17 e 18 da CI ([execução 42235979068](https://github.com/vetra-framework/vetra/actions/runs/42235979068)). Integrada em `e2bdd14`.
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
