@@ -4,8 +4,8 @@
 `db/plans/` e confere o retrato `db/schema.sql`, como decidem o [ADR-015](adr/015-migracoes-expand-contract.md), §1, e o
 [ADR-025](adr/025-resolucao-das-questoes-do-adr-015.md), §1. Cada plano é gravado com um **modelo físico versionado** em
 `db/models/`, e os planos seguintes partem dele ([ADR-038](adr/038-fundacao-do-plano-incremental.md), aceito). A diferença
-aditiva gera planos `por_passo`, com cadeia, contenção e convergência. Os exemplos conservam somente o plano inicial;
-a aplicação incremental em banco real depende da K10 do [plano da persistência](plano-persistencia.md).
+aditiva gera planos `por_passo`, com cadeia, contenção e convergência, e o [`db:migrate`](db-migrate.md) os aplica passo a
+passo num banco real. Os exemplos conservam somente o plano inicial.
 
 ## Comandos
 
@@ -376,8 +376,8 @@ O cabeçalho tem uma linha por plano com o SHA-256 do dump normalizado depois da
 -- vetra:base 0001_inicial sha256=3a99…
 ```
 
-O `db:migrate` compara o banco só com o corpo do retrato. Na K10, a linha do último plano aplicado será a base
-conferida antes de aplicar o seguinte.
+O `db:migrate` compara o banco com o corpo do retrato, e usa a linha do último plano aplicado como a base conferida
+antes de aplicar o seguinte.
 
 ## Executor
 
@@ -386,13 +386,12 @@ passo a passo, cada `sim` na sua transação e cada `nao` fora dela. É o mesmo 
 usam. O [`db:migrate`](db-migrate.md) acrescenta o registro em `vetra.migrations`, o lock consultivo, as novas
 tentativas de `lock_timeout` e a verificação prévia. Uma falha diz o plano e o passo (`db_plan_apply`).
 
-O `db:migrate` ainda aplica só o plano inicial. Um plano depois dele, ou um plano `por_passo`, é recusado com
-`db_migrate_incremental` até a K10, que traz o registro por passo e a retomada.
+O `db:migrate` aplica também os planos `por_passo`, com o registro por passo, a retomada e o tratamento dos índices
+de uma tentativa anterior ([guia](db-migrate.md#retomada)).
 
 ## Limites
 
-A diferença aditiva está implementada; a aplicação incremental num banco de verdade é da K10. A aplicação do plano
-inicial é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
+A aplicação dos planos num banco de verdade é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
 transição, com os limites de RBAC descritos no [guia](db-rls.md). Os testes da suíte não usam banco;
 a aplicação real exige as sondas e o `--check` da matriz PostgreSQL 17/18.
 

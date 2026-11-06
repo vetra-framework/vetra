@@ -71,7 +71,7 @@ tarefas seguem a ordem da tabela.
 | K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | `5fa7a3a` | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; CI verde, sonda 18/18 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k9)) |
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | `a98c4de`, `75dd5e2` | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; CI verde depois da correção dos lockfiles, sonda 23/23 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c8)) |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | concluída | `e2bdd14` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 99/99 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c9)) |
-| K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
+| K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | ver histórico | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; sonda 16/16 no PostgreSQL 18.6 ([auditoria](#auditoria-k10)) |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | a fazer | — | — |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | a fazer | — | — |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | a fazer | — | — |
@@ -101,6 +101,38 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K10
+
+Implementado pelo Claude sobre `30baef4`; auditado pelo Codex; decisão do Claude. As sondas e o `--check` foram rodados
+pelo Claude no PostgreSQL 18.6; o 17 roda no job `db-plan` da CI.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Um plano que começa por índice, com queda depois do índice e antes do registro, acusaria deriva da base na retomada | sim | Ajustar: o começo do plano fica registrado como passo 0, com o SHA-256 do plano, logo depois da conferência da base; com ele, a retomada não confere a base de novo. A sonda cobre um plano só de índices |
+| Num banco já migrado, privilégios e objetos fora do dump só eram conferidos no fim, depois de aplicar | sim | Ajustar: conferidos antes de qualquer passo pendente, inclusive na retomada |
+| A transação que registra um passo `nao` rodava sem `lock_timeout` | sim | Ajustar: `SET LOCAL lock_timeout` também nela e no registro do começo |
+| O índice de uma tentativa anterior era aceito só por nome e tabela | sim | Ajustar: aceito só com a definição do passo (colunas na ordem, btree, sem predicado nem expressão, unicidade); outro índice homônimo é deriva |
+| A situação e o plano ainda davam a aplicação incremental como pendente e o progresso em `vetra.migrations` | não | Ajustar |
+
+**Rodada 2 — devolvida pelo Codex.** O marcador, os catálogos, o `lock_timeout` dos registros e a documentação foram
+confirmados.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A definição do índice usava todas as colunas de `indkey`: um `UNIQUE (a) INCLUDE (b)` passaria como `UNIQUE (a, b)`, e faltavam classe de operadores, collation, ordem e `NULLS NOT DISTINCT` | sim | Ajustar: compara `pg_get_indexdef` com a definição que o passo pede, montada pelo próprio servidor; a sonda cobre o `INCLUDE` |
+| O registro do começo do plano ficava fora das novas tentativas, e o `LockTimeout` escapava | sim | Ajustar: o registro do começo também é repetido com espera, com `db_migrate_lock_timeout` ao esgotar |
+| A CLI informava novas tentativas que não aconteceram | não | Ajustar: o resultado conta as repetições diretamente |
+
+**Rodada 3 — aprovada pelo Codex**, sem achados. Não encontrou falha de atomicidade, retomada, conferência da base ou
+compatibilidade com os registros da K8.
+
+- Suíte com 548 testes, 8.927 asserções e 202/202 diagnósticos.
+- Sondas no PostgreSQL 18.6: `db:migrate` incremental 16/16, `db:migrate` 21/21, plano aditivo 99/99, plano incremental
+  18/18, Vetra Data 23/23, contexto 58/58 e RLS 103/103.
+- `--check` nos quatro exemplos, e o gate sem alterações.
 
 ## Auditoria C9
 

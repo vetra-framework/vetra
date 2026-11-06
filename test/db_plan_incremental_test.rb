@@ -541,24 +541,32 @@ class DBPlanIncrementalTest < GraphTest
     Vetra::SQL::Plan.new(number: number, name: 'indices', transaction: 'unica', steps: steps)
   end
 
-  def test_migrate_refuses_every_plan_after_the_initial_until_k10
-    [INDEXES, SINGLE].each do |differ|
+  # Um segundo plano é aplicado nos dois modos: o de transação única inteiro, com o seu registro, e o por passo, passo
+  # a passo, cada um depois da base conferida (ADR-038, §4 e §5).
+  def test_migrate_applies_a_second_plan_in_either_transaction_mode_after_checking_its_base
+    { INDEXES => 'por_passo', SINGLE => 'unica' }.each do |differ, mode|
       with_app('mini_crm') do |root, compiler|
         compiler.write
         planner(root).plan
         add_index(root)
         compiler.write
         planner(root, differ: differ).plan
+        digest = Digest::SHA256.hexdigest("x\n")
+        write(root, 'db/schema.sql', Vetra::SQL::Planner.render_schema([['0001_inicial', digest], ['0002_indices', digest]], "x\n"))
         database = DBMigrateTest::FakeDatabase.new(dumped: "x\n")
-        write(root, 'db/schema.sql', Vetra::SQL::Planner.render_schema([], "x\n"))
-        migrator = Vetra::SQL::Migrator.new(root: root, database: database, differ: differ)
-        error = assert_graph_error('db_migrate_incremental') { migrator.migrate }
-        assert_includes error.message, '0002_indices.sql'
         initial = Vetra::SQL::Plan.parse(File.read(File.join(root, 'db/plans/0001_inicial.sql')), file: 'db/plans/0001_inicial.sql')
         database.records = [{ 'plan' => '0001_inicial', 'sha256' => Vetra::SQL::Migrator.digest(initial) }]
-        error = assert_graph_error('db_migrate_incremental') { migrator.migrate }
-        assert_includes error.message, '0002_indices.sql'
-        assert_empty database.applied_plans
+        result = Vetra::SQL::Migrator.new(root: root, database: database, differ: differ).migrate
+        assert_equal :applied, result.status, mode
+        assert_equal %w[0002_indices.sql], result.applied.map(&:file_name), mode
+        assert_equal %w[0001_inicial 0002_indices], database.records.map { |record| record['plan'] }, mode
+        assert_equal(mode == 'unica' ? [] : [['0002_indices', 1]], database.applied_steps, mode)
+        # Com a base errada, nada do segundo plano é aplicado.
+        drifted = DBMigrateTest::FakeDatabase.new(dumped: "y\n")
+        drifted.records = database.records.first(1)
+        assert_graph_error('db_migrate_drift') { Vetra::SQL::Migrator.new(root: root, database: drifted, differ: differ).migrate }
+        assert_empty drifted.applied_plans, mode
+        assert_empty drifted.applied_steps, mode
       end
     end
   end

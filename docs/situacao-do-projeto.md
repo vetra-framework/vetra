@@ -8,8 +8,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   `NNNN_expand.sql` determinísticos, índices concorrentes, FKs validadas em separado, enum alargado e políticas
   atômicas (C9). O espelho mostra a segurança completa da IR atual. O [guia](db-plan.md) detalha as recusas e a sonda,
   com 99/99 verificações no PostgreSQL 18.6 e no job de planos da CI.
-  A unidade de trabalho e o emissor Ruby do Vetra Data estão implementados (ADR-039 aceito); `db:migrate` ainda
-  aplica somente o plano inicial. Repositórios, aplicação incremental real e outbox continuam pendentes.
+  A unidade de trabalho e o emissor Ruby do Vetra Data estão implementados (ADR-039 aceito), e o `db:migrate` aplica
+  também os planos incrementais, passo a passo, com retomada (K10). Repositórios e outbox continuam pendentes.
   A IR permanece 0.6; planos, modelos, retratos e espelhos dos exemplos conservam seus bytes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
@@ -27,7 +27,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 17 em `script/`, mais o simulador do gate; diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Sondas | 18 em `script/`, mais o simulador do gate; `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
 | Runtime | Unidade de trabalho e emissor HMAC em Ruby implementados, com dependências Sequel/pg de runtime e carregamento explícito. Repositórios, executor de operações e outbox seguem pendentes |
 
 ## Como manter este arquivo
@@ -88,8 +88,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   - com mais de um plano, o `--check` prova a convergência com o plano inicial da IR;
   - o retrato ganhou uma linha `-- vetra:base` por plano.
 
-  Fundação integrada em `5fa7a3a`; o `db:migrate` recusa planos depois do inicial até a K10,
-  com a sonda em 18/18 no PostgreSQL 17 e 18 da CI ([execução 42215134526](https://github.com/vetra-framework/vetra/actions/runs/42215134526)). [Guia](db-plan.md).
+  Fundação integrada em `5fa7a3a`, com a sonda em 18/18 no PostgreSQL 17 e 18 da CI ([execução 42215134526](https://github.com/vetra-framework/vetra/actions/runs/42215134526)). [Guia](db-plan.md).
 - [x] Diferenças aditivas entre modelos (C9, [guia](db-plan.md#diferenças-aditivas)): tabela completa, colunas
   anuláveis ou com default constante, índices `CONCURRENTLY`, únicas com índice de apoio antes da FK composta,
   FKs `NOT VALID`/`VALIDATE`, enum alargado sem janela sem CHECK e políticas RLS trocadas atomicamente.
@@ -103,6 +102,11 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   - catálogo global preservado.
 
   99/99 no PostgreSQL 18.6, em 106 s, e no 17 e 18 da CI ([execução 42235979068](https://github.com/vetra-framework/vetra/actions/runs/42235979068)). Integrada em `e2bdd14`.
+- [x] `db:migrate` incremental (K10): planos por passo aplicados com registro em `vetra.migration_steps`, retomada do
+  passo seguinte, índice válido de uma tentativa anterior aceito e inválido refeito, `lock_timeout` com novas tentativas
+  por passo, base conferida pela linha `-- vetra:base`, começo do plano registrado (passo 0), catálogos fora do dump
+  conferidos antes dos passos, definição inteira do índice conferida na retomada e `pg_dump` com `--lock-wait-timeout`.
+  Sonda de 16 verificações no PostgreSQL 18.6, com queda em cada passo e num plano que começa por índice. [Guia](db-migrate.md#retomada).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
@@ -560,7 +564,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
   (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
-  as diferenças aditivas estão implementadas e o `db:migrate` aplica o plano inicial; aplicação incremental real, repositórios e medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
+  as diferenças aditivas estão implementadas, e o `db:migrate` aplica o plano inicial e os incrementais, passo a passo; repositórios e medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
@@ -604,7 +608,7 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
-   de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial. A fundação do
-   plano incremental, suas diferenças aditivas e a unidade de trabalho com contexto emitido em Ruby também existem.
-   Faltam `db:migrate` por passo, repositórios, outbox com relay/entregas e medição do custo do contexto.
+   de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial e os incrementais,
+   passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas e a unidade de trabalho com
+   contexto emitido em Ruby também existem. Faltam repositórios, outbox com relay/entregas e medição do custo do contexto.
    Executor das oito etapas, handlers com ator de sistema e fase contract têm entregas posteriores próprias

@@ -54,7 +54,7 @@ module Vetra
           connection.close
         end
         if result.status == :applied
-          retries = result.attempts - result.applied.size
+          retries = result.retries
           out.puts("db:migrate: OK — aplicado #{result.applied.map(&:file_name).join(', ')}#{" (#{retries} nova(s) tentativa(s) por lock_timeout)" if retries.positive?}; esquema confere com db/schema.sql")
         else
           out.puts('db:migrate: OK — nenhum plano pendente; esquema confere com db/schema.sql')

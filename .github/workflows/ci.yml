@@ -147,6 +147,8 @@ jobs:
         run: bundle exec ruby script/sonda_rls_integridade.rb
       - name: db:migrate num banco real como vetra_migrator
         run: bundle exec ruby script/sonda_db_migrate.rb
+      - name: db:migrate incremental, passo a passo, com quedas e retomada
+        run: bundle exec ruby script/sonda_db_migrate_incremental.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do
