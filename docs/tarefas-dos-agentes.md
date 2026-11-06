@@ -71,7 +71,7 @@ tarefas seguem a ordem da tabela.
 | K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | `5fa7a3a` | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; CI verde, sonda 18/18 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k9)) |
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | `a98c4de`, `75dd5e2` | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; CI verde depois da correção dos lockfiles, sonda 23/23 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c8)) |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | concluída | `e2bdd14` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 99/99 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c9)) |
-| K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | ver histórico | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; sonda 16/16 no PostgreSQL 18.6 ([auditoria](#auditoria-k10)) |
+| K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | `2db989c` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde, sonda 16/16 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k10)) |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | a fazer | — | — |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | a fazer | — | — |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | a fazer | — | — |
@@ -133,6 +133,10 @@ compatibilidade com os registros da K8.
 - Sondas no PostgreSQL 18.6: `db:migrate` incremental 16/16, `db:migrate` 21/21, plano aditivo 99/99, plano incremental
   18/18, Vetra Data 23/23, contexto 58/58 e RLS 103/103.
 - `--check` nos quatro exemplos, e o gate sem alterações.
+
+**Envio e CI.** Commit `2db989c` na `main`. A CI ([execução 42251208776](https://github.com/vetra-framework/vetra/actions/runs/42251208776)) passou nos cinco jobs. No job de planos, o PostgreSQL
+17.11 e o 18.6 deram `db:migrate` incremental 16/16, plano aditivo 99/99, Vetra Data 23/23, plano incremental 18/18,
+contexto 58/58, RLS 103/103 e `db:migrate` 21/21.
 
 ## Auditoria C9
 

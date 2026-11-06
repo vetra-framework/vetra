@@ -106,7 +106,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   passo seguinte, índice válido de uma tentativa anterior aceito e inválido refeito, `lock_timeout` com novas tentativas
   por passo, base conferida pela linha `-- vetra:base`, começo do plano registrado (passo 0), catálogos fora do dump
   conferidos antes dos passos, definição inteira do índice conferida na retomada e `pg_dump` com `--lock-wait-timeout`.
-  Sonda de 16 verificações no PostgreSQL 18.6, com queda em cada passo e num plano que começa por índice. [Guia](db-migrate.md#retomada).
+  Sonda de 16 verificações no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42251208776](https://github.com/vetra-framework/vetra/actions/runs/42251208776)), com queda em cada passo e num plano que
+  começa por índice. Integrada em `2db989c`. [Guia](db-migrate.md#retomada).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
