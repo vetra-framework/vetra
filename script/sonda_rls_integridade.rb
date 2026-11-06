@@ -63,10 +63,9 @@ class DatabaseSecurityProbe < SignedContextProbe
       Vetra::Graph::Compiler.new(root: root).read_artifact.document
     end
     @schema = Vetra::SQL::Schema.new(@document).generate
-    @plan = Vetra::SQL::Plan.initial(@schema)
-    unless example == 'mini_crm_set_by'
-      raise 'Plano versionado divergente' unless @plan.render == File.read(File.join(root, 'db/plans/0001_inicial.sql'), encoding: 'UTF-8')
-    end
+    # A fixture não tem planos commitados; os exemplos aplicam os seus, conferidos sem banco contra a IR e a cadeia.
+    @plans = example == 'mini_crm_set_by' ? [Vetra::SQL::Plan.initial(@schema)] : Vetra::SQL::Planner.new(root: root).migration_plans
+    @plan = @plans.first
     @authz = Vetra::SQL::Authorization.new(@document).generate.statements
       .select { |sql| sql.match?(/\ADO \$vetra_(roles|tables|privileges|routines)\$/) }.join("\n")
     @other_tenant, @seller, @foreign_actor = Array.new(3) { SecureRandom.uuid }

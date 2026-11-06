@@ -73,7 +73,7 @@ tarefas seguem a ordem da tabela.
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | concluída | `e2bdd14` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 99/99 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c9)) |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | `2db989c` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde, sonda 16/16 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k10)) |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
-| K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
+| K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | ver histórico | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; sonda 36/36 no PostgreSQL 17.11 e 18.6 ([auditoria](#auditoria-k11)) |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | a fazer | — | — |
 | K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
 
@@ -101,6 +101,34 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K11
+
+Implementado pelo Claude sobre `127c690`, com o ADR-040 proposto; auditado pelo Codex em modo somente leitura, com a
+árvore conferida por hash antes e depois de cada rodada. O Claude rodou as sondas no PostgreSQL 18.6 e num 17.11
+local, extraído do pacote pgdg sem instalação no sistema, para conferir o retrato nas duas versões antes da CI.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| `unit_of_work.rb`: a conferência da unidade condenada vinha depois do `yield`; um `throw`, `break` ou `return` a pulava e a transação terminava em COMMIT, inclusive dentro de `compose` | sim | Ajustar: `doom!` chama `rollback_on_exit`, que desfaz a transação inteira em qualquer saída; teste com `throw` na transação e em `compose` |
+| `scratch_database.rb`: a normalização do NOT NULL herdado reescrevia uma linha dentro de um literal, e dois defaults diferentes davam o mesmo retrato | sim | Ajustar: só a cláusula de topo, com a linha fora de literal e o `CONSTRAINT` fora de um literal aberto nela |
+| `differ.rb`: a seção da outbox era conferida só num sentido; uma política excedente na base passava e ficava no banco sem estar no modelo | sim | Ajustar: igualdade nos dois sentidos para os itens com objeto; privilégio excedente cai na conferência genérica; testes para os dois casos |
+
+**Rodada 2 — aprovada pelo Codex**, com dois achados não bloqueantes.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| A normalização também apagava um nome próprio com o sufixo `_<coluna>_not_null` fora de partições | não | Ajustar: só o nome `<pai>_<coluna>_not_null` numa tabela `<pai>_...`, com caso negativo no teste |
+| `vetra-data.md` tinha um `\n` literal no texto | não | Ajustar |
+
+- Suíte com 594 testes, 10.546 asserções e 218/218 diagnósticos.
+- Sondas no PostgreSQL 18.6 e no 17.11: outbox 36/36, repositórios 72/72, `db:migrate` 21/21, `db:migrate`
+  incremental 16/16, plano incremental 18/18, Vetra Data 23/23, contexto 58/58 e RLS 103/103; no 18.6, também
+  plano aditivo 99/99.
+- `db:plan --check` nos quatro exemplos no 17 e no 18, e o gate sem alterações nos grafos.
+- O Claude aceitou o ADR-040 por delegação do mantenedor, depois da aprovação.
 
 ## Auditoria C10
 

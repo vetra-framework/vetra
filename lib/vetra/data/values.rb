@@ -85,6 +85,26 @@ module Vetra
         invalid!
       end
 
+      # Valor de um campo do registro no payload JSON de um evento (ADR-040, §2): decimais e dinheiro como texto
+      # exato na escala do campo, instantes em UTC com microssegundos e datas ISO 8601.
+      def event_value(value, field)
+        return nil if value.nil?
+        type = field.fetch('type')
+        case type.fetch('name')
+        when 'decimal' then decimal_text(value, type.fetch('scale'))
+        when 'money' then { 'amount' => decimal_text(value.amount, type.fetch('scale')), 'currency' => value.currency }
+        when 'timestamp' then value.getutc.iso8601(6)
+        when 'date' then value.iso8601
+        else value
+        end
+      end
+
+      def decimal_text(number, scale)
+        sign = number.negative? ? '-' : ''
+        integer, fraction = number.abs.to_s('F').split('.', 2)
+        scale.zero? ? "#{sign}#{integer}" : "#{sign}#{integer}.#{fraction.to_s.ljust(scale, '0')}"
+      end
+
       def coerce(value, field, currency:)
         invalid! if value.is_a?(Sequel::SQL::Expression) || value.is_a?(Sequel::LiteralString)
         if value.nil?

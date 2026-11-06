@@ -6,10 +6,10 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 - **Atualizado em:** 2026-11-06: o [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
   gerados da IR, com registros `Data` imutáveis, consulta restrita, transições protegidas e vínculos idempotentes.
-  A sonda dos repositórios roda os corpos reais dos quatro exemplos, com 72/72 verificações no PostgreSQL 18.6 e no
-  job de planos da CI. Planos incrementais aditivos e `db:migrate` com retomada estão
-  implementados. Executor de operações e outbox continuam pendentes.
-  A IR permanece 0.6; planos, modelos, retratos e espelhos dos exemplos conservam seus bytes.
+  A outbox tem armazenamento e emissão (K11, ADR-040 aceito): blog, mini CRM e CRM com revendas ganham o plano
+  `0002_expand`, com a outbox e as entregas particionadas por tempo, e o comando grava o evento na unidade de
+  trabalho. Planos incrementais aditivos e `db:migrate` com retomada estão implementados. Relay, entregas,
+  manutenção e executor de operações continuam pendentes. A IR permanece 0.6; o chat conserva seus artefatos.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -17,8 +17,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 39 aceitos (001 a 039), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 |
-| Testes do compilador, dados e exemplos | 583 testes e 9.792 asserções, sem falhas; 216/216 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 40 aceitos (001 a 040), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 e a outbox 040 |
+| Testes do compilador, dados e exemplos | 594 testes e 10.546 asserções, sem falhas; 218/218 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
@@ -27,8 +27,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
 | Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42282609424](https://github.com/vetra-framework/vetra/actions/runs/42282609424)), modo 100755; integrada em `5c15ebf`; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 19 em `script/`, mais o simulador do gate; repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Unidade de trabalho, emissor HMAC e repositórios gerados da IR implementados, com dependências Sequel/pg de runtime e carregamento explícito. Autorização Ruby, reautorização final, executor de operações e outbox seguem pendentes |
+| Sondas | 20 em `script/`, mais o simulador do gate; outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Runtime | Unidade de trabalho, emissor HMAC e repositórios gerados da IR implementados, com dependências Sequel/pg de runtime e carregamento explícito. A emissão grava na outbox; autorização Ruby, reautorização final, executor de operações, relay e entregas seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -50,6 +50,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Outbox, armazenamento e emissão (K11, [ADR-040](adr/040-papeis-e-rls-da-outbox.md) aceito):
+  `vetra.outbox` e `vetra.deliveries` particionadas por tempo, com partição `DEFAULT`, e `vetra.dead_deliveries`,
+  no plano `0002_expand` do blog, do mini CRM e do CRM com revendas, gerado pelo plano incremental num passo.
+  A aplicação só insere, pelas colunas do evento, e a política de `INSERT` exige o tenant e o ator do contexto;
+  `created_at`, `xid8` e `seq` vêm do banco. `Repositories#emit!` grava os eventos que o comando declara, com o
+  payload projetado e um `pg_notify` só com o tenant; um payload com campo pessoal desfaz a unidade inteira. O
+  retrato normaliza o nome herdado do NOT NULL nas partições, que o `pg_dump` 18 escreve e o 17 não. São 11 testes e
+  223 asserções sem banco; a sonda passa 36/36 no PostgreSQL 17.11 e no 18.6.
 
 - [x] Repositórios do [Vetra Data](vetra-data.md) gerados da IR e vinculados à unidade/capacidade:
   busca, lock, criação, atualização por registro ou ID, exclusão, consulta restrita e vínculos de
@@ -447,6 +456,9 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   Claude por delegação do mantenedor, após a auditoria da C8
 - [x] **038** Fundação do plano incremental: modelo físico versionado, transação por passo, história ancorada no gate
   e contenção do `--check`; aceito em 2026-11-06 pelo Claude por delegação do mantenedor, após a auditoria da K9
+- [x] **040** Papéis, RLS e armazenamento da outbox: tabelas particionadas, `INSERT` por coluna para a aplicação,
+  relay `vetra_relay` e manutenção por rotinas fechadas; aceito em 2026-11-06 pelo Claude por delegação do
+  mantenedor, após a auditoria da K11
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 
@@ -590,8 +602,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   compõe o plano inicial com a forma tenant/ator não correlacionada e recusa vínculo sem índice físico
   tenant/ator. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
-  concorrente nem `VACUUM`; o gate na matriz do G4 está por medir. Nada foi implementado: a outbox e as entregas
-  particionadas, `vetra.dead_deliveries`, a claim `system_actor`, a função `is_system_actor()` e a condição nas
+  concorrente nem `VACUUM`; o gate na matriz do G4 está por medir. A outbox e as entregas particionadas e
+  `vetra.dead_deliveries` existem desde a K11 (ADR-040); a claim `system_actor`, a função `is_system_actor()` e a condição nas
   políticas de escopo não existem. O `graph:diff` já classifica `calls` de um handler como `permissions` (#34), mas
   o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`, e a IR 0.1 não tem
   timeout nem papel por handler
@@ -624,6 +636,7 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
 2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
    de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial e os incrementais,
-   passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas e a unidade de trabalho com
-   contexto emitido em Ruby e os repositórios gerados também existem. Faltam outbox com relay/entregas e medição do custo do contexto.
+   passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas, a unidade de trabalho com
+   contexto emitido em Ruby, os repositórios gerados e o armazenamento e a emissão da outbox também existem. Faltam o
+   relay com as entregas e a manutenção das partições, e a medição do custo do contexto.
    Executor das oito etapas, handlers com ator de sistema e fase contract têm entregas posteriores próprias

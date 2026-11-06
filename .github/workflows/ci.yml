@@ -151,6 +151,8 @@ jobs:
         run: bundle exec ruby script/sonda_db_migrate_incremental.rb
       - name: Repositórios gerados e corpos dos exemplos contra o banco
         run: bundle exec ruby script/sonda_repositorios.rb
+      - name: Outbox, armazenamento e emissão na unidade de trabalho
+        run: bundle exec ruby script/sonda_outbox.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

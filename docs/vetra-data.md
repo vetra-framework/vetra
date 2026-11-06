@@ -139,7 +139,37 @@ Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do r
 Ainda não são avaliados `authorize`, papéis Ruby, permissões por campo nem a reautorização do estado final
 (etapa 6 do ADR-016). O isolamento disponível é o contexto da unidade e o RLS dos planos dos CRMs, nos limites
 do ADR-037; a aplicação continua responsável por autorizar as chamadas, inclusive administração de vínculos.
-Eventos, histórico, executor das oito etapas e execução dos descritores builtin são entregas posteriores.
+A emissão para a outbox está descrita abaixo; o relay, a entrega aos handlers, o histórico, o executor das oito
+etapas e a execução dos descritores builtin são entregas posteriores.
+
+## Emissão de eventos
+
+`repositories.emit!(unit, record)` grava na outbox, na unidade de trabalho, os eventos que o comando da unidade
+declara em `emits` a partir da entidade do registro (ADR-040, §2). É borda confiável, como `bind`: o runtime a chama
+depois do `call` e antes do commit (etapa 7 do ADR-016); o corpo `call` não a recebe. Devolve os `event_id`.
+
+```ruby
+work.transaction(tenant_id:, actor_id:, op_id:, cmd: 'crm.win_lead') do |unit|
+  lead = repositories.bind('crm.leads', unit: unit).update!(lead_id, status: 'won')
+  repositories.emit!(unit, lead) # crm.lead.won, com o payload { "id": ... }
+end
+```
+
+- O payload é a projeção declarada, com os tipos do contrato: decimais e dinheiro como texto exato na escala do
+  campo (`{ "amount": "123.40", "currency": "BRL" }`), instantes em UTC com microssegundos e datas ISO 8601.
+- A linha leva `event_id`, `event`, `version`, `tenant_id`, `actor_id`, `op_id` e `cmd` do contexto da unidade.
+  `created_at`, `xid8` e `seq` vêm do banco; a aplicação não tem permissão para defini-los.
+- O INSERT vai sem `RETURNING`, porque a aplicação não lê a outbox. O valor de cada coluna vai como argumento do
+  protocolo (`pg_auto_parameterize`), sem instrução nomeada.
+- Depois do INSERT, `pg_notify('vetra_outbox', tenant)` acorda quem lê a outbox; o texto é o tenant ou vazio,
+  nunca o conteúdo do evento, e só chega no commit.
+- A emissão exige unidade gravável, um comando que declare o evento e um registro desta IR (`data_event`).
+- **Campo pessoal.** Até existir a cifra do ADR-013, §6, um payload com campo pessoal é recusado com
+  `data_event_personal` e **condena a unidade**: a transação termina em rollback mesmo que o `call` resgate o
+  erro, inclusive dentro de `compose` e numa saída por `throw`, `break` ou `return` (`rollback_on_exit`).
+
+Os eventos ficam na partição `DEFAULT` até a manutenção da K12 criar as partições diárias. O relay, as entregas e
+os handlers são da K12 e da rodada 5.
 
 ## Aplicações globais
 
@@ -176,6 +206,8 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_conflict` | Unicidade, FK, serialização ou deadlock |
 | `data_access_denied` | Banco recusou o acesso (42501) |
 | `data_database` | Outra falha do banco, sem detalhes do driver |
+| `data_event` | Emissão sem evento declarado pelo comando, registro de outra IR ou projeção inconsistente |
+| `data_event_personal` | Payload com campo pessoal; a unidade inteira é desfeita |
 
 `Token#value` exporta explicitamente o token para o protocolo. Não o registre, nem chave/hexadecimal/argumentos
 de assinatura. `inspect`/`to_s` do token, emissor, contexto e unidade são redigidos. O logger do Sequel não
@@ -214,6 +246,24 @@ identidade/poderes da sonda de contexto. Provisiona chave aleatória por parâme
 A numeração da saída é a ordem dos rótulos, sem IDs fixos; a tabela agrupa os resultados por assunto. A auditoria
 executa a sonda no 17/18 e a inclui na CI. Até essa execução, só sintaxe e testes sem banco estão conferidos.
 O custo com RLS/concorrência/pooler e a construção dos registros continuam sujeitos aos gates dos ADRs 022 e 023.
+
+## Sonda da outbox
+
+`script/sonda_outbox.rb` usa os três exemplos com eventos num PostgreSQL 17 ou 18 descartável, com o bootstrap do
+ADR-036. Aplica o `0001` como `vetra_migrator`, grava dados, aplica o `0002` e confere a forma das tabelas. Depois,
+como `vetra_app`, roda o corpo real de `win_lead` ou `publish_post` e emite pela unidade de trabalho.
+
+| Verificação | Resultado esperado |
+|---|---|
+| Planos e forma | O `0002` entra sobre dados; outbox e entregas particionadas com `DEFAULT`, entregas mortas sem partição, RLS forçado e dono `vetra_owner` |
+| Emissão | Uma linha na `DEFAULT` com o `xid8` da transação, o payload projetado e o contexto; notificação só com o tenant, depois do commit |
+| Rollback e ordem | Rollback depois da emissão não deixa linha nem notificação; eventos seguintes têm `xid8` e `seq` crescentes |
+| Campo pessoal (CRMs) | O email projetado no `lead.won` desfaz a unidade, mesmo com o erro resgatado |
+| Recusas | Outro tenant, outro ator, `created_at`, `xid8` e `seq` são recusados; `SELECT`, `UPDATE`, `DELETE`, `TRUNCATE`, as partições e as entregas também |
+| Fim | Nenhuma instrução nomeada, conexão sem contexto e nenhum papel global alterado |
+
+São 12 verificações em cada CRM, 11 no blog e a dos papéis: 36 no total, todas passando no PostgreSQL 17.11 e no
+18.6.
 
 ## Sonda dos repositórios
 

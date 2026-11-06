@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'securerandom'
+
 module Vetra
   module Data
     # Fábrica da borda confiável; o call recebe somente o resultado de bind.
@@ -59,7 +61,30 @@ module Vetra
         @types.freeze
         @repositories.freeze
         @entity_ids = @entities.keys.sort.freeze
+        @tenant_app = !schema.document.dig('app', 'tenant').nil?
+        @emits = emissions(schema.document['nodes'])
         freeze
+      end
+
+      # Etapa 7 do ADR-016 (ADR-040, §2): grava na outbox, na unidade, os eventos que o comando da unidade declara a
+      # partir deste registro, com o payload projetado. Devolve os event_id gravados. É borda confiável, como bind.
+      def emit!(unit, record)
+        entity_id = @types.key(record.class)
+        raise Error.single('data_event', 'Emissão exige um registro de entidade desta IR.') unless entity_id
+        context = unit.context
+        declared = @emits.fetch(context.cmd, []).select { |emit| emit['entity'] == entity_id }
+        raise Error.single('data_event', 'O comando da unidade não declara evento a partir deste registro.') if declared.empty?
+        raise Error.single('data_read_only', 'Escrita exige capacidade read_write e unidade gravável.') if context.read_only?
+        if declared.any? { |emit| emit['fields'].any? { |field| field.dig('privacy', 'personal') } }
+          # Sem a cifra do ADR-013, §6, a outbox nunca recebe dado pessoal, nem se o call resgatar o erro.
+          unit.doom!(Error.single('data_event_personal', 'Evento com campo pessoal exige a cifra do ADR-013; a unidade de trabalho foi desfeita.'))
+        end
+        declared.map do |emit|
+          payload = emit['fields'].to_h { |field| [field['name'], Values.event_value(record.public_send(field['name']), field)] }
+          event_id = SecureRandom.uuid
+          write_event(unit, context, emit, event_id, payload)
+          event_id
+        end.freeze
       end
 
       def record_type(entity_id)
@@ -72,6 +97,41 @@ module Vetra
       end
 
       private
+
+      # Por comando, os eventos de emits com a versão, a entidade de origem e os campos do contrato do payload.
+      def emissions(nodes)
+        events = nodes.select { |node| node['kind'] == 'event' }.to_h { |node| [node['id'], node] }
+        contracts = nodes.select { |node| node['kind'] == 'contract' }.to_h { |node| [node['id'], node] }
+        nodes.select { |node| node['kind'] == 'command' && node['emits']&.any? }.to_h do |command|
+          emits = command['emits'].map do |emit|
+            event = events.fetch(emit.dig('event', 'id'))
+            fields = contracts.fetch(event.dig('payload', 'id'))['fields'].select { |field| emit['fields'].include?(field['name']) }
+            entity = @entities.fetch(emit.dig('from', 'id'))
+            unless fields.size == emit['fields'].size && fields.all? { |field| entity['fields'].any? { |item| item['name'] == field['name'] } }
+              raise Error.single('data_event', 'Projeção do evento não corresponde ao contrato do payload.')
+            end
+            { 'event' => event['id'], 'version' => event['version'], 'entity' => entity['id'], 'fields' => fields }
+          end
+          [command['id'], Values.immutable(emits)]
+        end.freeze
+      end
+
+      def write_event(unit, context, emit, event_id, payload)
+        unit.access(multi_tenant: @tenant_app) do |db|
+          # Sem RETURNING: a aplicação só tem INSERT por coluna na outbox; created_at, xid8 e seq vêm do banco.
+          db[Sequel.qualify('vetra', 'outbox')].disable_insert_returning.insert(
+            event_id: event_id, event: emit['event'], version: emit['version'], tenant_id: context.tenant_id,
+            actor_id: context.actor_id, op_id: context.op_id, cmd: context.cmd, payload: Sequel.pg_jsonb_wrap(payload)
+          )
+          # Só acorda quem lê a outbox; o conteúdo do evento nunca vai na notificação (ADR-008, §1).
+          db.get(Sequel.function(:pg_notify, 'vetra_outbox', context.tenant_id || ''))
+        end
+      rescue Sequel::DatabaseError => error
+        wrapped = error.wrapped_exception
+        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field('C') : nil
+        raise Error.single('data_access_denied', 'Acesso aos dados recusado.'), cause: nil if state == '42501'
+        raise Error.single('data_database', 'Falha ao acessar os dados.'), cause: nil
+      end
 
       def build(entity_id, unit, access)
         @repositories.fetch(entity_id).new(catalog: self, unit: unit, access: access,

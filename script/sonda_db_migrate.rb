@@ -74,21 +74,24 @@ class MigrateProbe
     connection.exec('SELECT plan, sha256, steps, applied_by FROM vetra.migrations ORDER BY plan').to_a
   end
 
-  def expected_digest
-    plan = Vetra::SQL::Plan.parse(File.read(File.join(ROOT, 'db/plans/0001_inicial.sql'), encoding: 'UTF-8'), file: 'db/plans/0001_inicial.sql')
-    [Vetra::SQL::Migrator.digest(plan), plan.steps.size]
+  # Os planos commitados, na ordem: o inicial e o 0002, que traz a outbox do ADR-040.
+  def expected_records
+    Vetra::SQL::Planner.new(root: ROOT).migration_plans.map do |plan|
+      { 'plan' => plan.file_name.delete_suffix('.sql'), 'sha256' => Vetra::SQL::Migrator.digest(plan),
+        'steps' => plan.steps.size.to_s, 'applied_by' => 'vetra_migrator' }
+    end
   end
 
   def run_checks
     name = database
     connection = connect(name)
-    digest, steps = expected_digest
-    check('aplica o plano inicial num banco vazio como vetra_migrator e registra o hash do plano') do
+    expected = expected_records
+    check('aplica o plano inicial e o incremental num banco vazio como vetra_migrator e registra o hash de cada um') do
       result = migrate(connection)
-      result.status == :applied && records(connection) == [{ 'plan' => '0001_inicial', 'sha256' => digest, 'steps' => steps.to_s, 'applied_by' => 'vetra_migrator' }]
+      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand] && records(connection) == expected
     end
     check('segunda execução não aplica nada e confere o esquema com o retrato') do
-      migrate(connection).status == :up_to_date && records(connection).size == 1
+      migrate(connection).status == :up_to_date && records(connection) == expected
     end
     check('vetra_app não lê nem grava vetra.migrations') do
       app = connect(name, as: 'vetra_app')
@@ -136,7 +139,7 @@ class MigrateProbe
       begin
         owner.exec("UPDATE vetra.migrations SET sha256 = '#{'0' * 64}'")
         altered = refused('db_migrate_altered') { migrate(connection) }
-        owner.exec_params('UPDATE vetra.migrations SET sha256 = $1', [digest])
+        expected.each { |row| owner.exec_params('UPDATE vetra.migrations SET sha256 = $1 WHERE plan = $2', row.values_at('sha256', 'plan')) }
         altered
       ensure
         owner.close
@@ -214,7 +217,7 @@ class MigrateProbe
       with_blocker do |migrator, blocker|
         sleeps = []
         result = migrate(migrator, sleeper: ->(seconds) { sleeps << seconds; blocker.exec('ROLLBACK') if sleeps.size == 1 })
-        result.status == :applied && result.attempts == 2 && sleeps.size == 1 && records(migrator).size == 1
+        result.status == :applied && result.attempts == expected.size + 1 && sleeps.size == 1 && records(migrator) == expected
       end
     end
 
@@ -224,7 +227,7 @@ class MigrateProbe
         exhausted = refused('db_migrate_lock_timeout') { migrate(migrator, sleeper: ->(seconds) { sleeps << seconds }) }
         clean = migrator.exec("SELECT pg_catalog.to_regnamespace('vetra') IS NULL").getvalue(0, 0) == 't'
         blocker.exec('ROLLBACK')
-        resumed = migrate(migrator).status == :applied && records(migrator).size == 1
+        resumed = migrate(migrator).status == :applied && records(migrator) == expected
         exhausted && sleeps.size == Vetra::SQL::Migrator::BACKOFF.size && clean && resumed
       end
     end
@@ -264,7 +267,7 @@ class MigrateProbe
       fresh = connect(target)
       begin
         nothing = fresh.exec("SELECT pg_catalog.to_regnamespace('vetra') IS NULL").getvalue(0, 0) == 't'
-        died && nothing && migrate(fresh).status == :applied && records(fresh).size == 1
+        died && nothing && migrate(fresh).status == :applied && records(fresh) == expected
       ensure
         fresh.close
       end

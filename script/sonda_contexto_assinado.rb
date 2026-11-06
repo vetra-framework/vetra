@@ -13,11 +13,13 @@ class SignedContextProbe
     @url, @databases, @results = url, [], []
     @tenant, @actor, @operation = Array.new(3) { SecureRandom.uuid }
     @secret = SecureRandom.random_bytes(32)
-    @document = Vetra::Graph::Compiler.new(root: File.expand_path('../examples/mini_crm_revendas', __dir__)).read_artifact.document
+    root = File.expand_path('../examples/mini_crm_revendas', __dir__)
+    @document = Vetra::Graph::Compiler.new(root: root).read_artifact.document
     @schema = Vetra::SQL::Schema.new(@document).generate
-    @plan = Vetra::SQL::Plan.initial(@schema)
-    # A sonda confere também o artefato que será aplicado por --snapshot/--check.
-    raise 'Plano do exemplo divergente' unless @plan.render == File.read(File.expand_path('../examples/mini_crm_revendas/db/plans/0001_inicial.sql', __dir__), encoding: 'UTF-8')
+    # Os planos commitados, conferidos sem banco contra a IR e a cadeia, como no --snapshot/--check: o inicial e os
+    # incrementais (o 0002 traz a outbox do ADR-040).
+    @plans = Vetra::SQL::Planner.new(root: root).migration_plans
+    @plan = @plans.first
     # A infraestrutura já pertence ao plano; reexecuta somente as guardas, depois das mutações.
     @authz = Vetra::SQL::Authorization.new(@document).generate.statements
       .select { |sql| sql.match?(/\ADO \$vetra_(roles|tables|privileges|routines)\$/) }.join("\n")
@@ -272,7 +274,7 @@ class SignedContextProbe
       WHERE r.rolname = current_user
     SQL
     raise 'A sonda deve aplicar o plano como migrador sem poderes extras e dono do banco' unless allowed
-    Vetra::SQL::PlanExecutor.new(connection).apply([@plan])
+    Vetra::SQL::PlanExecutor.new(connection).apply(@plans)
   ensure
     connection.exec('RESET SESSION AUTHORIZATION')
   end

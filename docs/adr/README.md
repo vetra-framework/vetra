@@ -30,6 +30,10 @@ O [ADR-039](039-unidade-de-trabalho-e-repositorios.md), aceito, define a unidade
 o emissor Ruby do token, o contexto global sem tenant e o contrato que os repositórios da C10 seguirão.
 A unidade e o emissor estão implementados, com a sonda PostgreSQL no job de planos da CI. [Guia](../vetra-data.md).
 
+O [ADR-040](040-papeis-e-rls-da-outbox.md), aceito, define os papéis, o RLS e o armazenamento da outbox: tabelas
+particionadas por tempo no schema `vetra`, `INSERT` por coluna para a aplicação, o relay `vetra_relay` e a manutenção
+por rotinas fechadas. A K11 implementa o armazenamento e a emissão; o relay e a manutenção são da K12.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -73,6 +77,7 @@ A unidade e o emissor estão implementados, com a sonda PostgreSQL no job de pla
 | [037](037-politicas-e-transicoes-no-plano-inicial.md) | Políticas e transições no plano inicial | aceito |
 | [038](038-fundacao-do-plano-incremental.md) | Fundação do plano incremental: modelo versionado, transação por passo e contenção | aceito |
 | [039](039-unidade-de-trabalho-e-repositorios.md) | Unidade de trabalho, emissão do contexto e contrato dos repositórios | aceito |
+| [040](040-papeis-e-rls-da-outbox.md) | Papéis, RLS e armazenamento da outbox | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

@@ -13,6 +13,7 @@ module Vetra
         @db, @issuer, @scope = Data.configure(db), issuer, scope
         @contexts = {}
         @times = {}
+        @doomed = {}
         @clock = clock
       end
 
@@ -30,11 +31,16 @@ module Vetra
             Values.invalid! unless time.is_a?(Time)
             timestamp = Values.timestamp(time.getutc.floor(6))
             Sequel.synchronize { @times[Sequel.current] = timestamp }
-            yield self
+            result = yield self
+            # Uma unidade condenada nunca confirma, mesmo que o call tenha resgatado o erro (ADR-040, §2).
+            doomed = Sequel.synchronize { @doomed[Sequel.current] }
+            raise doomed, cause: nil if doomed
+            result
           ensure
             Sequel.synchronize do
               @contexts.delete(Sequel.current)
               @times.delete(Sequel.current)
+              @doomed.delete(Sequel.current)
             end
           end
         end
@@ -62,6 +68,17 @@ module Vetra
       def now
         active_context!
         Sequel.synchronize { @times.fetch(Sequel.current) }
+      end
+
+      # Infraestrutura da K11: condena a unidade inteira e levanta o erro. O commit não acontece, nem dentro de compose
+      # nem se o erro for resgatado; só o primeiro erro é guardado.
+      def doom!(error)
+        active_context!
+        Sequel.synchronize { @doomed[Sequel.current] ||= error }
+        # Cobre também break, return e throw, que pulam a conferência depois do yield: o Sequel desfaz a transação
+        # inteira na saída, e não só o savepoint de compose.
+        @db.rollback_on_exit
+        raise error, cause: nil
       end
 
       # Infraestrutura da C10: o repositório usa a guarda em cada execução terminal.

@@ -252,6 +252,7 @@ Todos os passos são `expand`. As formas sobre tabelas existentes são:
 | FK, simples ou composta | Todos os índices de apoio e únicas, `ADD ... FOREIGN KEY ... NOT VALID`, `VALIDATE CONSTRAINT` | `ShareRowExclusive` / `catalogo` nas duas tabelas; `ShareUpdateExclusive` / `varre_tabela` na origem e `RowShare` no destino ao validar | `sim`, `sim` para a FK |
 | Enum alargado | CHECK auxiliar com a expressão nova `NOT VALID`, validação, troca final | `AccessExclusive` / `catalogo`, `ShareUpdateExclusive` / `varre_tabela`, `AccessExclusive` / `catalogo` | `sim` em cada passo; troca final indivisível |
 | Políticas RLS alteradas | `DROP` das políticas anteriores e `CREATE` das políticas atuais da tabela em **um passo**, inclusive ao trocar `vt_access` por `vt_scope_*` | `AccessExclusive` / `catalogo` | Um único `sim` |
+| Outbox (ADR-040), quando a aplicação passa a ter eventos | A seção inteira em **um passo**: `vetra.outbox` e `vetra.deliveries` particionadas com as partições `DEFAULT`, `vetra.dead_deliveries`, os índices, os donos, os REVOKEs, o RLS forçado, a política de `INSERT` e a concessão por coluna | `nenhum` / `catalogo`: só cria objetos | Um único `sim` |
 
 O CHECK auxiliar tem nome derivado do SHA-256 do nome final e da expressão nova. A restrição antiga permanece
 até a nova estar validada. O último passo remove a antiga e renomeia a auxiliar, na mesma transação: não há janela
@@ -294,6 +295,10 @@ e [ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html) do Postg
 | Mudança da raiz, coluna ou escopo de tenant | `db_plan_tenant` |
 | Mudança de nulidade/default/atribuição existente, PK, CHECK ou estrutura sem tradução aditiva | `db_plan_change` |
 | Instrução de infraestrutura/segurança/revisão removida ou alterada sem tradução segura | `db_plan_statement` |
+
+A seção da outbox é reconhecida pelo texto exato que o gerador produz para a IR atual. Depois de criada, qualquer
+diferença nela é recusada com `db_plan_statement`, e a sua remoção, quando a aplicação deixa de ter eventos, com
+`db_plan_remove`. As partições diárias não são instruções de plano: são da manutenção da K12 (ADR-040, §4).
 
 Uma combinação que contém qualquer recusa não grava plano, modelo nem espelho parcial. Nenhuma dessas recusas
 habilita `migrate` ou `contract`: preenchimento em lotes, renomeações e estreitamento de enum exigem fases futuras.
@@ -362,7 +367,12 @@ normalização tira só o que depende de quem gerou e quando: comentários (incl
 `set_config` e as linhas `\restrict` com chave aleatória, e junta linhas vazias repetidas. Ela age apenas entre
 instruções: dentro de um literal ou de um corpo de função, uma linha que começa com `--` ou `SET` e as linhas vazias
 ficam intactas, para que dois esquemas diferentes nunca produzam o mesmo retrato. Nenhuma instrução de esquema,
-privilégio ou política é retirada. O `pg_dump` precisa ser da mesma versão principal do servidor (`db_pg_dump`), porque um mais antigo recusa o
+privilégio ou política é retirada. A única reescrita é a do nome do NOT NULL herdado numa partição: o `pg_dump` 18
+escreve `CONSTRAINT outbox_seq_not_null NOT NULL` na coluna da partição, e o 17, que não tem NOT NULL nomeado, só
+`NOT NULL`. O nome padrão do pai, `<pai>_<coluna>_not_null`, sai do retrato numa coluna de uma tabela `<pai>_...`
+(a partição, como `outbox_default`), só como
+cláusula de topo: dentro de um literal, inclusive um default de várias linhas, o texto fica intacto. Qualquer outro
+nome fica. Assim o retrato é o mesmo nas duas versões. O `pg_dump` precisa ser da mesma versão principal do servidor (`db_pg_dump`), porque um mais antigo recusa o
 servidor e um mais novo poderia escrever o mesmo esquema de outro jeito. Indique o binário com `VETRA_PG_DUMP`.
 
 Donos e ACLs são parte da comparação. Não são retirados nem substituídos pela normalização. Os retratos

@@ -49,11 +49,12 @@ class VetraDataProbe < SignedContextProbe
     root = File.expand_path("../examples/#{example}", __dir__)
     document = Vetra::Graph::Compiler.new(root: root).read_artifact.document
     @schema = Vetra::SQL::Schema.new(document).generate
-    @plan = Vetra::SQL::Plan.initial(@schema)
-    raise 'Plano versionado divergente' unless @plan.render == File.read(File.join(root, 'db/plans/0001_inicial.sql'), encoding: 'UTF-8')
+    # Os planos commitados, conferidos sem banco contra a IR e a cadeia: o inicial e os incrementais.
+    @plans = Vetra::SQL::Planner.new(root: root).migration_plans
+    @plan = @plans.first
     @connection = create_database
     @database_name = @databases.last
-    check("#{example}: plano inicial aplica como vetra_migrator sem poderes administrativos") do
+    check("#{example}: planos commitados aplicam como vetra_migrator sem poderes administrativos") do
       apply_as_migrator(@connection)
       true
     end

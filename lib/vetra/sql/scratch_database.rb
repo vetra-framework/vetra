@@ -179,8 +179,15 @@ module Vetra
       # Tira do dump o que depende de quem e quando o gerou (comentários com versões, SET de sessão e as linhas
       # \restrict com chave aleatória) e junta linhas vazias repetidas, mas só entre instruções: uma linha dentro de um
       # literal ou corpo de função fica intacta, para que o retrato não esconda diferença de esquema, privilégio ou RLS.
+      # O pg_dump 18 escreve numa partição o nome do NOT NULL herdado do pai (`CONSTRAINT outbox_seq_not_null NOT NULL`);
+      # o 17 não tem NOT NULL nomeado. Só o nome padrão do pai, `<pai>_<coluna>_not_null`, sai do retrato, numa coluna
+      # de uma tabela `<pai>_...` (a partição, como outbox_default): o retrato fica igual nas duas versões sem esconder
+      # outro nome.
+      INHERITED_NOT_NULL = /\A(    ([a-z_][a-z0-9_]*) .*) CONSTRAINT ([a-z_][a-z0-9_]*)_\2_not_null NOT NULL(,?)\z/
+      CREATE_TABLE = /\ACREATE TABLE [a-z_][a-z0-9_]*\.([a-z_][a-z0-9_]*) \(\z/
+
       def self.normalize_dump(text)
-        kept, scanner = [], StatementScanner.new
+        kept, scanner, statement = [], StatementScanner.new, nil
         # Tira só o LF de cada linha: um CR dentro de um literal é dado e precisa sobreviver no retrato.
         text.each_line do |raw|
           line = raw.delete_suffix("\n")
@@ -188,6 +195,11 @@ module Vetra
             next if DROPPED.any? { |pattern| pattern.match?(line) }
             next if line.strip.empty? && (kept.empty? || kept.last.empty?)
             next kept << '' if line.strip.empty?
+            statement = line
+          elsif (table = CREATE_TABLE.match(statement.to_s)&.[](1)) && !scanner.literal? && (match = INHERITED_NOT_NULL.match(line)) &&
+                table.start_with?("#{match[3]}_") && !StatementScanner.new.feed(match[1]).literal?
+            # Só uma cláusula de topo: a linha começa fora de literal e o CONSTRAINT não está num literal aberto nela.
+            line = "#{match[1]} NOT NULL#{match[4]}"
           end
           kept << line
           scanner.feed(line)

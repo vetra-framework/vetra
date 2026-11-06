@@ -160,7 +160,9 @@ class SecuritySQLTest < GraphTest
       assert_includes result.artifact, 'Aplicação sem tenant'
       sql = Vetra::SQL::Plan.initial(model).render
       refute_includes sql, 'authz_revisions'
-      refute_includes sql, 'CREATE POLICY'
+      # A única política de uma aplicação global é a de INSERT na outbox, que exige tenant nulo (ADR-040, §2).
+      policies = sql.scan(/^CREATE POLICY .*$/)
+      assert_equal(example == 'blog' ? ['CREATE POLICY "vt_outbox_insert" ON "vetra"."outbox" AS PERMISSIVE FOR INSERT TO "vetra_app" WITH CHECK ("tenant_id" IS NULL);'] : [], policies)
     end
   end
 

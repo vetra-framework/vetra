@@ -20,6 +20,8 @@ module Vetra
         @old = @base['tables'].to_h { |table| [table['entity'], table] }
         @new = schema.tables.to_h { |table| [table['entity'], table] }
         @steps = []
+        # A seção da outbox (ADR-040, §5) é reconhecida pelo texto exato que o gerador atual produz.
+        @outbox = Outbox.new(schema).digests
         # Num plano por passo o GRANT só pode tornar uma tabela nova acessível depois de toda a proteção.
         @new_table_grants = @new.reject { |id, _| @old.key?(id) }.values.map do |table|
           "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{relation(table)} TO #{quote('vetra_app')};"
@@ -219,12 +221,44 @@ module Vetra
         end
       end
 
+      def outbox_item?(item)
+        @outbox.include?(item['sha256'])
+      end
+
+      # Objeto da outbox num modelo anterior, mesmo gerado por outro texto: tabela, índice, dono, RLS ou política.
+      def outbox_object?(item)
+        object = item['object'].to_s.delete_prefix('table ')
+        schema, name = object.split('.')
+        schema == 'vetra' && (Outbox::TABLES.include?(name) || %w[vt_outbox_relay vt_deliveries_ready].include?(name))
+      end
+
+      # A outbox nasce inteira, num passo transacional, quando o modelo anterior não a tem. Fora disso, qualquer
+      # diferença nela é recusada: o plano incremental ainda não a traduz (ADR-040, §5).
+      def outbox!(old, current)
+        existed = old.any? { |item| outbox_object?(item) }
+        wanted = @initial.steps.zip(current).select { |_, item| outbox_item?(item) }
+        if existed
+          fail!('db_plan_remove', 'outbox removida; a aplicação deixou de ter eventos') if wanted.empty?
+          # Igualdade nos dois sentidos: uma instrução a mais na base (política, índice, trigger) também é alteração.
+          # Privilégios não têm objeto; os excedentes caem na conferência genérica de instruções removidas.
+          current_items = wanted.map(&:last)
+          unless current_items.all? { |item| old.include?(item) } &&
+                 old.select { |item| outbox_object?(item) }.all? { |item| current_items.include?(item) }
+            fail!('db_plan_statement', 'seção da outbox alterada')
+          end
+        elsif wanted.any?
+          emit(wanted.map { |step, _| step.sql }.join("\n"), existing: false)
+        end
+      end
+
       def instructions!
         old = @base['statements']
         current = @state['statements']
+        outbox!(old, current)
         deferred_grants = []
         # As políticas de cada tabela são uma unidade: inclusive a troca vt_access -> vt_scope_*.
-        policy_tables = (old + current).select { |item| item['kind'] == 'policy' }.map { |item| item['object'].split('.')[0, 2] }.uniq
+        policy_tables = (old + current).select { |item| item['kind'] == 'policy' && !outbox_object?(item) }
+          .map { |item| item['object'].split('.')[0, 2] }.uniq
         replacements = {}
         policy_tables.each do |path|
           belongs = ->(item) { item['kind'] == 'policy' && item['object'].split('.')[0, 2] == path }
@@ -245,6 +279,7 @@ module Vetra
         end
         emitted_policies = []
         @initial.steps.zip(current).each do |step, item|
+          next if outbox_item?(item)
           kind, object = item.values_at('kind', 'object')
           # O bootstrap de revisão é a última seção do plano inicial. Seu LOCK precisa cobrir os triggers,
           # REVOKEs e guardas na mesma transação, não terminar num passo anterior a eles.

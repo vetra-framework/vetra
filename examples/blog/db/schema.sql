@@ -1,6 +1,7 @@
 -- Retrato do esquema: resultado de aplicar db/plans/ num banco vazio (vetra db:plan --snapshot).
 -- Gerado a partir do pg_dump --schema-only normalizado, com donos; não edite à mão.
 -- vetra:base 0001_inicial sha256=3a9923f0b8b998f844d085356e44b6814b54fc627bd2280558b564f8025d196c
+-- vetra:base 0002_expand sha256=983ac2efaf8a561d95b84c247fb28e9de4ef0a9d16b4d8991c4d13d152a1aeec
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -193,6 +194,131 @@ CREATE TABLE public.posts (
 
 ALTER TABLE public.posts OWNER TO vetra_owner;
 
+CREATE TABLE vetra.dead_deliveries (
+    handler text NOT NULL,
+    event_id uuid NOT NULL,
+    event_created_at timestamp(6) with time zone NOT NULL,
+    event_xid8 xid8 NOT NULL,
+    event_seq bigint NOT NULL,
+    event text NOT NULL,
+    version integer NOT NULL,
+    tenant_id uuid,
+    payload jsonb NOT NULL,
+    attempts integer NOT NULL,
+    last_error text,
+    died_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT dead_deliveries_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT dead_deliveries_event_check CHECK ((event ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT dead_deliveries_handler_check CHECK ((handler ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT dead_deliveries_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT dead_deliveries_version_check CHECK ((version > 0))
+);
+
+ALTER TABLE ONLY vetra.dead_deliveries FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.dead_deliveries OWNER TO vetra_owner;
+
+CREATE TABLE vetra.deliveries (
+    event_created_at timestamp(6) with time zone NOT NULL,
+    event_xid8 xid8 NOT NULL,
+    event_seq bigint NOT NULL,
+    event_id uuid NOT NULL,
+    handler text NOT NULL,
+    tenant_id uuid,
+    state text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    run_after timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    leased_until timestamp(6) with time zone,
+    last_error text,
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    updated_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT deliveries_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT deliveries_handler_check CHECK ((handler ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT deliveries_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'done'::text, 'dead'::text])))
+)
+PARTITION BY RANGE (event_created_at);
+
+ALTER TABLE ONLY vetra.deliveries FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.deliveries OWNER TO vetra_owner;
+
+CREATE TABLE vetra.deliveries_default (
+    event_created_at timestamp(6) with time zone NOT NULL,
+    event_xid8 xid8 NOT NULL,
+    event_seq bigint NOT NULL,
+    event_id uuid NOT NULL,
+    handler text NOT NULL,
+    tenant_id uuid,
+    state text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    run_after timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    leased_until timestamp(6) with time zone,
+    last_error text,
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    updated_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT deliveries_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT deliveries_handler_check CHECK ((handler ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT deliveries_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'done'::text, 'dead'::text])))
+);
+
+ALTER TABLE ONLY vetra.deliveries_default FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.deliveries_default OWNER TO vetra_owner;
+
+CREATE TABLE vetra.outbox (
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    xid8 xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    seq bigint NOT NULL,
+    event_id uuid NOT NULL,
+    event text NOT NULL,
+    version integer NOT NULL,
+    tenant_id uuid,
+    actor_id uuid,
+    op_id uuid NOT NULL,
+    cmd text NOT NULL,
+    payload jsonb NOT NULL,
+    CONSTRAINT outbox_cmd_check CHECK (((char_length(cmd) >= 1) AND (char_length(cmd) <= 255))),
+    CONSTRAINT outbox_event_check CHECK ((event ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT outbox_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT outbox_version_check CHECK ((version > 0))
+)
+PARTITION BY RANGE (created_at);
+
+ALTER TABLE ONLY vetra.outbox FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.outbox OWNER TO vetra_owner;
+
+CREATE TABLE vetra.outbox_default (
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    xid8 xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    seq bigint NOT NULL,
+    event_id uuid NOT NULL,
+    event text NOT NULL,
+    version integer NOT NULL,
+    tenant_id uuid,
+    actor_id uuid,
+    op_id uuid NOT NULL,
+    cmd text NOT NULL,
+    payload jsonb NOT NULL,
+    CONSTRAINT outbox_cmd_check CHECK (((char_length(cmd) >= 1) AND (char_length(cmd) <= 255))),
+    CONSTRAINT outbox_event_check CHECK ((event ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text)),
+    CONSTRAINT outbox_payload_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT outbox_version_check CHECK ((version > 0))
+);
+
+ALTER TABLE ONLY vetra.outbox_default FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.outbox_default OWNER TO vetra_owner;
+
+ALTER TABLE vetra.outbox ALTER COLUMN seq ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME vetra.outbox_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 CREATE TABLE vetra_private.keys (
     kid text NOT NULL,
     secret bytea NOT NULL,
@@ -205,11 +331,30 @@ CREATE TABLE vetra_private.keys (
 
 ALTER TABLE vetra_private.keys OWNER TO vetra_owner;
 
+ALTER TABLE ONLY vetra.deliveries ATTACH PARTITION vetra.deliveries_default DEFAULT;
+
+ALTER TABLE ONLY vetra.outbox ATTACH PARTITION vetra.outbox_default DEFAULT;
+
 ALTER TABLE ONLY public.posts
     ADD CONSTRAINT vt_pk_0732ee4194e46d003e5300e171222785 PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.comments
     ADD CONSTRAINT vt_pk_e65d3acd28849b0c97f88486111aef61 PRIMARY KEY (id);
+
+ALTER TABLE ONLY vetra.dead_deliveries
+    ADD CONSTRAINT dead_deliveries_pkey PRIMARY KEY (handler, event_id);
+
+ALTER TABLE ONLY vetra.deliveries
+    ADD CONSTRAINT deliveries_pkey PRIMARY KEY (handler, event_id, event_created_at);
+
+ALTER TABLE ONLY vetra.deliveries_default
+    ADD CONSTRAINT deliveries_default_pkey PRIMARY KEY (handler, event_id, event_created_at);
+
+ALTER TABLE ONLY vetra.outbox
+    ADD CONSTRAINT outbox_pkey PRIMARY KEY (created_at, xid8, seq);
+
+ALTER TABLE ONLY vetra.outbox_default
+    ADD CONSTRAINT outbox_default_pkey PRIMARY KEY (created_at, xid8, seq);
 
 ALTER TABLE ONLY vetra_private.keys
     ADD CONSTRAINT keys_pkey PRIMARY KEY (kid);
@@ -218,10 +363,38 @@ CREATE INDEX vt_ix_b376a5f46e965210eb78284646c740a6 ON public.posts USING btree 
 
 CREATE INDEX vt_ix_d3622996ba4077dc3317ae7224cf877c ON public.comments USING btree (post_id);
 
+CREATE INDEX vt_deliveries_ready ON ONLY vetra.deliveries USING btree (run_after) WHERE (state = 'pending'::text);
+
+CREATE INDEX deliveries_default_run_after_idx ON vetra.deliveries_default USING btree (run_after) WHERE (state = 'pending'::text);
+
+CREATE INDEX vt_outbox_relay ON ONLY vetra.outbox USING btree (xid8, seq);
+
+CREATE INDEX outbox_default_xid8_seq_idx ON vetra.outbox_default USING btree (xid8, seq);
+
 CREATE UNIQUE INDEX vt_keys_active ON vetra_private.keys USING btree (status) WHERE (status = 'active'::text);
+
+ALTER INDEX vetra.deliveries_pkey ATTACH PARTITION vetra.deliveries_default_pkey;
+
+ALTER INDEX vetra.vt_deliveries_ready ATTACH PARTITION vetra.deliveries_default_run_after_idx;
+
+ALTER INDEX vetra.outbox_pkey ATTACH PARTITION vetra.outbox_default_pkey;
+
+ALTER INDEX vetra.vt_outbox_relay ATTACH PARTITION vetra.outbox_default_xid8_seq_idx;
 
 ALTER TABLE ONLY public.comments
     ADD CONSTRAINT vt_fk_d52bd44498b03fbdc39a2c3b32f20bd2 FOREIGN KEY (post_id) REFERENCES public.posts(id) DEFERRABLE;
+
+ALTER TABLE vetra.dead_deliveries ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.deliveries ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.deliveries_default ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.outbox ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.outbox_default ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY vt_outbox_insert ON vetra.outbox FOR INSERT TO vetra_app WITH CHECK ((tenant_id IS NULL));
 
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO vetra_app;
@@ -237,3 +410,19 @@ GRANT ALL ON FUNCTION vetra.current_tenant() TO vetra_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.comments TO vetra_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.posts TO vetra_app;
+
+GRANT INSERT(event_id) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(event) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(version) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(tenant_id) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(actor_id) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(op_id) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(cmd) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT INSERT(payload) ON TABLE vetra.outbox TO vetra_app;

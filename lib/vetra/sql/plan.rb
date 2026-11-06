@@ -115,6 +115,8 @@ module Vetra
       def self.initial(schema)
         statements = Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Context.suffix(schema.tables)
         if schema.respond_to?(:document) && schema.document
+          # Antes da segurança: o Differ trata a revisão como a última seção do plano (ADR-040, §5).
+          statements.concat(Outbox.new(schema).statements)
           statements.concat(Security.new(schema).generate.statements)
           if schema.document.dig('app', 'tenant')
             statements.concat(Authorization.new(schema.document).generate.statements)
