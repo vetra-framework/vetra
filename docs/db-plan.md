@@ -2,8 +2,10 @@
 
 `vetra db:plan` transforma o esquema físico do [ADR-035](adr/035-mapeamento-fisico-inicial.md) num plano versionado em
 `db/plans/` e confere o retrato `db/schema.sql`, como decidem o [ADR-015](adr/015-migracoes-expand-contract.md), §1, e o
-[ADR-025](adr/025-resolucao-das-questoes-do-adr-015.md), §1. Só existe o **plano inicial**, de um banco vazio.
-Mudar o esquema de um banco que já tem plano exige o plano incremental, previsto no
+[ADR-025](adr/025-resolucao-das-questoes-do-adr-015.md), §1. Cada plano é gravado com um **modelo físico versionado** em
+`db/models/`, e os planos seguintes partem dele ([ADR-038](adr/038-fundacao-do-plano-incremental.md), proposto). A fundação
+do plano incremental está implementada (K9): modelo, cadeia, transação por passo, contenção e convergência. A diferença
+entre modelos ainda não: os exemplos só têm o plano inicial, e um modelo que mudou é recusado até a C9 do
 [plano da persistência](plano-persistencia.md).
 
 ## Comandos
@@ -16,14 +18,18 @@ DATABASE_URL=... VETRA_PG_DUMP=... bundle exec bin/vetra db:plan --check --root 
 ```
 
 - **`db:plan`** lê `.vetra/graph.json` com as mesmas verificações do `db:authz:sql` (artefato canônico, produtor e
-  fontes) e grava `db/plans/0001_inicial.sql` se ainda não houver plano. Não abre conexão. Se o plano já existe e é o
-  que a IR gera, não muda nada. Se a IR passou a gerar outro esquema, falha com `db_plan_stale`: um banco que nunca
-  recebeu o plano pode recomeçar removendo o arquivo; um banco aplicado precisa do plano incremental.
+  fontes). Não abre conexão.
+  - Sem plano, grava `db/plans/0001_inicial.sql` e `db/models/0001_inicial.json`.
+  - Um plano inicial gravado antes do ADR-038, sem modelo, ganha o modelo que a mesma IR gera, se o plano for o
+    que ela gera.
+  - Se o modelo do último plano é o que a IR gera, não muda nada.
+  - Se a IR passou a gerar outro esquema, o próximo plano é a diferença entre modelos. Até a C9, falha com
+    `db_plan_incremental`: um banco que nunca recebeu os planos pode recomeçar removendo `db/plans` e `db/models`.
 - **`db:plan --snapshot`** aplica os planos num banco descartável e regrava `db/schema.sql`. Como o `--check`, só aplica
-  planos que a IR gera: um plano editado à mão poderia mexer em objetos do servidor inteiro (`COMMENT ON DATABASE`,
-  papéis), fora do banco temporário.
-- **`db:plan --check`** falha se o plano não for o que a IR gera ou se o retrato não for o resultado de aplicar os planos
-  (ADR-025, §1, item 3). É o que a CI roda nos quatro exemplos, no PostgreSQL 17 e no 18.
+  planos que a cadeia de modelos prende e cujo último plano a IR regenera.
+- **`db:plan --check`** falha se a cadeia não conferir, se o último plano não for o que a IR gera ou se o retrato não
+  for o resultado de aplicar os planos (ADR-025, §1, item 3). Com mais de um plano, também prova a convergência (ver
+  abaixo). É o que a CI roda nos quatro exemplos, no PostgreSQL 17 e no 18.
 
 Os três modos também conferem `db/policies/0001_seguranca.sql`, espelho das instruções de RLS e
 transições aplicadas pelo plano. Ausência, edição ou arquivo adicional gera `db_policies_stale` antes
@@ -31,8 +37,10 @@ de acessar o banco. A primeira geração grava plano e espelho juntos; só `db/p
 O [guia de RLS e integridade](db-rls.md) descreve permissivas, limites e a sonda dos CRMs.
 
 `--snapshot` e `--check` usam o servidor de `DATABASE_URL` só para criar um banco temporário `vetra_plan_*` a partir do
-`template0`, com `UTF8` e `LOCALE 'C'`. O papel precisa poder criar bancos. O banco da URL nunca é alterado, e o
-temporário é removido também numa falha. A gem `pg` é exigida só nesses dois modos. Um erro de conexão ou de URL vira
+`template0`, com `UTF8`, `LOCALE 'C'` e `vetra_migrator` como dono, e para tirar o `pg_dump`. O papel da URL precisa
+poder criar bancos e assumir `vetra_migrator`, o que um superusuário pode. O banco da URL nunca é alterado, e o
+temporário é removido também numa falha. Os planos são aplicados por outra conexão, que **entra** como `vetra_migrator`
+(ver "Contenção"). A gem `pg` é exigida só nesses dois modos. Um erro de conexão ou de URL vira
 `db_connection` com a classe do erro e o SQLSTATE, sem repetir a mensagem do driver, que pode conter a senha. O `pg_dump`
 recebe em `--dbname` os parâmetros que a conexão temporária de fato usou e roda sem as variáveis `PG*` herdadas
 (`PGSERVICE`, `PGDATABASE`, `PGHOST` e outras), para que leia o mesmo banco; a senha vai só em `PGPASSWORD`, nunca na
@@ -41,7 +49,8 @@ temporário e o `pg_dump` ficam fixos no servidor em que a conexão administrati
 
 O plano inicial é aplicável por **`vetra_migrator` como dono do banco, sem superusuário**, conforme o
 [ADR-036](adr/036-papeis-e-contexto-assinado.md). Exige os três papéis globais preparados pelo
-operador. A CI continua usando `postgres` em `--snapshot`/`--check` para criar os bancos temporários.
+operador. A CI usa `postgres` em `--snapshot`/`--check` só para criar e remover os bancos temporários; os planos são
+aplicados como `vetra_migrator`, com a senha de `VETRA_MIGRATOR_PASSWORD` definida para o servidor descartável.
 O plano só modifica objetos no banco alvo; nunca cria nem remove papéis no cluster.
 
 ## Bootstrap e contexto assinado
@@ -138,14 +147,30 @@ ALTER TABLE "public"."dealers" ADD CONSTRAINT "vt_uq_..." UNIQUE ("company_id", 
 ```
 
 O cabeçalho dá o número e o nome do plano, que precisam ser os do arquivo (`NNNN_nome.sql`), e a unidade de transação.
-`unica` significa que o plano inteiro roda numa transação, com `lock_timeout` de 3 s (ADR-015, §5): uma falha em
-qualquer passo desfaz o plano todo. Cada passo é um comando e diz:
+Os planos são numerados em sequência a partir de `0001`. Há dois modos (ADR-038, §2):
+
+- **`unica`**: o plano inteiro roda numa transação, com `lock_timeout` de 3 s (ADR-015, §5). Uma falha em qualquer
+  passo desfaz o plano todo. É o modo do plano inicial.
+- **`por_passo`**: cada marcador termina em `transacao=sim` ou `transacao=nao`.
+  - Um passo `sim` roda na sua própria transação, com `SET LOCAL lock_timeout = '3s'`. Pode ter mais de uma instrução
+    quando elas precisam ser atômicas, como a troca de política.
+  - Um passo `nao` roda fora de transação, com `lock_timeout` de sessão durante o passo. Tem uma só instrução,
+    `CREATE [UNIQUE] INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY IF EXISTS` ou `REINDEX INDEX CONCURRENTLY`.
+    `CONCURRENTLY` em qualquer outro lugar é recusado.
+
+```sql
+-- vetra:passo 1 fase=expand lock=ShareUpdateExclusive custo=varre_tabela transacao=nao
+CREATE INDEX CONCURRENTLY "vt_ix_..." ON "public"."leads" ("company_id", "created_at");
+```
+
+Cada passo diz:
 
 | Campo | Valores | Significado |
 |---|---|---|
 | `fase` | `expand`, `migrate`, `contract` | A fase do ADR-015, §2; o plano inicial só tem `expand` |
 | `lock` | `nenhum` ou um modo do PostgreSQL sem o sufixo `Lock` | O lock mais forte que o passo pede numa tabela que já existe; `nenhum` quando o passo só cria um objeto novo |
-| `custo` | `catalogo`, `tabela_vazia` | Só catálogo, ou um passo sobre uma tabela criada no mesmo plano, ainda sem linhas |
+| `custo` | `catalogo`, `tabela_vazia`, `varre_tabela` | Só catálogo; um passo sobre uma tabela criada no mesmo plano, ainda sem linhas; ou a leitura de uma tabela existente sem bloquear escrita (`CONCURRENTLY`) |
+| `transacao` | `sim`, `nao` | Só em planos `por_passo` |
 
 No plano inicial, `CREATE SCHEMA` e `CREATE TABLE` são `nenhum`/`catalogo`, `ADD CONSTRAINT ... UNIQUE` é
 `AccessExclusive`, `CREATE INDEX` é `Share` e `ADD CONSTRAINT ... FOREIGN KEY` é `ShareRowExclusive`, todos
@@ -176,6 +201,85 @@ entre instruções (`Vetra::SQL::StatementScanner`): uma linha `-- vetra:` dentr
 várias linhas, ou dentro de um corpo `$...$` é dado do passo, e um plano cujo último passo termina dentro de um literal é
 recusado.
 
+## Modelos e cadeia
+
+`db/models/NNNN_nome.json` acompanha cada plano, com o mesmo número e nome. É JSON canônico gerado pelo `db:plan`:
+um arquivo editado à mão é recusado (`db_model_format`). Ele guarda:
+
+- `state`: o esquema depois do plano, isto é, o que o plano inicial da IR daquele momento criaria num banco vazio.
+  Contém as tabelas estruturadas do ADR-035 e, na ordem, o tipo, o objeto e o SHA-256 de cada instrução de
+  infraestrutura, segurança e revisão. Não guarda SQL executável; serve de base para a diferença do próximo plano;
+- `plans`: o SHA-256 de cada plano até este;
+- `previous`: o SHA-256 do modelo anterior.
+
+Os planos antigos não são regenerados, porque a IR que os gerou já mudou. A cadeia os prende dentro da árvore: um
+plano ou modelo editado, trocado ou removido falha com `db_model_chain` antes de qualquer acesso ao banco. Quem
+recalcula os hashes na mesma árvore passa pela cadeia, então a história é ancorada na base integrada: o gate
+(`script/check_graph_compatibility.rb --base`) recusa um plano ou modelo da base alterado ou removido, um plano
+novo cujo número não vem depois dos da base e mais de um plano novo por aplicação na mesma integração.
+
+Só o último plano é recalculado e comparado byte a byte. Com mais de um plano, o `--check` aplica todos num banco e
+o plano inicial da IR atual em outro, e os dois esquemas precisam ser iguais (`db_plan_convergence`). É isso que
+mostra que o modelo descreve o banco. A comparação ignora só a ordem entre as definições de cada `CREATE TABLE`,
+porque uma coluna acrescentada fica no fim da tabela. Cada definição é comparada inteira, com os literais intactos,
+e o retrato continua exato.
+
+## Contenção
+
+Os planos commitados rodam no servidor de quem executa `--check` ou `--snapshot`. Antes da integração, o gate ainda
+não conferiu a história, então quatro camadas limitam o que um plano editado alcança (ADR-038, §3):
+
+- **Filtro de texto** (`db_plan_forbidden`), em todo plano lido, inclusive no `db:migrate`.
+  - Recusa instruções sobre papéis, membros de papéis, bancos, tablespaces, assinaturas e publicações, privilégios
+    `ON DATABASE`, `ON TABLESPACE` e `ON PARAMETER`, e `ALTER SYSTEM`, `SET ROLE`, `SET SESSION AUTHORIZATION`,
+    `COPY`, `LOAD`, `set_config` e as funções que leem arquivos ou encerram sessões.
+  - Recusa também instruções de topo que mudam a sessão ou a transação do executor (`SET`, `COMMIT`, `BEGIN` e
+    outras).
+  - Lê só o código: comentários, literais e identificadores entre aspas ficam de fora. Uma coluna `"copy"`, um
+    default, um valor de `enum` ou a mensagem de um `RAISE` passam; os corpos `$...$` são lidos como código. Um
+    identificador entre aspas chamado como função é conferido pelo nome, mesmo com comentários antes do parêntese
+    (`pg_catalog."set_config" /* x */ (...)`). Identificadores e literais com escape Unicode (`U&"..."`) são
+    recusados.
+  - É um filtro e não uma prova: um `EXECUTE` com o comando num literal escapa dele.
+- **Poderes conferidos pelo executor.** Antes de qualquer texto dos planos, a conexão administrativa roda a guarda de
+  papéis do gerador atual (a que o plano traz é editável). Depois do login, o executor confere que a sessão é
+  `vetra_migrator` sem superusuário, `CREATEROLE`, `CREATEDB` nem `REPLICATION`. Uma falha é `db_plan_role`, sem
+  nenhum passo aplicado.
+- **Servidor descartável para o migrador.** Antes de criar o banco temporário, o comando recusa com `db_plan_role`
+  um servidor com um objeto global que `vetra_migrator` administraria. Contam os papéis que ele exerce: ele mesmo, os
+  que herda ou assume por `SET`, `PUBLIC` e `pg_database_owner`, que o dono do banco temporário recebe. O servidor é
+  recusado quando tem:
+  - um banco ou tablespace de que um desses papéis seja dono, ou com privilégio com GRANT OPTION para um deles;
+  - um parâmetro com qualquer privilégio para um deles;
+  - outra sessão de `vetra_migrator` aberta em qualquer banco, porque o papel pode encerrar as próprias sessões
+    (`pg_terminate_backend`) sem mudar catálogo. Uma sessão que entre durante a aplicação fica fora da garantia.
+- **Login como `vetra_migrator`**, dono só do banco temporário, sem superusuário, `CREATEROLE` nem `CREATEDB`. Não há
+  `SET ROLE` que o plano possa desfazer. A sonda confere que `RESET ROLE`, `SET SESSION AUTHORIZATION`,
+  `CREATE ROLE` e `ALTER DATABASE postgres`, montados em partes, são negados pelo servidor (`db_plan_apply`).
+  - A senha vem só de `VETRA_MIGRATOR_PASSWORD`. O login não herda senha, `passfile` nem `service` da URL
+    administrativa.
+  - Durante a conexão, `PGPASSWORD`, `PGPASSFILE`, `PGSERVICE`, `PGSERVICEFILE` e `PGUSER` saem do ambiente, para
+    que a libpq não complete o login com credenciais do administrador.
+- **Catálogo** antes e depois, mesmo quando um plano falha (`db_plan_global`):
+  - `pg_roles` e `pg_auth_members` dos papéis Vetra, e nome e atributos de todos os papéis do servidor;
+  - os parâmetros de todos os papéis em todos os bancos;
+  - dono, ACL e atributos dos outros bancos, e dono, ACL e opções dos tablespaces;
+  - as ACLs de parâmetros;
+  - com superusuário, numa consulta separada, o hash da senha.
+
+  Um `GRANT` sem efeito sobre outro banco, por exemplo, ainda grava a ACL padrão explícita no lugar de `NULL`, e o
+  catálogo acusa.
+
+Sem o bootstrap dos papéis, ou sem uma conexão administrativa que possa criar o banco para `vetra_migrator`, o comando
+falha com `db_plan_role`. Também falha assim quando o login do migrador é recusado; nesse caso, defina
+`VETRA_MIGRATOR_PASSWORD`.
+
+A sonda [`script/sonda_plano_incremental.rb`](../script/sonda_plano_incremental.rb) confere isso no PostgreSQL 17 e
+18, junto com um plano `por_passo` aplicado, a convergência de dois planos com índice e com coluna nova num exemplo
+copiado, a recusa de um servidor em que o migrador já administra outro banco, um tablespace ou um parâmetro,
+inclusive por `pg_database_owner`, com uma sessão do migrador aberta noutro banco ou com o migrador promovido a
+superusuário (18 verificações).
+
 ## Retrato
 
 `db/schema.sql` é o `pg_dump --schema-only` do banco temporário depois dos planos, normalizado, **com donos**. A
@@ -190,18 +294,30 @@ Donos e ACLs são parte da comparação. Não são retirados nem substituídos p
 dos quatro exemplos são regenerados com `--snapshot` sempre que os planos mudam, e o `--check` da CI os confere no
 PostgreSQL 17 e 18.
 
+O cabeçalho tem uma linha por plano com o SHA-256 do dump normalizado depois daquele plano (ADR-038, §4). O
+`--snapshot` aplica os planos um a um e tira o dump depois de cada um:
+
+```text
+-- vetra:base 0001_inicial sha256=3a99…
+```
+
+O `db:migrate` compara o banco só com o corpo do retrato. Na K10, a linha do último plano aplicado será a base
+conferida antes de aplicar o seguinte.
+
 ## Executor
 
-`Vetra::SQL::PlanExecutor` aplica uma lista de planos numa conexão, cada plano numa transação. É o mesmo executor que o
-`--snapshot` e o `--check` usam; o [`db:migrate`](db-migrate.md) acrescenta o registro em `vetra.migrations`, o lock consultivo, as novas tentativas
-de `lock_timeout` e a verificação prévia. Uma falha diz o plano e o passo (`db_plan_apply`).
+`Vetra::SQL::PlanExecutor` aplica uma lista de planos numa conexão: um plano `unica` numa transação, e um `por_passo`
+passo a passo, cada `sim` na sua transação e cada `nao` fora dela. É o mesmo executor que o `--snapshot` e o `--check`
+usam. O [`db:migrate`](db-migrate.md) acrescenta o registro em `vetra.migrations`, o lock consultivo, as novas
+tentativas de `lock_timeout` e a verificação prévia. Uma falha diz o plano e o passo (`db_plan_apply`).
 
-O formato só tem a transação `unica`. O plano incremental precisa de passos fora de transação (`CREATE INDEX CONCURRENTLY`) e de
-grupos transacionais; esses modos entram no formato e no executor antes dela.
+O `db:migrate` ainda aplica só o plano inicial. Um plano depois dele, ou um plano `por_passo`, é recusado com
+`db_migrate_incremental` até a K10, que traz o registro por passo e a retomada.
 
 ## Limites
 
-Não há plano incremental; a aplicação num banco de verdade é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
+A diferença entre modelos é da C9, e a aplicação incremental num banco de verdade é da K10; a aplicação do plano
+inicial é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
 transição, com os limites de RBAC descritos no [guia](db-rls.md). Os testes da suíte não usam banco;
 a aplicação real exige as sondas e o `--check` da matriz PostgreSQL 17/18.
 

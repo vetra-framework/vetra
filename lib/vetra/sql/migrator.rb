@@ -16,8 +16,9 @@ module Vetra
 
       Result = Struct.new(:status, :applied, :attempts, keyword_init: true)
 
-      def initialize(root:, database:, sleeper: ->(seconds) { sleep(seconds) }, random: Random.new)
-        @root, @database, @sleeper, @random = File.expand_path(root), database, sleeper, random
+      # differ é a diferença entre modelos do Planner, que recalcula o último plano (ADR-038, §3).
+      def initialize(root:, database:, sleeper: ->(seconds) { sleep(seconds) }, random: Random.new, differ: Planner::REFUSE)
+        @root, @database, @sleeper, @random, @differ = File.expand_path(root), database, sleeper, random, differ
       end
 
       def self.digest(plan)
@@ -44,7 +45,7 @@ module Vetra
       private
 
       def run
-        plans = Planner.new(root: @root).migration_plans
+        plans = Planner.new(root: @root, differ: @differ).migration_plans
         snapshot = read_snapshot
         applied = @database.applied
         verify_applied!(applied, plans)
@@ -53,10 +54,17 @@ module Vetra
           verify_state!(snapshot, before: true)
           return Result.new(status: :up_to_date, applied: [], attempts: 0)
         end
-        # Só existe o plano inicial nesta versão: com planos pendentes, a base precisa ser o banco vazio.
-        unless applied.empty? && (objects = @database.foreign_objects).empty?
+        # Planos depois do inicial, ou por passo, precisam da base conferida e do registro por passo (ADR-038, §4 e §5).
+        # Recusa qualquer plano pendente além do inicial, seja qual for o modo de transação.
+        incremental = pending.find { |plan| plan.number != Plan::INITIAL[:number] || plan.transaction != 'unica' }
+        if incremental || !applied.empty?
+          raise Graph::Error.single('db_migrate_incremental', "#{(incremental || pending.first).file_name} é um plano incremental; o db:migrate ainda só " \
+                                                              'aplica o plano inicial (rodada 4, K10). Nada foi alterado.')
+        end
+        # Com o plano inicial pendente, a base precisa ser o banco vazio.
+        unless (objects = @database.foreign_objects).empty?
           raise Graph::Error.single('db_migrate_not_empty', 'O banco não está vazio e não tem o registro de planos do Vetra ' \
-                                                            "(#{objects&.first(5)&.join(', ') || 'registro parcial'}); o plano inicial só se aplica a um banco vazio. Nada foi alterado.")
+                                                            "(#{objects.first(5).join(', ')}); o plano inicial só se aplica a um banco vazio. Nada foi alterado.")
         end
         attempts = pending.sum { |plan| apply_with_retries(plan) }
         verify_state!(snapshot, before: false)
@@ -68,7 +76,7 @@ module Vetra
       # conferidos pelo catálogo.
       def verify_state!(snapshot, before:)
         problems = []
-        problems << "o esquema difere de #{Planner::SCHEMA}" unless snapshot == Planner::SCHEMA_HEADER + @database.dump
+        problems << "o esquema difere de #{Planner::SCHEMA}" unless Planner.schema_body(snapshot) == @database.dump
         problems.concat(@database.database_privilege_problems)
         problems.concat(@database.undumped_objects.map { |object| "o banco tem #{object}" })
         return if problems.empty?

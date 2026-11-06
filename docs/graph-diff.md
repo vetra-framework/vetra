@@ -185,6 +185,12 @@ Somente o par exato de grafos é coberto; outra alteração, mesmo de fonte, exi
 Declarações inválidas, duplicadas, sem motivo ou com wildcard nos digests são recusadas. Remover o próprio artefato
 continua sendo erro. A opção `graph:diff --fail-on-breaking` conserva seu comportamento original.
 
+O gate também ancora a história dos planos do banco (ADR-038, §3). Em cada aplicação com grafo na base, todo
+arquivo de `db/plans/` e `db/models/` que a base tem precisa continuar byte a byte, e um arquivo novo só pode ter
+número maior que os da base. Cada aplicação, inclusive uma nova, ganha no máximo um plano novo por integração,
+porque só o último plano é conferido por regeneração. Um plano publicado não se edita nem se remove; escreve-se
+outro. Não há declaração que libere essa regra.
+
 Essa declaração registra uma mudança intencional e sua migração. O mantenedor revisa o relatório e a
 justificativa antes do push. A proteção da `main`, descrita em
 [.github/main-protection.json](../.github/main-protection.json), só impede force-push e exclusão da branch,

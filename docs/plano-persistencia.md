@@ -31,7 +31,7 @@ As tarefas rodam nesta ordem, uma por vez no checkout compartilhado:
 
 | Tarefa | Implementador | Dependência | Entrega |
 |---|---|---|---|
-| K9 — fundação do plano incremental | Claude | — | ADR-038 proposto. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Validação integral das instruções permitidas, no lugar da regeneração (ver as decisões abaixo). `--check` com N planos. Nenhuma diferença nova ainda: um modelo que mudou continua recusado |
+| K9 — fundação do plano incremental | Claude | — | ADR-038 proposto. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Cadeia dos planos, filtro de instruções globais, aplicação como `vetra_migrator` e catálogo de papéis conferido, no lugar da regeneração dos planos antigos (ver as decisões abaixo). `--check` com N planos e convergência. Nenhuma diferença nova ainda: um modelo que mudou continua recusado |
 | C8 — unidade de trabalho e contexto emitido | Codex | — | ADR-039 proposto, com o contrato da unidade de trabalho, dos repositórios e do contexto global. `sequel` e `pg` passam a dependências de runtime, com janela `~>` e instalação conferida fora do grupo de desenvolvimento, com `pg_auto_parameterize`, `fiber_concurrency` e sem statements nomeados. O token `v1` é emitido em Ruby, com a chave fora dos artefatos. `set_config` é chamado uma vez, na transação mais externa; as consultas rodam em `read_only` e a composição usa savepoints. Tabela multiempresa acessada fora de transação é recusada com erro. A sonda roda com o Claude, no 17 e no 18 |
 | C9 — diferenças aditivas | Codex | K9 | Diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `000N_<nome>.sql` e o modelo. O Claude roda o `--check` no 17 e no 18 |
 | K10 — `db:migrate` incremental | Claude | K9 e C9 | Progresso por passo em `vetra.migrations`, passos fora de transação, `lock_timeout` e novas tentativas por passo. A base de cada plano é conferida antes de aplicá-lo, e a execução retoma do passo seguinte ao último concluído, conferindo o estado intermediário. A sonda interrompe em cada passo, inclusive depois de um DDL fora de transação e antes do registro, com o índice válido ainda não registrado e com o índice inválido |
@@ -62,13 +62,17 @@ Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita d
 - **Segurança do servidor da CI sem regenerar planos antigos (K9).** Hoje o `--check` só aplica um plano igual ao
   que a IR gera, e essa é a proteção do servidor: a classificação por prefixo não basta, porque um passo com
   `CREATE TABLE` seguido de `COMMENT ON DATABASE` recebe classificação conhecida. Um plano antigo não pode ser
-  regenerado de uma IR que já mudou. A K9 substitui essa proteção por três coisas:
-  - validação integral das formas permitidas, instrução por instrução, com modelos exatos para rotinas e blocos
-    procedurais;
-  - nenhuma instrução sobre objeto global (papel, tablespace ou outro banco). A exceção estrita são os privilégios
-    do banco corrente que o plano inicial concede (ADR-036);
-  - execução dos planos com um papel sem privilégios administrativos, separado da conexão administrativa que
-    cria o banco temporário.
+  regenerado de uma IR que já mudou. O planejamento previa trocar essa proteção por validação integral das formas
+  permitidas, com modelos exatos para rotinas e blocos procedurais. Na K9, o ADR-038 decidiu outro caminho: a
+  validação integral exigiria um parser de PL/pgSQL e um registro de modelos ligado a cada versão dos geradores. A
+  proteção ficou assim:
+  - o último plano continua regenerado e comparado byte a byte, e a cadeia de SHA-256 dos modelos prende os
+    anteriores;
+  - um filtro de texto recusa instruções sobre objetos globais (papel, tablespace ou outro banco) e de sessão. Os
+    privilégios do banco corrente que o plano inicial concede (ADR-036) passam;
+  - os planos são aplicados por uma conexão que entra como `vetra_migrator`, separada da conexão administrativa que
+    cria o banco temporário;
+  - o catálogo dos papéis Vetra é conferido antes e depois.
 - **ADR-039 (C8 e C10), a unidade de trabalho e os repositórios.**
   - As operações e a consulta restrita, com as formas que os corpos dos exemplos usam e hoje só rodam com duplos
     de memória.

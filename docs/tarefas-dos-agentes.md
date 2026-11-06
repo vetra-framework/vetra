@@ -68,7 +68,7 @@ tarefas seguem a ordem da tabela.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| K9 | Fundação do plano incremental: ADR-038 proposto, modelo físico versionado, modo de transação por passo, validação integral das instruções no lugar da regeneração, execução sem privilégio administrativo, `--check` com N planos | Claude | a fazer | — | — |
+| K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | ver histórico | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; sonda 18/18 no PostgreSQL 18.6 ([auditoria](#auditoria-k9)) |
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 proposto | Codex | a fazer | — | — |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | a fazer | — | — |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
@@ -101,6 +101,65 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K9
+
+Implementado pelo Claude sobre `d70a00f`; auditado pelo Codex; decisão do Claude. As sondas e o `--check` foram rodados
+pelo Claude no PostgreSQL 18.6; o 17 roda no job `db-plan` da CI. O ADR-038 troca a validação integral prevista no
+planejamento por regeneração do último plano, história ancorada no gate e contenção; o Codex avaliou a troca.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A cadeia aceitava uma história editada com os hashes recalculados na mesma árvore: nenhuma âncora fora da entrega | sim | Ajustar: o gate confere `db/plans/` e `db/models/` contra a base integrada (arquivo da base inalterado; arquivo novo só depois dos da base) |
+| O `vetra_migrator` pode ser dono de outro banco no mesmo servidor, e as ACLs e parâmetros desse banco não entravam no catálogo | sim | Ajustar: o servidor em que o migrador administra outro banco é recusado antes de criar o temporário; o catálogo inclui dono, ACL e parâmetros de todos os bancos |
+| A convergência por igualdade textual recusaria uma coluna acrescentada, que fica no fim da tabela | sim | Ajustar: a convergência ignora só a ordem das linhas de cada `CREATE TABLE`; o retrato segue exato. A sonda converge com uma coluna nova |
+| A consulta do catálogo lia `pg_authid` mesmo sem superusuário | sim | Ajustar: a senha é lida numa consulta separada, só com superusuário |
+| O `db:migrate` aplicaria um segundo plano `unica` num banco vazio | sim | Ajustar: qualquer plano pendente depois do inicial é recusado com `db_migrate_incremental` |
+| O filtro recusava identificadores e literais válidos, como uma coluna `copy` | sim | Ajustar: o filtro lê só o código, sem comentários, literais e identificadores; os corpos `$...$` continuam lidos |
+| A libpq podia completar o login do migrador com `PGPASSWORD`, `~/.pgpass` ou um `service` do administrador | sim | Ajustar: o login não herda `passfile` nem `service`, e as variáveis de login da libpq saem do ambiente durante a conexão |
+
+**Rodada 2 — devolvida pelo Codex.** Os ajustes de precondição, catálogo de bancos, `pg_authid`, recusa no
+`db:migrate` e login do migrador foram confirmados. O Codex considerou a troca da validação integral aceitável em
+princípio, condicionada aos dois primeiros achados abaixo.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O gate aceitava dois planos novos, e só o último é regenerado: um `0002` com `DELETE` passou com a cadeia recalculada | sim | Ajustar: no máximo um plano novo por aplicação em cada integração, inclusive numa aplicação nova |
+| A convergência ordenava linhas soltas, inclusive dentro de literais de várias linhas | sim | Ajustar: ordena definições inteiras de coluna e restrição, com os literais intactos |
+| `pg_catalog."set_config"(...)`, com o nome entre aspas, passava pelo filtro | não | Ajustar: o identificador entre aspas chamado como função é conferido pelo nome |
+
+**Rodada 3 — devolvida pelo Codex.** O limite de um plano novo, inclusive em aplicação nova, foi confirmado.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Tablespaces ficavam fora da precondição e do catálogo, e o filtro aceitava `GRANT ... ON TABLESPACE` | sim | Ajustar: a precondição recusa tablespace e parâmetro que o migrador administra; o catálogo inclui tablespaces e ACLs de parâmetros; o filtro recusa `ON DATABASE`, `ON TABLESPACE` e `ON PARAMETER` |
+| A convergência removia o CR antes do LF dentro de literais | sim | Ajustar: tira só o LF de cada linha |
+| Um comentário entre o nome entre aspas e o parêntese escondia a chamada | não | Ajustar: espaços e comentários, inclusive aninhados, são pulados antes do parêntese |
+| O caminho que grava o modelo de um plano inicial antigo não conferia o espelho de políticas | não | Ajustar: o espelho é conferido antes de gravar o modelo |
+
+**Rodada 4 — devolvida pelo Codex.** A rodada foi pedida em 2026-11-06, depois que o limite de uso da conta do Codex
+interrompeu a primeira tentativa em 2026-11-05. Os quatro ajustes da rodada 3 foram confirmados.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A precondição ignorava `pg_database_owner`, que o dono do banco temporário recebe: um GRANT OPTION para ele em outro banco passaria | sim | Ajustar: a precondição considera todos os papéis que o migrador exerce (ele, os herdados ou assumíveis por `SET`, `PUBLIC` e `pg_database_owner`) |
+| Os poderes do migrador só eram conferidos pela guarda do próprio plano, que é editável: um migrador promovido a superusuário receberia os passos | sim | Ajustar: a conexão administrativa roda a guarda de papéis do gerador atual antes de qualquer plano, o executor confere a identidade e os atributos da sessão, e o catálogo inclui todos os papéis do servidor |
+| Identificadores com escape Unicode (`U&"set\005fconfig"`) escondiam o nome da função | não | Ajustar: o filtro recusa `U&"..."` e `U&'...'`, que o gerador nunca emite |
+
+**Rodada 5 — devolvida pelo Codex.** Os ajustes da rodada 4 foram confirmados.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Um plano pode encerrar, com `pg_terminate_backend`, outra sessão do `vetra_migrator` em outro banco, sem privilégio e sem mudar catálogo | sim | Ajustar: o servidor com outra sessão do migrador aberta é recusado antes de criar o banco temporário. Uma sessão que entre durante a aplicação fica registrada como fora da garantia (efeito de disponibilidade, num servidor que já precisa ser descartável) |
+
+**Rodada 6 — aprovada pelo Codex**, sem achados. O Codex considerou a troca da validação integral tecnicamente
+aceitável para a K9: a regeneração do último plano, a história imutável contra a base e o limite de um plano novo
+por integração sustentam a garantia da história integrada. Antes da integração, a proteção depende das precondições
+do servidor descartável, do login restrito e do catálogo, com as exclusões declaradas no ADR-038. Suíte com 493
+testes, 7.890 asserções e 186/186 diagnósticos. Sondas no PostgreSQL 18.6: plano incremental 18/18, contexto 58/58,
+RLS 103/103 e `db:migrate` 21/21. ADR-038 aceito pelo Claude por delegação do mantenedor.
 
 ## Auditoria K8
 

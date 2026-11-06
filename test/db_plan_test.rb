@@ -9,9 +9,9 @@ class DBPlanTest < GraphTest
       @dump = dump
     end
 
-    def apply_and_dump(plans)
+    def replay(plans)
       @received = plans
-      @dump
+      [@dump] * plans.size
     end
   end
 
@@ -130,10 +130,10 @@ class DBPlanTest < GraphTest
       planner(root).plan
       edit(root, 'app/domains/crm/lead.rb') { |text| text.sub('  crud', "  string :origem, max: 40\n  crud") }
       compiler.write
-      error = assert_graph_error('db_plan_stale') { planner(root).plan }
-      assert_includes error.message, 'plano incremental'
+      error = assert_graph_error('db_plan_incremental') { planner(root).plan }
+      assert_includes error.message, 'removendo db/plans e db/models'
       write(root, 'db/plans/0002_mais.sql', File.read(plan_path(root)).sub('0001 inicial', '0002 mais'))
-      assert_graph_error('db_plan_incremental') { planner(root).plan }
+      assert_graph_error('db_model_chain') { planner(root).plan }
     end
   end
 
@@ -193,7 +193,7 @@ class DBPlanTest < GraphTest
       assert snapshot.start_with?(Vetra::SQL::Planner::SCHEMA_HEADER)
       assert_equal :checked, planner(root, FakeDatabase.new("CREATE TABLE public.companies ();\n")).check.status
       error = assert_graph_error('db_schema_stale') { planner(root, FakeDatabase.new("CREATE TABLE public.dealers ();\n")).check }
-      assert_includes error.message, 'linha 4'
+      assert_includes error.message, 'linha 3'
     end
   end
 
@@ -201,12 +201,16 @@ class DBPlanTest < GraphTest
     with_app('blog') do |root, compiler|
       compiler.write
       planner(root).plan
-      # Um passo editado no formato canônico continua legível, mas não é o que a IR gera: nunca chega ao banco.
-      edit(root, 'db/plans/0001_inicial.sql') { |text| text.sub(/;\n\z/, ";\nCOMMENT ON DATABASE postgres IS 'x';\n") }
+      # Um passo editado no formato canônico continua legível, mas não é o que a cadeia prende: nunca chega ao banco.
+      edit(root, 'db/plans/0001_inicial.sql') { |text| text.sub(/;\n\z/, ";\nCOMMENT ON SCHEMA public IS 'x';\n") }
       database = FakeDatabase.new("x\n")
-      assert_graph_error('db_plan_stale') { planner(root, database).snapshot }
+      assert_graph_error('db_model_chain') { planner(root, database).snapshot }
       assert_nil database.received
-      assert_graph_error('db_plan_stale') { planner(root, database).check }
+      assert_graph_error('db_model_chain') { planner(root, database).check }
+      assert_nil database.received
+      # Uma instrução sobre objeto fora do banco é recusada já na leitura do plano.
+      edit(root, 'db/plans/0001_inicial.sql') { |text| text.sub('COMMENT ON SCHEMA public', 'COMMENT ON DATABASE postgres') }
+      assert_graph_error('db_plan_forbidden') { planner(root, database).check }
       assert_nil database.received
     end
   end
@@ -234,7 +238,7 @@ class DBPlanTest < GraphTest
 
   def test_connection_errors_do_not_echo_the_url
     database = Vetra::SQL::ScratchDatabase.new(url: 'postgres://usuario:segredo%zz@127.0.0.1:1/x')
-    error = assert_graph_error('db_connection') { database.apply_and_dump([]) }
+    error = assert_graph_error('db_connection') { database.replay([]) }
     refute_includes error.message, 'segredo'
     refute_includes error.message, 'usuario'
   end
@@ -317,7 +321,7 @@ class DBPlanTest < GraphTest
 
   def test_missing_driver_is_reported
     database = Vetra::SQL::ScratchDatabase.new(url: 'postgres://x', driver: -> { raise LoadError, 'cannot load such file -- pg' })
-    error = assert_graph_error('db_driver') { database.apply_and_dump([]) }
+    error = assert_graph_error('db_driver') { database.replay([]) }
     assert_includes error.message, 'gem pg'
   end
 

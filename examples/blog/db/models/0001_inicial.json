@@ -1,0 +1,439 @@
+{
+  "format": "vetra-db-model",
+  "plan": {
+    "file": "0001_inicial.sql",
+    "sha256": "b91112cefa244118bf66dbd7d0eb3af386bbf3c87104ee4916f8de44ef8df9d3"
+  },
+  "plans": [
+    {
+      "file": "0001_inicial.sql",
+      "sha256": "b91112cefa244118bf66dbd7d0eb3af386bbf3c87104ee4916f8de44ef8df9d3"
+    }
+  ],
+  "previous": null,
+  "state": {
+    "statements": [
+      {
+        "kind": "guard",
+        "object": "vetra_context_roles",
+        "sha256": "a6a24e40a0187d823e2c27133cef8c8d488423bcf7280e76af1e3995ac24e1fc"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_database_privileges",
+        "sha256": "8663c554aacd5ad312523f602890d3251cf5853295cc916f76bedd754f0002a2"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra",
+        "sha256": "7a05cfaa14165be80a2d8b7e3ed05b6cec997853c3f42e98c80935d5391c50dc"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra_private",
+        "sha256": "f2f874143899e961999ba73e8d37c339cf22a328b2afa66687902ba2c7f64950"
+      },
+      {
+        "kind": "extension",
+        "object": "pgcrypto",
+        "sha256": "af522912e9fd77312d99b966da3cf14b3db2f539239efd309cddd95842d3d794"
+      },
+      {
+        "kind": "table",
+        "object": "vetra_private.keys",
+        "sha256": "33b9dc090078e0f637c07e31753624c55436de20af4697eb6e1dcd01cc28f5e8"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra_private.keys",
+        "sha256": "f82c2cb7540c2461825b0a26011d3b6cb92d32cbe9b7c47f68068155767e2f59"
+      },
+      {
+        "kind": "index",
+        "object": "vetra_private.vt_keys_active",
+        "sha256": "62bbf2f0a73257092512df00a940d003f5bd382851f28de3584500a33641eef7"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8cf4ea2ceaf40a86664680a5d4e2396d655e2e4ad723aa969f6bf91be7226845"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "076ec9d3ad049fd4b5159881fe2070107932e91e5bd1430aca631d3926a81853"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_tenant()",
+        "sha256": "7950bdf1c6be1a755eb992d058392db1bf4b2a86cb84193e9070d52c4d07e465"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_tenant()",
+        "sha256": "b872e261f9ef033f1cb4651b595cb62a3f631fcf8faac9b6eae8680a87ab9d49"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a31039fb59c0c748f7d5c374b1e0ed1e70d8cdc1166b00419ade8966b2ae7866"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f5bef7e7451690b3f112d2be32b426c991d794b7b3f3a7f9cec2405f2ec86afb"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_actor()",
+        "sha256": "436cf1c028bd80ddfb993530223004fbc2c099b83e26498b1ecdcb9218105442"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_actor()",
+        "sha256": "85e163a0975c9dfb046594183e7de3f83a76f66b0bf7e7061b773afb3ce917f5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "96a7ab52cdc935b57546223f37aeff42c1305a6312bf155cb218bc296d4e08e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a03de332c7c3bbdb609c9bdc33da6ecd481aaeb2667c5e26767ebc47b89c2059"
+      },
+      {
+        "kind": "table",
+        "object": "public.comments",
+        "sha256": "b11673bafb7b7cfae5afef454d56dde65cd93da75131d603e82eafcdfddf85d6"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_d3622996ba4077dc3317ae7224cf877c",
+        "sha256": "b4c3379c47647b860f961ffbd313a5e9d506a55a45b00303b6184566fe922a6d"
+      },
+      {
+        "kind": "table",
+        "object": "public.posts",
+        "sha256": "70bc99f66f8bd81cd6d57787f5250ef714e19da6de232cb254fe449ae5e324d6"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_b376a5f46e965210eb78284646c740a6",
+        "sha256": "2b2c6f8215d629232364e5b9ee7949a92cf5abceb020e0f46adc2d69c003e858"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.comments.vt_fk_d52bd44498b03fbdc39a2c3b32f20bd2",
+        "sha256": "ab15d4382082df6a506733e314c83820a4ddd5073709619de13093c826ef6733"
+      },
+      {
+        "kind": "owner",
+        "object": "schema public",
+        "sha256": "e6392d9571474f921205e6b7e2a509bbc462c87f9334877422c293845d267ee3"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "bd4d8b5ab0d73f3ec207193bcaafc0b4fab3057edc1b7d58dab4fb66db474faa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4e3183f74c6418040d47656687cf0c22f57585da72f57156848b9b42a7a5a5b9"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.comments",
+        "sha256": "955a1ab4d1edbe23c417b06068b333831a37617cdbc895f46b5541096dc4b233"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f60cae93520e77309ede6a5a9a9ba07b5bb78adc4ccd65ac83d77ea99e22cbec"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "06d1a1402ab6c5d5d5c58b4872f0d43bbedeaede64ba78b0b37a69409a2281b2"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.posts",
+        "sha256": "141e3911ac53eb1878d25455d62324a780f71e21f60f5c1e76702a86027eea0c"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "fb8d84b3f6f4e4a1f242969c60939d83cdf5c4943036eb366c0bc9ad44a50cd7"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4fda4a6d82f167616c74e8d1261422275a3e30729ccdfaca101b82c64e5b6310"
+      }
+    ],
+    "tables": [
+      {
+        "assignments": {
+          "approved": {
+            "default": {
+              "kind": "literal",
+              "value": false
+            },
+            "set_by": [
+              {
+                "id": "blog.approve_comment",
+                "kind": "command"
+              }
+            ]
+          },
+          "author_email": {},
+          "author_name": {},
+          "body": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "post_id": {}
+        },
+        "checks": [
+          {
+            "expression": "pg_catalog.char_length(\"body\") <= 2000",
+            "name": "vt_ck_c7c0e7456076e638f145552b4955d4be"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"author_name\") <= 80",
+            "name": "vt_ck_fde429239c0bf5c9489713b28d4ae5e2"
+          }
+        ],
+        "columns": [
+          {
+            "default": "FALSE",
+            "field": "approved",
+            "name": "approved",
+            "nullable": false,
+            "type": "boolean"
+          },
+          {
+            "default": null,
+            "field": "author_email",
+            "name": "author_email",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "author_name",
+            "name": "author_name",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "body",
+            "name": "body",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "post_id",
+            "name": "post_id",
+            "nullable": false,
+            "type": "uuid"
+          }
+        ],
+        "entity": "blog.comment",
+        "foreign_keys": [
+          {
+            "columns": [
+              "post_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_d52bd44498b03fbdc39a2c3b32f20bd2",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "posts"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "post_id"
+            ],
+            "name": "vt_ix_d3622996ba4077dc3317ae7224cf877c"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_e65d3acd28849b0c97f88486111aef61"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "comments",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      },
+      {
+        "assignments": {
+          "author_id": {
+            "default": {
+              "kind": "context",
+              "name": "current_actor"
+            }
+          },
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "published_at": {
+            "set_by": [
+              {
+                "id": "blog.publish_post",
+                "kind": "command"
+              }
+            ]
+          },
+          "status": {
+            "default": {
+              "kind": "literal",
+              "value": "draft"
+            },
+            "guarded": [
+              {
+                "commands": [
+                  {
+                    "id": "blog.publish_post",
+                    "kind": "command"
+                  }
+                ],
+                "value": "published"
+              }
+            ]
+          },
+          "title": {}
+        },
+        "checks": [
+          {
+            "expression": "\"status\" IN (E'draft', E'published')",
+            "name": "vt_ck_61ea112cf369b279f4429c9699231bc0"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"title\") <= 200",
+            "name": "vt_ck_a5a9aa07fe07d6cfa4b2e63d6d60a1db"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "author_id",
+            "name": "author_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "published_at",
+            "name": "published_at",
+            "nullable": true,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "E'draft'",
+            "field": "status",
+            "name": "status",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "title",
+            "name": "title",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "blog.post",
+        "foreign_keys": [],
+        "indexes": [
+          {
+            "columns": [
+              "status",
+              "published_at"
+            ],
+            "name": "vt_ix_b376a5f46e965210eb78284646c740a6"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_0732ee4194e46d003e5300e171222785"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "posts",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      }
+    ]
+  },
+  "version": 1
+}

@@ -31,7 +31,7 @@ module Vetra
           raise OptionParser::InvalidArgument, 'db:plan aceita --root e uma entre --snapshot e --check'
         end
         url = ENV['DATABASE_URL']
-        database = url && !url.empty? ? SQL::ScratchDatabase.new(url: url, pg_dump: ENV.fetch('VETRA_PG_DUMP', 'pg_dump')) : nil
+        database = url && !url.empty? ? SQL::ScratchDatabase.new(url: url, pg_dump: ENV.fetch('VETRA_PG_DUMP', 'pg_dump'), migrator_password: ENV['VETRA_MIGRATOR_PASSWORD']) : nil
         planner = SQL::Planner.new(root: options[:root], database: database)
         result = options[:check] ? planner.check : (options[:snapshot] ? planner.snapshot : planner.plan)
         relative = result.path.delete_prefix("#{File.expand_path(options[:root])}/")

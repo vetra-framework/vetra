@@ -1,5 +1,6 @@
 -- Retrato do esquema: resultado de aplicar db/plans/ num banco vazio (vetra db:plan --snapshot).
 -- Gerado a partir do pg_dump --schema-only normalizado, com donos; não edite à mão.
+-- vetra:base 0001_inicial sha256=3a9923f0b8b998f844d085356e44b6814b54fc627bd2280558b564f8025d196c
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 

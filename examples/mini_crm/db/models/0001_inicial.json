@@ -1,0 +1,692 @@
+{
+  "format": "vetra-db-model",
+  "plan": {
+    "file": "0001_inicial.sql",
+    "sha256": "4a08a8157f78ff59040f3694c8deb7cbd9f822f084cd9fa389260f0b8fc8b12e"
+  },
+  "plans": [
+    {
+      "file": "0001_inicial.sql",
+      "sha256": "4a08a8157f78ff59040f3694c8deb7cbd9f822f084cd9fa389260f0b8fc8b12e"
+    }
+  ],
+  "previous": null,
+  "state": {
+    "statements": [
+      {
+        "kind": "guard",
+        "object": "vetra_context_roles",
+        "sha256": "a6a24e40a0187d823e2c27133cef8c8d488423bcf7280e76af1e3995ac24e1fc"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_database_privileges",
+        "sha256": "8663c554aacd5ad312523f602890d3251cf5853295cc916f76bedd754f0002a2"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra",
+        "sha256": "7a05cfaa14165be80a2d8b7e3ed05b6cec997853c3f42e98c80935d5391c50dc"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra_private",
+        "sha256": "f2f874143899e961999ba73e8d37c339cf22a328b2afa66687902ba2c7f64950"
+      },
+      {
+        "kind": "extension",
+        "object": "pgcrypto",
+        "sha256": "af522912e9fd77312d99b966da3cf14b3db2f539239efd309cddd95842d3d794"
+      },
+      {
+        "kind": "table",
+        "object": "vetra_private.keys",
+        "sha256": "33b9dc090078e0f637c07e31753624c55436de20af4697eb6e1dcd01cc28f5e8"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra_private.keys",
+        "sha256": "f82c2cb7540c2461825b0a26011d3b6cb92d32cbe9b7c47f68068155767e2f59"
+      },
+      {
+        "kind": "index",
+        "object": "vetra_private.vt_keys_active",
+        "sha256": "62bbf2f0a73257092512df00a940d003f5bd382851f28de3584500a33641eef7"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8cf4ea2ceaf40a86664680a5d4e2396d655e2e4ad723aa969f6bf91be7226845"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "076ec9d3ad049fd4b5159881fe2070107932e91e5bd1430aca631d3926a81853"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_tenant()",
+        "sha256": "7950bdf1c6be1a755eb992d058392db1bf4b2a86cb84193e9070d52c4d07e465"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_tenant()",
+        "sha256": "b872e261f9ef033f1cb4651b595cb62a3f631fcf8faac9b6eae8680a87ab9d49"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a31039fb59c0c748f7d5c374b1e0ed1e70d8cdc1166b00419ade8966b2ae7866"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f5bef7e7451690b3f112d2be32b426c991d794b7b3f3a7f9cec2405f2ec86afb"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_actor()",
+        "sha256": "436cf1c028bd80ddfb993530223004fbc2c099b83e26498b1ecdcb9218105442"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_actor()",
+        "sha256": "85e163a0975c9dfb046594183e7de3f83a76f66b0bf7e7061b773afb3ce917f5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "96a7ab52cdc935b57546223f37aeff42c1305a6312bf155cb218bc296d4e08e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a03de332c7c3bbdb609c9bdc33da6ecd481aaeb2667c5e26767ebc47b89c2059"
+      },
+      {
+        "kind": "table",
+        "object": "public.companies",
+        "sha256": "ede61650f6b3cefb334d13bcbf97f1f39fef9fb6649d43efd14cf4b4587f4838"
+      },
+      {
+        "kind": "table",
+        "object": "public.leads",
+        "sha256": "9b811c6fca1175e8a82b1155a46e4f98164becf7a81acbcf3b217de7cf2e2eff"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_uq_42a25356531b11d1e4d5decf7a0e1e24",
+        "sha256": "a687d4a25ae13174cf443fef3a18417fbdaa7747a6bfdfc196cef57e90fda3fd"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_507afec86a6c207e0ca28dd203ffb300",
+        "sha256": "f015df0acd62eccdeb02a5be5106808151023caa739089755fb2cd47ec61abb6"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_fk_70eb50f95e008e03c285c62b8baf5678",
+        "sha256": "6a70fd53e7f66b171762a260a505f5dc222cebe4cfce63b563ae9d495c6037ad"
+      },
+      {
+        "kind": "owner",
+        "object": "schema public",
+        "sha256": "e6392d9571474f921205e6b7e2a509bbc462c87f9334877422c293845d267ee3"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "bd4d8b5ab0d73f3ec207193bcaafc0b4fab3057edc1b7d58dab4fb66db474faa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4e3183f74c6418040d47656687cf0c22f57585da72f57156848b9b42a7a5a5b9"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.companies",
+        "sha256": "d5ae16a024b284eac96b1117596479b19a857ae394d2706e2737318427e014df"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8dd5acb538fe69709f23e4a00026ac93d40066ad46116773692587a4336d3a7e"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "7adc952b21305901fb86b8472f27504556f7975af45a3130a15d0bd99840d5d5"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.leads",
+        "sha256": "8533d17fe536da4399aa7e462e5fd26bbdc542f344185ba64b525f26fe088339"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "15e8bbf2a9ba9a54b41f0033b63ba56d458ecc675b4fc514126eb933381f4c18"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "b998190cfcd62218d6d0386a2a0ff3ec8902556e2dd275b1774fe0db33dc4258"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.companies.enable",
+        "sha256": "37269445f4bb5efa018c90d5a517154e6183ea02f6c7881a6551b7cb89d91e6b"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.companies.force",
+        "sha256": "bf01574c8c236b0efda1fb2ba7c1adf322f2b668bb7e31ad3726b34f3697124e"
+      },
+      {
+        "kind": "policy",
+        "object": "public.companies.vt_tenant",
+        "sha256": "eabae2a3a2913b20fd62d00b0a6df91aa6ee2674cca59d96e5cd265dd6ca8e40"
+      },
+      {
+        "kind": "policy",
+        "object": "public.companies.vt_access",
+        "sha256": "e7a1816a1d7dd1d25ff6b37cf7ef922f9bfd3ecb56a192c68bf314684613c2c6"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.leads.enable",
+        "sha256": "5516a3f924a223d1cfe13b2d5dc48a78f221f07895fe36aeae52ea33964c9412"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.leads.force",
+        "sha256": "c5bd09cb76f8f9bdc7eb2a45f8de6fe173e0b079afa6100ef2f14cd6a6a9b8bd"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_tenant",
+        "sha256": "91826f38c6cdf97b91ac162ac0b88d0436acfd9bd59eb506fbbe20116176f3f9"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_access",
+        "sha256": "253e0f0a613d0af76736544e52902d40165f8212685bf9a476aec3e69d9077b3"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_transition_f11b74e8383ca04610952e448ddcd983()",
+        "sha256": "3398df3fc4c39e6d244d6c159154afc9f019cfdfe59f55c86a738e9630a5d795"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_transition_f11b74e8383ca04610952e448ddcd983()",
+        "sha256": "2dc4420008d66603cf2177fe411c17b4e03be0dff475687ad286adf0bfe506fa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "04bb42ee7616bc4217affd22982d89f2d107de0effa70850caea3b85efe090a8"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_transition_f11b74e8383ca04610952e448ddcd983",
+        "sha256": "f137c57d919a8d9dca8e89d4dd61580b7d40d3a6b5414be0987a2c7024c9e222"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_transition_f11b74e8383ca04610952e448ddcd983",
+        "sha256": "f2549c71fdbee74cae372f1892f47767534d6175eff4bb60809035b1cb1d1e8d"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_roles",
+        "sha256": "7ff8b3b4c831563f2ef4fe0a02c7b5946d6d8c30fa148c4ed4ae359c7aba64c1"
+      },
+      {
+        "kind": "lock",
+        "object": null,
+        "sha256": "38dc5982aaa87b1574de065ef536c273b5792ca8958c9615ac529599aff0c9ff"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_tables",
+        "sha256": "deec4bb610d7fc621edde00ff52c4714217085b07a7438e63485307810f50790"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_shared_schema",
+        "sha256": "a21b65c3c8ae7e9312af51f49b821a0ec40d713a21421430067a8c5101d05e14"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.authz_revisions",
+        "sha256": "958f36590c82efb94bd7803b3c178696a9c4dd6f104a69e0bd00c80b676306ec"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.authz_revisions",
+        "sha256": "391ba03caab2242a37b2a27775cff9918f5fcfa2d296029e949da2cc4b61bfa2"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "1756d8ee772289725f0928a377e588a2db0b7fcdf12bf96066a36b0ff503687b"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "970ca01862c9e2a6bb10fbb582fd2aa9a6e4e3e9f99ec4b4f2ec76cddea23f1c"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_229aa3ce667c07c8349e3918_insert()",
+        "sha256": "d9cce088f3f04619bd68585e9405a3893410b7d089fc92c21b300793d758a96b"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_229aa3ce667c07c8349e3918_insert()",
+        "sha256": "63170a7bbe5b0c699ec791393525d05a7b7679351994daaa9038d5c9fca00b87"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "194825247409a33e65bb86557f2567aa2add37eb854d3ade98ddb35c0e63db2e"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_insert",
+        "sha256": "88127f9d2bfd7d82f4061092a3b565244b4b2677557d9a49407775f4924c6d67"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_insert",
+        "sha256": "12eaac19a1105893ec1aef751fa54a622acf0523b22c1ed57525e1a9fffa8031"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_229aa3ce667c07c8349e3918_delete()",
+        "sha256": "3dc81ee624a760d02221ab0cd2b7c714629167db157f3c4edeac124ef2fbd4dc"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_229aa3ce667c07c8349e3918_delete()",
+        "sha256": "27738409894ba9da4c5e1ac4b40d27c0d22a486d8f761b95a96fd9890ed56ad6"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "348659afd2ea960841bd078497dc8931a8d2717c9d355ec4a740837228942021"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_delete",
+        "sha256": "703f400613549519281e730ed81afaf88e480c95401c1080ad6094f5a200c8b6"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_delete",
+        "sha256": "f862e2ac1ef1fa786d31d8643e3c6c52217a939af7d97a6efd61ad046f17a86c"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_229aa3ce667c07c8349e3918_update()",
+        "sha256": "5e154a78020ed471e589154bd039b9bb8f255a9f3c1d461b10f7cfeda38da63a"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_229aa3ce667c07c8349e3918_update()",
+        "sha256": "78bb348b127c9677e0619afdda23e534a1f083f47f8f65e06f291cf6e2113433"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a0078ee9ae7fcd1ce9b765faddd1f1c87b90d14d0a44ef1153884c6c30e0e8c0"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_update",
+        "sha256": "5e6bc9be888fff574704f144f34068e0d55582743ab6ddf04e8e830ab273f6bf"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_229aa3ce667c07c8349e3918_update",
+        "sha256": "090ce2fcb44018316f1634aa17dff81d7aee8d05fec8f1f9104540ca0bc5648d"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2ce472751dd978ee47e5421e6617691deb2c925494185236d1f12b1b18670ccd"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_1cce5ccc9095a100eb7027cd_insert()",
+        "sha256": "c4cd1ac32a62e5fad322bf25aecbd3dcf50e14e0741a61c2c10b37af854569c6"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_1cce5ccc9095a100eb7027cd_insert()",
+        "sha256": "2762bdac167667ebbc0851e6e48c7f090c2163eec0564c95206bcab20e151606"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "e9131ee8050ff78e6b4059688b7b600acbea76db7752b0c61d86428ed6513eb6"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_insert",
+        "sha256": "5ace77dc5b54c61136d70d0bb5648580d2557ef1ba30b9ad3c0143494ea2be75"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_insert",
+        "sha256": "6cd0f99ea239f1786a0cc7d9b425756db013096c2afbf94c5eb665d32b9f9c8d"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_1cce5ccc9095a100eb7027cd_delete()",
+        "sha256": "a40d4db7a4610e2cc4ee350e7ff565b223372a1b5c0f4f50272b93becea7ae0d"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_1cce5ccc9095a100eb7027cd_delete()",
+        "sha256": "9bb62c31514215cf1d0cc147401e6322afb7ca2c92aa6b2e25114e3848a88cea"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "ee2ddd30f35ac9c08b06925d9481967ba42f226e5149fa277117be77af3440ad"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_delete",
+        "sha256": "734a7d50aa5837cd684045f4e815e26247cecb9de4388c654c4f47fffd893bf6"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_delete",
+        "sha256": "ac22d9fb126322beb59c71b2271978dac118ee1a33f00235c8c88d15de9b123d"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_1cce5ccc9095a100eb7027cd_update()",
+        "sha256": "367b356dfef0914ea9ed5e2aa8a837a826259d23c1b680cd25ed4c15e1306d8e"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_1cce5ccc9095a100eb7027cd_update()",
+        "sha256": "fa4719ff47e520ee439956f592d388f1256a08d4cdee5893714c696ca43ed8d3"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f5460880d780ec969904c1186de4391d0ec93663a52350fd63209ecf6a409c3d"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_update",
+        "sha256": "8dfc808b700e1faad19640836656f5943801b73bd08e04996fec43e88cd6be0c"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_1cce5ccc9095a100eb7027cd_update",
+        "sha256": "dac6d30efabedce4b9b8069800795e55f3bc176d0e47c695f49f09945def48cf"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "ef71ef273d6655c3f9fe7bb273496f226a24caa3ccec7fc17c5b0ed3ced7d4dd"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_privileges",
+        "sha256": "802a8843965472fd744e35d9fde1c888b5df4adc9f0652c3eff2b03f87196c13"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_routines",
+        "sha256": "31c1ce9343d03a9b0b790a2502d90b09f924598155792134d3fb64fd8f82ab13"
+      },
+      {
+        "kind": "seed",
+        "object": "vetra.authz_revisions",
+        "sha256": "05f3cda362018e68dfd7c0de3bc8a08731ad4ec0b25ddaf21b2344636e0023dd"
+      }
+    ],
+    "tables": [
+      {
+        "assignments": {
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "name": {}
+        },
+        "checks": [],
+        "columns": [
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.company",
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_c37b42fe24009eca08260a3f4ae04e1c"
+        },
+        "schema": "public",
+        "scope": "tenant_root",
+        "table": "companies",
+        "tenant_column": "id",
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      },
+      {
+        "assignments": {
+          "company_id": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "email": {},
+          "id": {},
+          "name": {},
+          "status": {
+            "default": {
+              "kind": "literal",
+              "value": "new"
+            },
+            "guarded": [
+              {
+                "commands": [
+                  {
+                    "id": "crm.win_lead",
+                    "kind": "command"
+                  }
+                ],
+                "value": "won"
+              }
+            ]
+          },
+          "valor": {}
+        },
+        "checks": [
+          {
+            "expression": "\"valor_amount\" <> 'NaN'::numeric",
+            "name": "vt_ck_09fca56d131fbca8bb8b28409cfc25ce"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"name\") <= 160",
+            "name": "vt_ck_242d848d9fc19c20ee60aa78d6e27ba0"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"name\") >= 2",
+            "name": "vt_ck_2ecae20e3dc7306aaef71329e733f2bc"
+          },
+          {
+            "expression": "\"status\" IN (E'contacted', E'lost', E'new', E'won')",
+            "name": "vt_ck_553df3e9e965bf8efdc803982848cf31"
+          },
+          {
+            "expression": "(\"valor_amount\" IS NULL) = (\"valor_currency\" IS NULL)",
+            "name": "vt_ck_6f555cb8ab4a60c13c3a43eea5c9b008"
+          },
+          {
+            "expression": "\"valor_currency\" IN (E'AED', E'AFN', E'ALL', E'AMD', E'AOA', E'ARS', E'AUD', E'AWG', E'AZN', E'BAM', E'BBD', E'BDT', E'BIF', E'BMD', E'BND', E'BOB', E'BOV', E'BRL', E'BSD', E'BTN', E'BWP', E'BYN', E'BZD', E'CAD', E'CDF', E'CHE', E'CHF', E'CHW', E'CLP', E'CNY', E'COP', E'COU', E'CRC', E'CUP', E'CVE', E'CZK', E'DJF', E'DKK', E'DOP', E'DZD', E'EGP', E'ERN', E'ETB', E'EUR', E'FJD', E'FKP', E'GBP', E'GEL', E'GHS', E'GIP', E'GMD', E'GNF', E'GTQ', E'GYD', E'HKD', E'HNL', E'HTG', E'HUF', E'IDR', E'ILS', E'INR', E'IRR', E'ISK', E'JMD', E'JPY', E'KES', E'KGS', E'KHR', E'KMF', E'KPW', E'KRW', E'KYD', E'KZT', E'LAK', E'LBP', E'LKR', E'LRD', E'LSL', E'MAD', E'MDL', E'MGA', E'MKD', E'MMK', E'MNT', E'MOP', E'MRU', E'MUR', E'MVR', E'MWK', E'MXN', E'MXV', E'MYR', E'MZN', E'NAD', E'NGN', E'NIO', E'NOK', E'NPR', E'NZD', E'PAB', E'PEN', E'PGK', E'PHP', E'PKR', E'PLN', E'PYG', E'QAR', E'RON', E'RSD', E'RUB', E'RWF', E'SAR', E'SBD', E'SCR', E'SDG', E'SEK', E'SGD', E'SHP', E'SLE', E'SOS', E'SRD', E'SSP', E'STN', E'SVC', E'SYP', E'SZL', E'THB', E'TJS', E'TMT', E'TOP', E'TRY', E'TTD', E'TWD', E'TZS', E'UAH', E'UGX', E'USD', E'USN', E'UYI', E'UYU', E'UZS', E'VED', E'VES', E'VND', E'VUV', E'WST', E'XAD', E'XAF', E'XCD', E'XCG', E'XOF', E'XPF', E'YER', E'ZAR', E'ZMW', E'ZWG')",
+            "name": "vt_ck_8917258bea0d4daa1b638f66d025afff"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "company_id",
+            "name": "company_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": null,
+            "field": "email",
+            "name": "email",
+            "nullable": true,
+            "type": "text"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": "E'new'",
+            "field": "status",
+            "name": "status",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "valor",
+            "name": "valor_amount",
+            "nullable": true,
+            "type": "numeric(19, 2)"
+          },
+          {
+            "default": null,
+            "field": "valor",
+            "name": "valor_currency",
+            "nullable": true,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.lead",
+        "foreign_keys": [
+          {
+            "columns": [
+              "company_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_70eb50f95e008e03c285c62b8baf5678",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "companies"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "company_id",
+              "status"
+            ],
+            "name": "vt_ix_507afec86a6c207e0ca28dd203ffb300"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_c80c5863244cc35ab960f4dfbd32cf17"
+        },
+        "schema": "public",
+        "scope": "tenant",
+        "table": "leads",
+        "tenant_column": "company_id",
+        "transitions": {
+          "enforce": "db"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "company_id",
+              "id"
+            ],
+            "name": "vt_uq_42a25356531b11d1e4d5decf7a0e1e24"
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

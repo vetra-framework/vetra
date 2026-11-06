@@ -4,8 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-05, sobre `088e317`, com o planejamento da rodada 4 da [persistência](plano-persistencia.md)
-  (K9 a K13, a fazer). A rodada 3 terminou com a K8: `vetra db:migrate`
+- **Atualizado em:** 2026-11-06, sobre `d70a00f`, com a K9 da rodada 4 da [persistência](plano-persistencia.md): a fundação do
+  plano incremental (ADR-038 aceito), com modelo físico versionado em `db/models/`, transação por passo, história dos
+  planos ancorada no gate e `--check`/`--snapshot` aplicando como `vetra_migrator` ([guia](db-plan.md)). A rodada 3 terminou
+  com a K8: `vetra db:migrate`
   aplica o plano inicial num banco real como `vetra_migrator`, com registro por hash em `vetra.migrations`, migrador
   único, novas tentativas de `lock_timeout`, banco vazio ou registrado, deriva e retomada ([guia](db-migrate.md)). Antes,
   a C7 trouxe RLS, escopo, revisão e transições (ADR-037). A IR permanece 0.6.
@@ -16,15 +18,15 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 37 aceitos (001 a 037), com o índice em [adr/README.md](adr/README.md); os últimos são o mapeamento físico 035, os papéis e o contexto assinado 036 e as políticas e transições 037 |
-| Testes do compilador e exemplos | 477 testes e 7.548 asserções, sem falhas; 179/179 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 38 aceitos (001 a 038), com o índice em [adr/README.md](adr/README.md); os últimos são os papéis e o contexto assinado 036, as políticas e transições 037 e a fundação do plano incremental 038 |
+| Testes do compilador e exemplos | 493 testes e 7.890 asserções, sem falhas; 186/186 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
 | Verificação da C6 | Planos com 33 passos no blog e no mini CRM, 49 no chat e 59 no mini CRM com revendas. No PostgreSQL 18.6: bootstrap repetível, sonda do contexto assinado 58/58 com o plano aplicado pelo `vetra_migrator` sem superusuário, sonda ADR-031 59/59, retratos com donos e `--check` nos quatro exemplos |
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 13 em `script/`, mais o simulador do gate; contexto assinado (58) e RLS/integridade (103) programados no job de planos 17/18, além das sondas anteriores na CI |
+| Sondas | 15 em `script/`, mais o simulador do gate; plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
 | Runtime | Não existe. Há compilador e plano inicial com contexto HMAC, RLS, revisão e transições; o `db:migrate` aplica o plano inicial; o plano incremental, os repositórios e a execução de operações seguem pendentes |
 
 ## Como manter este arquivo
@@ -63,6 +65,20 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `vetra.migrations` na mesma transação, lock consultivo de migrador único, `lock_timeout` de 3 s com novas
   tentativas, recusa de banco não vazio, de plano alterado e de deriva, e retomada. Sonda no PostgreSQL 17 e 18.
   [Guia](db-migrate.md).
+- [x] Fundação do plano incremental (K9, ADR-038):
+  - cada plano tem um modelo físico versionado em `db/models/`, encadeado por SHA-256, contra o qual o próximo plano é
+    calculado sem conexão;
+  - planos `por_passo`, com passos fora de transação (`CREATE INDEX CONCURRENTLY`);
+  - o último plano é regenerado pela IR, e o gate prende os planos e modelos da base, com no máximo um plano novo por
+    aplicação em cada integração;
+  - `--check` e `--snapshot` aplicam os planos entrando como `vetra_migrator`, num servidor em que ele não administre
+    outro banco, tablespace ou parâmetro nem tenha outra sessão, com filtro de instruções globais, guarda de papéis do
+    gerador atual e catálogo conferido antes e depois;
+  - com mais de um plano, o `--check` prova a convergência com o plano inicial da IR;
+  - o retrato ganhou uma linha `-- vetra:base` por plano.
+
+  A diferença entre modelos é da C9; o `db:migrate` recusa planos depois do inicial até a K10. Sonda 18/18 no
+  PostgreSQL 18.6 e no job de planos da CI. [Guia](db-plan.md).
 - [x] Quatro fixtures SQL integrais em `test/fixtures/sql`, comparadas byte a byte na suíte sem banco.
 - [x] DDL dos quatro exemplos aplicado pelo Claude no PostgreSQL 18.6 (13 tabelas, 15 FKs), com integridade entre
   tenants, `money`, `enum`, comprimento e FKs adiáveis conferidos; no 17, pelo `db:plan --check` da K7 na CI.
@@ -389,6 +405,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 
 - [x] **035** Mapeamento físico inicial: modelo e DDL de banco vazio; aceito em 2026-11-03 pelo Claude por delegação
   do mantenedor, após a auditoria da C5
+- [x] **038** Fundação do plano incremental: modelo físico versionado, transação por passo, história ancorada no gate
+  e contenção do `--check`; aceito em 2026-11-06 pelo Claude por delegação do mantenedor, após a auditoria da K9
 
 ## 3. Decisões e trabalho que dependem de quem revisa
 

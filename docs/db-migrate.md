@@ -3,7 +3,7 @@
 `vetra db:migrate` aplica num banco de verdade os planos de `db/plans/`, como decidem o
 [ADR-015](adr/015-migracoes-expand-contract.md), §1 e §5, e o [ADR-025](adr/025-resolucao-das-questoes-do-adr-015.md),
 §1 e §2. Ele usa o mesmo plano que o [`db:plan`](db-plan.md) gera e confere. Nesta versão só existe o plano inicial, que
-se aplica a um banco vazio; o plano incremental vem na rodada 4 do [plano da persistência](plano-persistencia.md).
+se aplica a um banco vazio; o plano incremental está em construção na rodada 4 do [plano da persistência](plano-persistencia.md): até a K10, um plano depois do inicial, ou um plano `por_passo`, é recusado com `db_migrate_incremental`, sem alterar nada. O banco é comparado com o corpo de `db/schema.sql`, sem as linhas `-- vetra:base` do cabeçalho.
 
 ```sh
 DATABASE_URL=postgres://vetra_migrator@db.exemplo/app VETRA_PG_DUMP=/usr/lib/postgresql/18/bin/pg_dump \

@@ -66,6 +66,7 @@ O [guia](../db-rls.md) registra os limites e as verificações esperadas no Post
 | [035](035-mapeamento-fisico-inicial.md) | Mapeamento físico inicial do grafo para PostgreSQL | aceito |
 | [036](036-papeis-e-contexto-assinado.md) | Papéis globais, donos e contexto assinado no plano inicial | aceito |
 | [037](037-politicas-e-transicoes-no-plano-inicial.md) | Políticas e transições no plano inicial | aceito |
+| [038](038-fundacao-do-plano-incremental.md) | Fundação do plano incremental: modelo versionado, transação por passo e contenção | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

@@ -25,16 +25,26 @@ module Vetra
         statements
       end
 
+      # O início de cada instrução de topo, sem os comentários que a precedem: o filtro do plano (ADR-038, §3) lê as
+      # palavras iniciais, e a contagem diz quantas instruções um passo tem.
+      attr_reader :starts
+
       def initialize
         @mode = nil
         @dollar = nil
         @escape = false
         @depth = 0
         @open = false
+        @starts = []
       end
 
       def boundary?
         @mode.nil? && !@open
+      end
+
+      # Dentro de um literal, identificador entre aspas, corpo $...$ ou comentário de bloco.
+      def literal?
+        !@mode.nil?
       end
 
       def feed(line)
@@ -80,6 +90,9 @@ module Vetra
       # Retorna o índice do último caractere consumido no nível de topo.
       def top_level(text, index, char)
         previous = index.positive? ? text[index - 1] : ''
+        if !@open && !char.match?(/[\s;]/) && text[index, 2] != '--' && text[index, 2] != '/*'
+          @starts << text[index..].chomp
+        end
         if text[index, 2] == '--'
           return text.size - 1
         elsif text[index, 2] == '/*'

@@ -45,7 +45,7 @@ class DBMigrateTest < GraphTest
       compiler.write
       Vetra::SQL::Planner.new(root: root).plan
       snapshot = "CREATE TABLE public.companies ();\n"
-      File.write(File.join(root, 'db/schema.sql'), Vetra::SQL::Planner::SCHEMA_HEADER + snapshot)
+      File.write(File.join(root, 'db/schema.sql'), Vetra::SQL::Planner.render_schema([['0001_inicial', '0' * 64]], snapshot))
       yield root, snapshot
     end
   end
@@ -144,9 +144,13 @@ class DBMigrateTest < GraphTest
     prepared do |root, snapshot|
       edit(root, 'db/plans/0001_inicial.sql') { |text| text.sub(/;\n\z/, ";\nCOMMENT ON DATABASE postgres IS 'x';\n") }
       database = FakeDatabase.new(dumped: snapshot)
-      assert_graph_error('db_plan_stale') { migrator(root, database).migrate }
+      assert_graph_error('db_plan_forbidden') { migrator(root, database).migrate }
+      # Uma edição permitida pelo filtro também é recusada: o plano deixa de ser o que a cadeia de modelos prende.
+      edit(root, 'db/plans/0001_inicial.sql') { |text| text.sub('COMMENT ON DATABASE postgres', 'COMMENT ON SCHEMA public') }
+      assert_graph_error('db_model_chain') { migrator(root, database).migrate }
       assert_empty database.applied_plans
       FileUtils.rm(File.join(root, 'db/schema.sql'))
+      FileUtils.rm_rf(File.join(root, 'db/models'))
       Vetra::SQL::Planner.new(root: root).tap { FileUtils.rm(File.join(root, 'db/plans/0001_inicial.sql')) }.plan
       assert_graph_error('db_schema_missing') { migrator(root, FakeDatabase.new(dumped: snapshot)).migrate }
       FileUtils.rm(File.join(root, 'db/plans/0001_inicial.sql'))

@@ -33,6 +33,7 @@ module VetraCI
           next
         end
         app = File.dirname(File.dirname(path))
+        failed = true unless history_intact?(revision, app)
         before = Vetra::Graph::DiffSource.new(root: @root.join(app)).read("git:#{revision}")
         after = Vetra::Graph::Canonical.parse(@root.join(path).binread)
         report = Vetra::Graph::Diff.new.compare(before, after)
@@ -50,6 +51,11 @@ module VetraCI
           failed = true
         end
       end
+      # Uma aplicação nova também entra com um plano só: o primeiro, que a IR regenera.
+      Dir.glob('**/.vetra/graph.json', base: @root.to_s).sort.each do |path|
+        next if paths.include?(path)
+        failed = true unless history_intact?(revision, File.dirname(File.dirname(path)))
+      end
       failed ? 1 : 0
     rescue Failure, Vetra::Graph::Error, SystemCallError => error
       @out.puts "::error::#{error.message}"
@@ -59,6 +65,46 @@ module VetraCI
     end
 
     private
+
+    # Âncora da história dos planos (ADR-038, §3): todo plano e modelo que a base tem continua byte a byte, e no máximo
+    # um plano novo vem depois dos que já estão na base. A cadeia de SHA-256 dos modelos não basta sozinha, porque quem
+    # edita um plano antigo pode recalcular os hashes na mesma árvore; a base integrada não muda com a entrega. E só o
+    # último plano é regenerado pela IR: com dois planos novos, o do meio entraria sem nunca ter sido conferido.
+    def history_intact?(revision, app)
+      intact = true
+      numbers = {}
+      %w[db/plans db/models].each do |directory|
+        prefix = app == '.' ? directory : "#{app}/#{directory}"
+        files = git('ls-tree', '-r', '-z', '--name-only', revision, '--', "#{prefix}/").split("\0")
+        numbers[directory] = files.filter_map { |file| File.basename(file)[/\A\d{4}/] }.max
+        files.each do |file|
+          current = @root.join(file)
+          next if current.file? && !current.symlink? && current.binread == git_blob(revision, file)
+          @out.puts "::error::#{file} mudou ou foi removido depois de integrado; um plano ou modelo publicado não se edita, escreve-se outro."
+          intact = false
+        end
+        next unless @root.join(prefix).directory?
+        base_max = numbers[directory]
+        added = @root.join(prefix).children.map { |child| child.relative_path_from(@root).to_s }.sort.reject { |file| files.include?(file) }
+        added.each do |file|
+          number = File.basename(file)[/\A\d{4}/]
+          next if base_max.nil? || (number && number > base_max)
+          @out.puts "::error::#{file} é novo, mas não vem depois dos planos da base (#{base_max || 'nenhum'}); um plano novo recebe o número seguinte."
+          intact = false
+        end
+        next unless directory == 'db/plans' && added.size > 1
+        @out.puts "::error::#{prefix} tem #{added.size} planos novos em relação à base (#{added.map { |file| File.basename(file) }.join(', ')}); " \
+                  'só o último é conferido por regeneração, então integre um plano por vez.'
+        intact = false
+      end
+      intact
+    end
+
+    def git_blob(revision, path)
+      output, error, status = Open3.capture3('git', '-C', @root.to_s, 'show', "#{revision}:#{path}", binmode: true)
+      raise Failure, "Falha ao ler #{path} na base: #{error.strip}" unless status.success?
+      output
+    end
 
     def git(*arguments)
       output, error, status = Open3.capture3('git', '-C', @root.to_s, *arguments)

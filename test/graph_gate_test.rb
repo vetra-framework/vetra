@@ -82,6 +82,53 @@ class GraphGateTest < GraphTest
     end
   end
 
+  # A âncora da história (ADR-038, §3): a base integrada prende os planos e modelos, mesmo que a cadeia seja
+  # recalculada na árvore da entrega.
+  def test_published_plans_and_models_cannot_change_and_new_plans_come_after_them
+    with_repository do |root, compiler, base|
+      plans = File.join(compiler.root, 'db/plans')
+      assert File.file?(File.join(plans, '0001_inicial.sql'))
+      write(root, 'examples/blog/db/plans/0002_mais.sql', "-- novo\n")
+      write(root, 'examples/blog/db/models/0002_mais.json', "{}\n")
+      assert_equal 0, run_gate(root, base).first
+      edit(compiler.root, 'db/plans/0001_inicial.sql') { |text| text.sub(/;\n\z/, ";\nCOMMENT ON SCHEMA public IS 'x';\n") }
+      edit(compiler.root, 'db/models/0001_inicial.json') { |text| text.sub('"version"', '"version" ') }
+      status, output = run_gate(root, base)
+      assert_equal 1, status
+      assert_includes output, 'examples/blog/db/plans/0001_inicial.sql mudou ou foi removido'
+      assert_includes output, 'examples/blog/db/models/0001_inicial.json mudou ou foi removido'
+      git(root, 'checkout', '--', 'examples/blog/db')
+      FileUtils.rm(File.join(compiler.root, 'db/models/0001_inicial.json'))
+      assert_includes run_gate(root, base).last, 'db/models/0001_inicial.json mudou ou foi removido'
+      git(root, 'checkout', '--', 'examples/blog/db')
+      write(root, 'examples/blog/db/plans/0000_antes.sql', "-- antes\n")
+      status, output = run_gate(root, base)
+      assert_equal 1, status
+      assert_includes output, '0000_antes.sql é novo, mas não vem depois'
+    end
+  end
+
+  # Só o último plano é regenerado pela IR: dois planos novos na mesma integração deixariam o do meio sem conferência.
+  def test_one_new_plan_per_application_per_integration
+    with_repository do |root, compiler, base|
+      %w[0002_a 0003_b].each do |name|
+        write(root, "examples/blog/db/plans/#{name}.sql", "-- #{name}\n")
+        write(root, "examples/blog/db/models/#{name}.json", "{}\n")
+      end
+      status, output = run_gate(root, base)
+      assert_equal 1, status
+      assert_includes output, 'examples/blog/db/plans tem 2 planos novos'
+      # Uma aplicação que a base não tem também entra com um plano só.
+      FileUtils.rm(Dir[File.join(compiler.root, 'db/{plans,models}/000[23]_*')])
+      FileUtils.cp_r(compiler.root, File.join(root, 'examples/nova'))
+      assert_equal 0, run_gate(root, base).first
+      write(root, 'examples/nova/db/plans/0002_mais.sql', "-- mais\n")
+      status, output = run_gate(root, base)
+      assert_equal 1, status
+      assert_includes output, 'examples/nova/db/plans tem 2 planos novos'
+    end
+  end
+
   def test_missing_artifacts_and_deleted_examples_fail
     with_repository do |root, compiler, base|
       FileUtils.rm(compiler.artifact)
