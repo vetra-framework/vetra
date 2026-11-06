@@ -19,12 +19,11 @@ module Vetra
 
       Result = Struct.new(:status, :plans, :path, keyword_init: true)
 
-      # Sem diferença entre modelos (C9), um modelo que mudou é recusado. A diferença recebe o modelo de base, o esquema
-      # da IR e o número do próximo plano, e devolve um Plan.
+      # Alternativa explícita para consumidores que ainda não admitem diferenças entre modelos.
       REFUSE = lambda do |base:, schema:, number:|
         detail = number == '0002' ? ' Um banco que nunca recebeu o plano pode recomeçar removendo db/plans e db/models.' : ''
         raise Graph::Error.single('db_plan_incremental', "A IR mudou desde #{PLANS}/#{base.document.dig('plan', 'file')}, e o plano incremental " \
-                                                         "ainda não calcula diferenças (rodada 4, C9).#{detail}")
+                                                         "está desabilitado pelo consumidor.#{detail}")
       end
 
       # Corpo e bases de um retrato: o cabeçalho, uma linha `-- vetra:base` por plano, uma linha vazia e o dump.
@@ -49,7 +48,7 @@ module Vetra
         parse_schema(text)&.fetch(:body)
       end
 
-      def initialize(root:, database: nil, differ: REFUSE)
+      def initialize(root:, database: nil, differ: Differ.method(:call))
         @root = File.expand_path(root)
         @database = database
         @differ = differ
@@ -79,8 +78,10 @@ module Vetra
           ensure_policies!
           return Result.new(status: :unchanged, plans: plans, path: File.join(@root, PLANS, plans.last.file_name))
         end
+        ensure_policy_layout!
         following = @differ.call(base: models.last, schema: @schema, number: format('%04d', plans.size + 1))
         path = write_plan(following, models.last)
+        File.write(File.join(@root, POLICIES), @security.artifact)
         Result.new(status: :written, plans: plans + [following], path: path)
       end
 
@@ -234,11 +235,19 @@ module Vetra
       end
 
       def ensure_policies!
+        ensure_policy_layout!
+        path = File.join(@root, POLICIES)
+        unless File.binread(path) == @security.artifact.b
+          raise Graph::Error.single('db_policies_stale', "#{POLICIES} deve ser o espelho exato da segurança gerada; gere o plano da IR atual e revise o espelho junto.")
+        end
+      end
+
+      def ensure_policy_layout!
         directory = File.join(@root, 'db/policies')
         path = File.join(@root, POLICIES)
         unless File.directory?(directory) && Dir.children(directory).sort == [File.basename(POLICIES)] &&
-               File.file?(path) && File.binread(path) == @security.artifact.b
-          raise Graph::Error.single('db_policies_stale', "#{POLICIES} deve ser o espelho exato da segurança gerada; revise a IR e regenere os artefatos do banco vazio juntos.")
+               File.file?(path)
+          raise Graph::Error.single('db_policies_stale', "db/policies deve conter somente o espelho #{File.basename(POLICIES)}; restaure arquivos ausentes ou extras antes de planejar.")
         end
       end
 

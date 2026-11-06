@@ -130,8 +130,8 @@ class DBPlanTest < GraphTest
       planner(root).plan
       edit(root, 'app/domains/crm/lead.rb') { |text| text.sub('  crud', "  string :origem, max: 40\n  crud") }
       compiler.write
-      error = assert_graph_error('db_plan_incremental') { planner(root).plan }
-      assert_includes error.message, 'removendo db/plans e db/models'
+      error = assert_graph_error('db_plan_backfill') { planner(root).plan }
+      assert_includes error.message, 'default constante'
       write(root, 'db/plans/0002_mais.sql', File.read(plan_path(root)).sub('0001 inicial', '0002 mais'))
       assert_graph_error('db_model_chain') { planner(root).plan }
     end

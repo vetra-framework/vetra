@@ -54,6 +54,19 @@ class DBMigrateTest < GraphTest
     Vetra::SQL::Migrator.new(root: root, database: database, sleeper: ->(seconds) { sleeps << seconds }, random: Random.new(1))
   end
 
+  def test_default_differ_regenerates_the_second_plan_but_real_migration_still_refuses_it
+    prepared('blog') do |root, snapshot|
+      edit(root, 'app/domains/blog/post.rb') { |text| text.sub('  crud', "  index :title\n  crud") }
+      Vetra::Graph::Compiler.new(root: root).write
+      Vetra::SQL::Planner.new(root: root).plan
+      database = FakeDatabase.new(dumped: snapshot)
+      assert_graph_error('db_migrate_incremental') { migrator(root, database).migrate }
+      assert_empty database.applied_plans
+      assert_empty database.records
+      assert database.unlocked
+    end
+  end
+
   def test_applies_the_initial_plan_to_an_empty_database_and_records_its_hash
     prepared do |root, snapshot|
       database = FakeDatabase.new(dumped: snapshot)

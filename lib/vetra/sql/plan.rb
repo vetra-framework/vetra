@@ -65,6 +65,15 @@ module Vetra
       CLASSIFICATION = [
         # Forma incremental (ADR-038, §2): índice numa tabela existente, fora de transação, sem bloquear escrita.
         [/\ACREATE (UNIQUE )?INDEX CONCURRENTLY /, 'ShareUpdateExclusive', 'varre_tabela'],
+        [/\AALTER TABLE \S+ ADD COLUMN /, 'AccessExclusive', 'catalogo'],
+        [/\AALTER TABLE \S+ VALIDATE CONSTRAINT /, 'ShareUpdateExclusive', 'varre_tabela'],
+        [/\AALTER TABLE \S+ (DROP|RENAME) CONSTRAINT /, 'AccessExclusive', 'catalogo'],
+        [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ CHECK /, 'AccessExclusive', 'catalogo'],
+        [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ FOREIGN KEY .* NOT VALID;/m, 'ShareRowExclusive', 'catalogo'],
+        [/\AALTER TABLE \S+ ADD CONSTRAINT \S+ UNIQUE USING INDEX /, 'AccessExclusive', 'catalogo'],
+        [/\ADROP POLICY /, 'AccessExclusive', 'catalogo'],
+        [/\ACREATE OR REPLACE FUNCTION /, 'nenhum', 'catalogo'],
+        [/\ACREATE OR REPLACE TRIGGER /, 'ShareRowExclusive', 'catalogo'],
         [/\ADO \$vetra_(context_roles|database_privileges)\$/, 'nenhum', 'catalogo'],
         [/\ADO \$vetra_(roles|shared_schema|privileges|routines)\$/, 'nenhum', 'catalogo'],
         [/\ADO \$vetra_tables\$/, 'AccessShare', 'tabela_vazia'],
@@ -119,10 +128,10 @@ module Vetra
       end
 
       # Lock e custo de um comando gerado; um comando sem classificação é erro, nunca um passo sem rótulo.
-      def self.classify(sql)
+      def self.classify(sql, existing: false)
         _, lock, cost = CLASSIFICATION.find { |pattern, *| pattern.match?(sql) }
         raise Graph::Error.single('db_plan_step', "Comando do esquema sem classificação de lock: #{sql.lines.first.strip}") unless lock
-        [lock, cost]
+        [lock, existing && cost == 'tabela_vazia' ? 'catalogo' : cost]
       end
 
       # O texto que o filtro lê: sem comentários, literais ('...', E'...') e identificadores entre aspas, que não executam

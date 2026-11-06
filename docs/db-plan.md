@@ -3,10 +3,9 @@
 `vetra db:plan` transforma o esquema físico do [ADR-035](adr/035-mapeamento-fisico-inicial.md) num plano versionado em
 `db/plans/` e confere o retrato `db/schema.sql`, como decidem o [ADR-015](adr/015-migracoes-expand-contract.md), §1, e o
 [ADR-025](adr/025-resolucao-das-questoes-do-adr-015.md), §1. Cada plano é gravado com um **modelo físico versionado** em
-`db/models/`, e os planos seguintes partem dele ([ADR-038](adr/038-fundacao-do-plano-incremental.md), proposto). A fundação
-do plano incremental está implementada (K9): modelo, cadeia, transação por passo, contenção e convergência. A diferença
-entre modelos ainda não: os exemplos só têm o plano inicial, e um modelo que mudou é recusado até a C9 do
-[plano da persistência](plano-persistencia.md).
+`db/models/`, e os planos seguintes partem dele ([ADR-038](adr/038-fundacao-do-plano-incremental.md), aceito). A diferença
+aditiva gera planos `por_passo`, com cadeia, contenção e convergência. Os exemplos conservam somente o plano inicial;
+a aplicação incremental em banco real depende da K10 do [plano da persistência](plano-persistencia.md).
 
 ## Comandos
 
@@ -23,17 +22,23 @@ DATABASE_URL=... VETRA_PG_DUMP=... bundle exec bin/vetra db:plan --check --root 
   - Um plano inicial gravado antes do ADR-038, sem modelo, ganha o modelo que a mesma IR gera, se o plano for o
     que ela gera.
   - Se o modelo do último plano é o que a IR gera, não muda nada.
-  - Se a IR passou a gerar outro esquema, o próximo plano é a diferença entre modelos. Até a C9, falha com
-    `db_plan_incremental`: um banco que nunca recebeu os planos pode recomeçar removendo `db/plans` e `db/models`.
+  - Se a IR passou a gerar outro esquema, grava `NNNN_expand.sql` e `NNNN_expand.json`, com a diferença aditiva
+    calculada contra o último modelo. O nome depende somente do número sequencial; a mesma base e a mesma IR
+    regeneram os dois arquivos byte a byte. Uma mudança sem tradução segura é recusada antes de gravar artefatos.
 - **`db:plan --snapshot`** aplica os planos num banco descartável e regrava `db/schema.sql`. Como o `--check`, só aplica
   planos que a cadeia de modelos prende e cujo último plano a IR regenera.
 - **`db:plan --check`** falha se a cadeia não conferir, se o último plano não for o que a IR gera ou se o retrato não
   for o resultado de aplicar os planos (ADR-025, §1, item 3). Com mais de um plano, também prova a convergência (ver
   abaixo). É o que a CI roda nos quatro exemplos, no PostgreSQL 17 e no 18.
 
-Os três modos também conferem `db/policies/0001_seguranca.sql`, espelho das instruções de RLS e
-transições aplicadas pelo plano. Ausência, edição ou arquivo adicional gera `db_policies_stale` antes
-de acessar o banco. A primeira geração grava plano e espelho juntos; só `db/plans/` é aplicado.
+O espelho `db/policies/0001_seguranca.sql` descreve a **segurança completa da IR atual num banco vazio**,
+com suas notas de limitações. O prefixo `0001` identifica essa definição completa, não uma migração. Ao gerar
+um plano incremental, `db:plan` atualiza esse mesmo arquivo: a troca atômica está no plano, e o espelho contém
+somente as políticas finais. Não há um segundo script aplicável nem arquivos incrementais no espelho.
+Ausência ou arquivo extra é `db_policies_stale`, inclusive antes de gerar o próximo plano. Quando não há diferença
+pendente, `db:plan` exige igualdade exata; `--snapshot`, `--check` e a leitura de planos para migração também
+recusam qualquer divergência byte a byte antes de executar SQL dos planos. A geração de um plano novo substitui
+o conteúdo pela definição atual. Só `db/plans/` é aplicado.
 O [guia de RLS e integridade](db-rls.md) descreve permissivas, limites e a sonda dos CRMs.
 
 `--snapshot` e `--check` usam o servidor de `DATABASE_URL` só para criar um banco temporário `vetra_plan_*` a partir do
@@ -128,7 +133,8 @@ O gate de custo do ADR-023 ainda precisa da medição com RLS, concorrência e p
 
 A guarda de autorização da C2 reconhece apenas as duas definições exatas, incluindo schema, dono,
 assinatura, retorno, linguagem, atributos, `search_path` e SHA-256 do corpo. Reutiliza `vetra` somente
-quando pertence a `vetra_owner`; tabelas e rotinas de revisão continuam sem substituição. Uma cópia em
+quando pertence a `vetra_owner`; o bootstrap inicial exige infraestrutura nova. A diferença incremental conserva
+as tabelas e substitui apenas funções e triggers gerados com identidade preservada, conforme a tabela abaixo. Uma cópia em
 outro schema, outro corpo ou outra configuração não recebe a exceção.
 
 ## Formato do plano
@@ -171,7 +177,7 @@ Cada passo diz:
 |---|---|---|
 | `fase` | `expand`, `migrate`, `contract` | A fase do ADR-015, §2; o plano inicial só tem `expand` |
 | `lock` | `nenhum` ou um modo do PostgreSQL sem o sufixo `Lock` | O lock mais forte que o passo pede numa tabela que já existe; `nenhum` quando o passo só cria um objeto novo |
-| `custo` | `catalogo`, `tabela_vazia`, `varre_tabela` | Só catálogo; um passo sobre uma tabela criada no mesmo plano, ainda sem linhas; ou a leitura de uma tabela existente sem bloquear escrita (`CONCURRENTLY`) |
+| `custo` | `catalogo`, `tabela_vazia`, `varre_tabela` | Só catálogo; um passo sobre uma tabela criada no mesmo plano, ainda sem linhas; ou a leitura de uma tabela existente sem bloquear escrita (`CONCURRENTLY`, `VALIDATE`) |
 | `transacao` | `sim`, `nao` | Só em planos `por_passo` |
 
 No plano inicial, `CREATE SCHEMA` e `CREATE TABLE` são `nenhum`/`catalogo`, `ADD CONSTRAINT ... UNIQUE` é
@@ -225,6 +231,73 @@ o plano inicial da IR atual em outro, e os dois esquemas precisam ser iguais (`d
 mostra que o modelo descreve o banco. A comparação ignora só a ordem entre as definições de cada `CREATE TABLE`,
 porque uma coluna acrescentada fica no fim da tabela. Cada definição é comparada inteira, com os literais intactos,
 e o retrato continua exato.
+
+## Diferenças aditivas
+
+`Vetra::SQL::Differ.call(base:, schema:, number:)` é a diferença padrão de `Planner` e `Migrator`.
+A entrada é o modelo anterior e o esquema gerado da IR validada. O modelo fornece identidades, estruturas e hashes;
+nenhum trecho SQL dele é executado. Todas as instruções vêm do gerador atual ou de traduções explícitas dele.
+O plano inteiro é construído e filtrado por `Plan.check_step!` antes de o `Planner` gravar qualquer arquivo.
+`Planner::REFUSE` continua disponível como uma opção explícita de quem não admite diferenças (`db_plan_incremental`).
+
+Todos os passos são `expand`. As formas sobre tabelas existentes são:
+
+| Mudança aceita | Passos, na ordem | Lock / custo | Transação |
+|---|---|---|---|
+| Tabela nova | Schema se necessário, tabela com PK e checks, únicas, índices, FKs, donos, privilégios, RLS, políticas e triggers que a IR exige | Classificação do DDL correspondente; índices comuns na tabela nova são `Share` / `tabela_vazia` | Por passo |
+| Coluna anulável | `ADD COLUMN`; checks gerados para o campo com `NOT VALID` e `VALIDATE` | `AccessExclusive` / `catalogo`; validação `ShareUpdateExclusive` / `varre_tabela` | `sim` |
+| Coluna não nula com default literal não nulo | `ADD COLUMN ... NOT NULL DEFAULT <constante>`; checks do campo como acima | `AccessExclusive` / `catalogo`, sem reescrita | `sim` |
+| Índice | `CREATE INDEX CONCURRENTLY` | `ShareUpdateExclusive` / `varre_tabela` | `nao` |
+| Chave única | `CREATE UNIQUE INDEX CONCURRENTLY`, `ADD CONSTRAINT ... UNIQUE USING INDEX` com o mesmo nome | `ShareUpdateExclusive` / `varre_tabela`, `AccessExclusive` / `catalogo` | `nao`, `sim` |
+| FK, simples ou composta | Todos os índices de apoio e únicas, `ADD ... FOREIGN KEY ... NOT VALID`, `VALIDATE CONSTRAINT` | `ShareRowExclusive` / `catalogo` nas duas tabelas; `ShareUpdateExclusive` / `varre_tabela` na origem e `RowShare` no destino ao validar | `sim`, `sim` para a FK |
+| Enum alargado | CHECK auxiliar com a expressão nova `NOT VALID`, validação, troca final | `AccessExclusive` / `catalogo`, `ShareUpdateExclusive` / `varre_tabela`, `AccessExclusive` / `catalogo` | `sim` em cada passo; troca final indivisível |
+| Políticas RLS alteradas | `DROP` das políticas anteriores e `CREATE` das políticas atuais da tabela em **um passo**, inclusive ao trocar `vt_access` por `vt_scope_*` | `AccessExclusive` / `catalogo` | Um único `sim` |
+
+O CHECK auxiliar tem nome derivado do SHA-256 do nome final e da expressão nova. A restrição antiga permanece
+até a nova estar validada. O último passo remove a antiga e renomeia a auxiliar, na mesma transação: não há janela
+sem restrição e o nome final converge com o plano inicial. A inclusão de valores é comparada como conjunto de
+literais gerados, com escapes preservados; não se interpreta SQL fornecido pela aplicação.
+
+Criar o índice único com o próprio nome da constraint e anexá-lo evita um índice redundante no estado final.
+Todas as tabelas e colunas são criadas antes dos índices, todas as únicas antes de qualquer FK, inclusive em ciclos.
+Um índice ou uma restrição pode falhar se os dados existentes violarem o contrato novo; o plano não consulta nem
+corrige esses dados. Os locks e padrões seguem os ADRs 015 e 025. Privilégios sobre tabelas alteram o catálogo, sem
+lock na tabela da aplicação, conforme [aclchk.c do PostgreSQL 17](https://github.com/postgres/postgres/blob/REL_17_STABLE/src/backend/catalog/aclchk.c).
+
+As instruções não estruturais são comparadas por tipo, objeto e SHA-256:
+
+| Tipo | Tratamento incremental |
+|---|---|
+| Guardas `DO` conhecidas | Reaplica o texto atual quando mudou; guardas de privilégios e rotinas permanecem depois dos REVOKEs |
+| Schema de aplicação | Cria quando novo; alteração de definição existente é recusada |
+| Função de transição ou revisão | Cria quando nova; mesma assinatura usa `CREATE OR REPLACE FUNCTION`, preservando dono e ACL |
+| Trigger de transição ou revisão | Cria quando novo; mesma identidade usa `CREATE OR REPLACE TRIGGER` e reafirma `ENABLE ALWAYS` |
+| Dono, privilégios, RLS e modo de trigger | Aplica as instruções novas; instrução anterior idêntica não se repete; mudança de dono ou modo e remoção de privilégios são recusadas |
+| Tabelas/extensão/funções do contexto | Conserva quando idênticas; alteração ou forma nova sem tradução é recusada |
+| Carga inicial de revisões | Conserva o estado; não repete o INSERT nem zera revisões; texto novo ou alterado é recusado |
+| `LOCK TABLE` do bootstrap de revisão | Reaplica junto dos triggers, funções, REVOKEs e guardas de revisão novos/alterados, em um passo `sim` com `ShareRowExclusive` / `catalogo`; o lock cobre a instalação inteira e não há carga inicial a repetir |
+| Qualquer outro tipo | Recusa com `db_plan_statement` |
+
+Na substituição de um trigger, `CREATE OR REPLACE` e `ENABLE ALWAYS` ficam no mesmo passo, preservando o modo
+no commit. A concessão de DML à aplicação nas tabelas novas fica no fim do plano, depois de RLS, políticas,
+triggers de transição e instalação da revisão; nenhum commit intermediário concede acesso à tabela desprotegida.
+As formas de substituição e de anexação seguem [CREATE TRIGGER](https://www.postgresql.org/docs/17/sql-createtrigger.html)
+e [ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html) do PostgreSQL 17.
+
+| Mudança recusada | Código |
+|---|---|
+| Remoção de entidade, coluna, índice, única, FK, CHECK, política sem substituta ou reforço de transição | `db_plan_remove` |
+| Renomeação física ou declarada que retira a identidade anterior | `db_plan_rename` |
+| Mudança de tipo físico, inclusive precisão/escala e conversão entre campo escalar e `money` | `db_plan_type` |
+| Coluna nova `NOT NULL` sem default literal não nulo, inclusive default de contexto | `db_plan_backfill` |
+| Enum estreitado ou valor substituído | `db_plan_enum` |
+| Mudança da raiz, coluna ou escopo de tenant | `db_plan_tenant` |
+| Mudança de nulidade/default/atribuição existente, PK, CHECK ou estrutura sem tradução aditiva | `db_plan_change` |
+| Instrução de infraestrutura/segurança/revisão removida ou alterada sem tradução segura | `db_plan_statement` |
+
+Uma combinação que contém qualquer recusa não grava plano, modelo nem espelho parcial. Nenhuma dessas recusas
+habilita `migrate` ou `contract`: preenchimento em lotes, renomeações e estreitamento de enum exigem fases futuras.
+Estas regras detalham o ADR-038 aceito; não mudam formato, cadeia, convergência ou escopo do executor real.
 
 ## Contenção
 
@@ -318,7 +391,7 @@ O `db:migrate` ainda aplica só o plano inicial. Um plano depois dele, ou um pla
 
 ## Limites
 
-A diferença entre modelos é da C9, e a aplicação incremental num banco de verdade é da K10; a aplicação do plano
+A diferença aditiva está implementada; a aplicação incremental num banco de verdade é da K10. A aplicação do plano
 inicial é do [`db:migrate`](db-migrate.md). O plano inicial gera RLS, revisão e triggers de
 transição, com os limites de RBAC descritos no [guia](db-rls.md). Os testes da suíte não usam banco;
 a aplicação real exige as sondas e o `--check` da matriz PostgreSQL 17/18.
@@ -357,3 +430,34 @@ O plano dos CRMs também instala revisão, RLS e triggers de transição, sem tr
 chat permanecem sem tenant/RLS de tenant/revisão. Execute ainda
 `DATABASE_URL=... bundle exec ruby script/sonda_rls_integridade.rb`: são 103 verificações de acessos
 permitidos e recusados, detalhadas no [guia](db-rls.md#sonda-no-postgresql-17-e-18).
+
+## Sonda das diferenças aditivas
+
+```sh
+DATABASE_URL=... VETRA_PG_DUMP=... VETRA_MIGRATOR_PASSWORD=... \
+  bundle exec ruby script/sonda_plano_aditivo.rb
+```
+
+Requer cluster PostgreSQL 17 ou 18 descartável, bootstrap dos papéis e URL administrativa, como a sonda da fundação.
+São **99 verificações** nos 13 cenários, no job de planos da CI no PostgreSQL 17 e 18: tabela, schema novo, coluna anulável com CHECK, default constante, índice,
+única, FK simples, FK composta com chave alternativa, enum, política, revisão, transição e combinação.
+O cenário de chave alternativa usa uma relação explícita na IR válida de uma cópia temporária: o atalho `belongs_to`
+do DSL expõe somente `id` ou `(tenant, id)`. O cenário de schema novo também usa a IR válida, pois o DSL fixa
+`public`. Ambos exercitam o consumidor sem ampliar o DSL.
+
+Cada cenário confere nome/regeneração/filtro, `--snapshot` com duas bases, `--check` com replay e convergência,
+login real como `vetra_migrator`, preservação da contagem e hash de todas as colunas originais e dos contadores
+de revisão, validade de todas as constraints/índices e efeito do novo contrato sobre os dados. A convergência conserva a comparação de donos,
+ACLs, RLS, funções e triggers; só a ordem das definições de cada `CREATE TABLE` é ignorada.
+
+Nos cenários de índice, FK simples e composta há tabelas com **1 milhão de linhas**. Seis verificações adicionais
+observam `ShareUpdateExclusive` no catálogo e fazem um UPDATE concorrente com limite de 1,5 s: em cada índice
+concorrente, um escritor anterior mantém o DDL em espera até a escrita de prova terminar; no VALIDATE, a transação
+do passo mantém o lock até essa escrita. Isso verifica a compatibilidade dos locks sem depender da duração exata
+da varredura. As escritas de prova são revertidas para preservar os dados e contadores comparados pelo cenário.
+Uma falha proposital depois dos DROPs/CREATEs da troca de políticas deve preservar todas as políticas antigas
+pelo rollback do passo. A última verificação exige catálogo global idêntico e remoção dos bancos temporários.
+
+A sintaxe pode ser conferida sem banco; os resultados de execução e a inclusão na CI dependem da auditoria do
+Claude no PostgreSQL 17/18. A sonda aplica `0001`, insere dados e aplica `0002` por `PlanExecutor`, sem habilitar
+`db:migrate` incremental ou implementar sua retomada.

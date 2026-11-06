@@ -409,6 +409,31 @@ class DBPlanIncrementalTest < GraphTest
     targets.find { |target| target.is_a?(Hash) && target['user'] == 'vetra_migrator' }
   end
 
+  def test_default_additive_plan_is_filtered_and_only_sent_to_the_migrator_connection
+    with_app('mini_crm') do |root, compiler|
+      compiler.write
+      planner = Vetra::SQL::Planner.new(root: root)
+      planner.plan
+      add_index(root)
+      edit(root, 'app/domains/crm/lead.rb') { |s| s.sub('  crud', "  string :origem, optional: true\n  crud") }
+      compiler.write
+      plans = planner.plan.plans
+      admin, migrator = FakePG.new(catalogs: %w[a a]), FakeMigrator.new
+      scratch(admin, migrator) do |database, targets|
+        assert_equal 2, database.replay(plans).size
+        assert_equal 'vetra_migrator', migrator_login(targets)['user']
+        assert plans.last.steps.any? { |step| step.sql.start_with?('ALTER TABLE') }
+        assert plans.last.steps.any? { |step| step.sql.start_with?('CREATE INDEX CONCURRENTLY') }
+        plans.last.steps.each do |step|
+          assert_nil Vetra::SQL::Plan.check_step!(step, 'por_passo', plans.last.file_name)
+          assert_includes migrator.commands, step.sql
+          refute_includes admin.commands, step.sql
+          assert_operator migrator.commands.index(Vetra::SQL::ScratchDatabase::IDENTITY), :<, migrator.commands.index(step.sql)
+        end
+      end
+    end
+  end
+
   def test_scratch_database_applies_as_vetra_migrator_and_checks_the_role_catalog
     plan = blog_plan
     admin, migrator = FakePG.new(catalogs: %w[a a]), FakeMigrator.new

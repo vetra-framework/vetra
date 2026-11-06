@@ -17,7 +17,7 @@ module Vetra
       Result = Struct.new(:status, :applied, :attempts, keyword_init: true)
 
       # differ é a diferença entre modelos do Planner, que recalcula o último plano (ADR-038, §3).
-      def initialize(root:, database:, sleeper: ->(seconds) { sleep(seconds) }, random: Random.new, differ: Planner::REFUSE)
+      def initialize(root:, database:, sleeper: ->(seconds) { sleep(seconds) }, random: Random.new, differ: Differ.method(:call))
         @root, @database, @sleeper, @random, @differ = File.expand_path(root), database, sleeper, random, differ
       end
 

@@ -139,6 +139,8 @@ jobs:
         run: bundle exec ruby script/sonda_plano_incremental.rb
       - name: Vetra Data, unidade de trabalho e contexto emitido em Ruby
         run: bundle exec ruby script/sonda_vetra_data.rb
+      - name: Diferenças aditivas do plano incremental, com dados e escrita concorrente
+        run: bundle exec ruby script/sonda_plano_aditivo.rb
       - name: Contexto assinado e privilégios do plano gerado
         run: bundle exec ruby script/sonda_contexto_assinado.rb
       - name: RLS, escopos, revisão e transições dos planos gerados

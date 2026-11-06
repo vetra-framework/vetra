@@ -31,9 +31,9 @@ As tarefas rodam nesta ordem, uma por vez no checkout compartilhado:
 
 | Tarefa | Implementador | Dependência | Entrega |
 |---|---|---|---|
-| K9 — fundação do plano incremental | Claude | — | ADR-038 proposto. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Cadeia dos planos, filtro de instruções globais, aplicação como `vetra_migrator` e catálogo de papéis conferido, no lugar da regeneração dos planos antigos (ver as decisões abaixo). `--check` com N planos e convergência. Nenhuma diferença nova ainda: um modelo que mudou continua recusado |
+| K9 — fundação do plano incremental | Claude | — | ADR-038 aceito. Modelo físico versionado e vinculado a cada plano, com formato próprio e versão, gerado e nunca editado à mão. Modo de transação por passo no formato do plano, e executor descartável que aplica passos fora de transação. Cadeia dos planos, filtro de instruções globais, aplicação como `vetra_migrator` e catálogo de papéis conferido, no lugar da regeneração dos planos antigos (ver as decisões abaixo). `--check` com N planos e convergência; diferenças aditivas pelo consumidor da C9 |
 | C8 — unidade de trabalho e contexto emitido | Codex | — | Implementados a unidade de trabalho e o emissor Ruby, conforme o [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md): transação externa, savepoints, `read_only`, guarda por fibra e contexto global sem token nem tenant fictício. `sequel` e `pg` são dependências de runtime com janela `~>`, sem carga no compilador. Sonda escrita para auditoria do Claude no 17/18; [guia](vetra-data.md) |
-| C9 — diferenças aditivas | Codex | K9 | Diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `000N_<nome>.sql` e o modelo. O Claude roda o `--check` no 17 e no 18 |
+| C9 — diferenças aditivas | Codex | K9 | Implementada a diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `NNNN_expand.sql` e o modelo, com nome e conteúdo determinísticos; atualiza o espelho completo da segurança atual. A sonda `sonda_plano_aditivo.rb` cobre 13 cenários, dados, convergência e escrita concorrente em 1 milhão de linhas (99 verificações esperadas). Execução e inclusão na CI pelo Claude no 17/18; [guia](db-plan.md) |
 | K10 — `db:migrate` incremental | Claude | K9 e C9 | Progresso por passo em `vetra.migrations`, passos fora de transação, `lock_timeout` e novas tentativas por passo. A base de cada plano é conferida antes de aplicá-lo, e a execução retoma do passo seguinte ao último concluído, conferindo o estado intermediário. A sonda interrompe em cada passo, inclusive depois de um DDL fora de transação e antes do registro, com o índice válido ainda não registrado e com o índice inválido |
 | C10 — repositórios gerados | Codex | C8 | Um repositório por entidade, gerado da IR, sem expor o dataset. Operações: `find!`, `lock!`, `create!`, `update!` por registro e por ID, `delete!`, os métodos de vínculo (`add_member!` e `remove_member!`) e uma consulta restrita (`where` por igualdade, `order`, `first(n)`, `last(n)` e `all`). Inclui as atribuições de contexto, a normalização e a geração de valores previstas no ADR-035. O registro é um `Data` congelado em profundidade, com os predicados dos grupos de `enum`. O acesso `read`/`read_write` da capacidade é respeitado. Na sonda (com o Claude), os corpos dos quatro exemplos rodam contra o banco, com o contexto global do ADR-039 no blog e no chat |
 | K11 — outbox: armazenamento e emissão | Claude | K10 e C8 | ADR-040 proposto, sobre os papéis e o RLS da outbox. `vetra.outbox` e `vetra.deliveries` particionadas por `created_at`, com partição `DEFAULT`, e `vetra.dead_deliveries`, num `0002` gerado pelo plano incremental para os três exemplos com eventos. O evento é gravado na unidade de trabalho com `xid8`, `seq`, `event_id` e o payload projetado. Um payload com campo pessoal desfaz a unidade de trabalho inteira, enquanto a cifra do ADR-013 não existe |
@@ -47,7 +47,7 @@ entrega do Codex roda com o Claude, porque o sandbox do Codex não alcança o Po
 
 Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita depois da auditoria.
 
-- **ADR-038 (K9, C9 e K10), a base do plano incremental.** O ADR-025, §1 manda planejar contra o retrato e
+- **ADR-038 aceito (K9, C9 e K10), a base do plano incremental.** O ADR-025, §1 manda planejar contra o retrato e
   reserva a introspecção à verificação. A decisão é planejar contra um **modelo físico versionado**, gravado pelo
   `db:plan` junto com cada plano e vinculado a ele por hash, para que o `db:plan` continue sem conexão e os estados
   históricos possam ser comparados. O `--check` reaplica os planos num banco descartável e confere o modelo e o
@@ -85,6 +85,25 @@ Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita d
   grava, do relay e da manutenção, sem usar o `vetra_migrator` no runtime. Um papel global novo entra no bootstrap
   operacional do ADR-036, nunca num plano. O ADR-040 também decide como a deriva reconhece as partições
   operacionais, conferindo limites, vínculo ao pai, índices, donos e privilégios.
+
+### Diferenças aditivas implementadas
+
+O `Planner` e o `Migrator` usam a diferença segura por padrão. O último plano é regenerável contra o modelo
+anterior, e o espelho `db/policies/0001_seguranca.sql` mostra somente a segurança completa da IR atual; a troca
+atômica de políticas está no plano. O índice único de apoio é construído antes de anexar a chave única e antes
+da FK, que usa `NOT VALID` e `VALIDATE`. O enum ganha um CHECK auxiliar validado antes da troca final de nomes.
+Funções de transição/revisão com a mesma assinatura usam `CREATE OR REPLACE`; a instalação da revisão reúne o
+lock, os triggers, os REVOKEs e as guardas num passo atômico, sem reinicializar os dados de revisão.
+A substituição de trigger conserva `ENABLE ALWAYS` no mesmo passo. Tabelas novas só recebem o GRANT de DML
+para a aplicação depois de toda a segurança instalada.
+
+Remoções, renomeações, tipos físicos, preenchimento necessário, enum estreitado, tenant alterado e instruções sem
+tradução têm diagnósticos próprios e não gravam plano parcial. O [guia](db-plan.md#diferenças-aditivas) especifica
+passos, locks, custos, recusas e a sonda. São detalhes do ADR-038 aceito; não exigem um ADR substituto. O formato
+físico e a IR permanecem nas versões atuais, e os artefatos dos exemplos conservam somente `0001`.
+
+O banco real continua recusando planos depois do inicial (`db_migrate_incremental`). Registro por passo,
+retomada, tratamento de índices inválidos, tentativas e conferência da base pertencem à K10.
 
 ### Riscos e verificações
 
@@ -128,7 +147,7 @@ Ficam para a rodada 5:
 - as políticas de administração dos vínculos, dentro do limite que o ADR-037 já documenta;
 - a cifra dos campos pessoais (ADR-013) e o distribuidor do live.
 
-Na C9, cada uma dessas mudanças de modelo é recusada com código próprio, sem plano parcial.
+Cada uma dessas mudanças de modelo é recusada com código próprio pela diferença aditiva, sem plano parcial.
 
 ## Rodada 3 (concluída)
 

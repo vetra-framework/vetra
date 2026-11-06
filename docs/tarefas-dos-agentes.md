@@ -70,7 +70,7 @@ tarefas seguem a ordem da tabela.
 |---|---|---|---|---|---|
 | K9 | Fundação do plano incremental: ADR-038, modelo físico versionado e cadeia, modo de transação por passo, história ancorada no gate, filtro de instruções globais, aplicação como `vetra_migrator` com guarda de papéis e catálogo conferido, `--check` com N planos e convergência | Claude | concluída | `5fa7a3a` | Rodadas 1 a 5 devolvidas pelo Codex; rodada 6 aprovada; ADR-038 aceito por delegação; CI verde, sonda 18/18 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k9)) |
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | `a98c4de`, `75dd5e2` | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; CI verde depois da correção dos lockfiles, sonda 23/23 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c8)) |
-| C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | concluída | ver histórico | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; sonda 99/99 no PostgreSQL 18.6 ([auditoria](#auditoria-c9)) |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | a fazer | — | — |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | a fazer | — | — |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | a fazer | — | — |
@@ -101,6 +101,35 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria C9
+
+Implementado pelo Codex sobre `5e349b8`; auditado pelo Claude, que rodou a suíte, o gate e as sondas no PostgreSQL
+18.6; o 17 roda no job `db-plan` da CI. A primeira execução do Codex parou no meio pelo limite de uso da conta e foi
+retomada a partir da árvore parcial.
+
+**Rodada 1 — devolvida pelo Claude.**
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| `script/sonda_plano_aditivo.rb` montava o login do migrador com o `conninfo_hash` inteiro; a libpq 18 recusa o `scram_client_key` vazio (`invalid SCRAM client key length: 0`), e a sonda parou depois de 3 verificações. Com só os valores não vazios, uma cópia fora da árvore passou 99/99 | sim | Ajustar: o Codex passou a montar o alvo pelos parâmetros da URL, como o `ScratchDatabase`. O código de produção não tinha o defeito |
+
+Na leitura da diferença:
+
+- todo SQL vem do gerador atual;
+- a troca de política vai num passo único;
+- o `enum` alargado não abre janela sem restrição;
+- os índices de apoio vêm antes das FKs;
+- uma recusa aborta a construção inteira.
+
+**Rodada 2 — aprovada pelo Claude.**
+
+- Suíte com 543 testes, 8.819 asserções e 203/203 diagnósticos.
+- Sondas no PostgreSQL 18.6: plano aditivo 99/99, Vetra Data 23/23, plano incremental 18/18, contexto 58/58, RLS
+  103/103 e `db:migrate` 21/21.
+- `--check` nos quatro exemplos, e o gate contra `origin/main` sem alterações.
+- O Claude acrescentou a sonda ao job de planos da CI.
+- Os exemplos não ganharam plano novo: planos, modelos, retratos e espelhos ficaram intactos.
 
 ## Auditoria C8
 
