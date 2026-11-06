@@ -29,6 +29,7 @@ module Vetra
         raise Error.single('data_connection', 'Vetra Data exige um pool PostgreSQL com o driver pg.')
       end
       db.extension :pg_auto_parameterize
+      db.extension :pg_json
       db.extend(ContextLogging)
       db.extend_datasets(UnnamedDatasets)
       db

@@ -35,7 +35,7 @@ As tarefas rodam nesta ordem, uma por vez no checkout compartilhado:
 | C8 — unidade de trabalho e contexto emitido | Codex | — | Implementados a unidade de trabalho e o emissor Ruby, conforme o [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md): transação externa, savepoints, `read_only`, guarda por fibra e contexto global sem token nem tenant fictício. `sequel` e `pg` são dependências de runtime com janela `~>`, sem carga no compilador. Sonda escrita para auditoria do Claude no 17/18; [guia](vetra-data.md) |
 | C9 — diferenças aditivas | Codex | K9 | Implementada a diferença entre o modelo versionado e a IR, em passos expand classificados: tabela nova, coluna anulável, coluna `NOT NULL` com default constante, índice `CONCURRENTLY` fora de transação, índice único de apoio antes da FK composta, FK `NOT VALID` seguida de `VALIDATE`, `CHECK` de `enum` alargado e troca atômica de política. As demais mudanças são recusadas com código próprio, sem plano parcial. `db:plan` grava `NNNN_expand.sql` e o modelo, com nome e conteúdo determinísticos; atualiza o espelho completo da segurança atual. A sonda `sonda_plano_aditivo.rb` cobre 13 cenários, dados, convergência e escrita concorrente em 1 milhão de linhas (99 verificações esperadas). Execução e inclusão na CI pelo Claude no 17/18; [guia](db-plan.md) |
 | K10 — `db:migrate` incremental | Claude | K9 e C9 | Progresso por passo em `vetra.migration_steps`, com a linha do plano em `vetra.migrations` junto do último passo, passos fora de transação, `lock_timeout` e novas tentativas por passo. A base de cada plano é conferida antes de aplicá-lo, e a execução retoma do passo seguinte ao último concluído, conferindo o estado intermediário. A sonda interrompe em cada passo, inclusive depois de um DDL fora de transação e antes do registro, com o índice válido ainda não registrado e com o índice inválido |
-| C10 — repositórios gerados | Codex | C8 | Um repositório por entidade, gerado da IR, sem expor o dataset. Operações: `find!`, `lock!`, `create!`, `update!` por registro e por ID, `delete!`, os métodos de vínculo (`add_member!` e `remove_member!`) e uma consulta restrita (`where` por igualdade, `order`, `first(n)`, `last(n)` e `all`). Inclui as atribuições de contexto, a normalização e a geração de valores previstas no ADR-035. O registro é um `Data` congelado em profundidade, com os predicados dos grupos de `enum`. O acesso `read`/`read_write` da capacidade é respeitado. Na sonda (com o Claude), os corpos dos quatro exemplos rodam contra o banco, com o contexto global do ADR-039 no blog e no chat |
+| C10 — repositórios gerados | Codex | C8 | Implementados `Repositories.new(document)` e `bind(capability_id, unit:)`, com um repositório e um `Data` imutável por entidade. Operações de registro, locks, vínculos idempotentes, `include_on_create` e consulta restrita passam pela guarda da unidade. Tenant vem do contexto; defaults, downcase, slug e created_at seguem ADR-035/027. Capacidade e unidade somente leitura recusam escrita; transições conferem OLD do banco e cmd. Erros públicos não carregam SQL/valores do driver. A sonda `sonda_repositorios.rb` executa os corpos reais dos quatro exemplos, inclusive concorrência de vínculos, com 72/72 verificações no 17/18 da CI. [Contrato e resultados](vetra-data.md#sonda-dos-repositórios) |
 | K11 — outbox: armazenamento e emissão | Claude | K10 e C8 | ADR-040 proposto, sobre os papéis e o RLS da outbox. `vetra.outbox` e `vetra.deliveries` particionadas por `created_at`, com partição `DEFAULT`, e `vetra.dead_deliveries`, num `0002` gerado pelo plano incremental para os três exemplos com eventos. O evento é gravado na unidade de trabalho com `xid8`, `seq`, `event_id` e o payload projetado. Um payload com campo pessoal desfaz a unidade de trabalho inteira, enquanto a cifra do ADR-013 não existe |
 | K12 — relay, entregas e manutenção | Claude | K11 | Relay por intervalos de `xid8`, materialização das entregas, reserva por lease com `SKIP LOCKED`, tentativas, entrega morta e cópia para `dead_deliveries`, tudo com consumidores simulados. Um comando de manutenção cria as partições antes de liberar quem grava, recupera uma `DEFAULT` populada e purga por `DETACH`/`DROP`. As partições operacionais são reconhecidas pela deriva do `db:migrate` sem esconder adulteração |
 | K13 — custo do contexto, medição preliminar | Claude | C10 | Custo por instrução no 17 e no 18, na matriz do ADR-023: 16 clientes, comparação com o RLS ingênuo, vínculos em escala de milhões e o limiar de 1 ms da questão 2. Inclui o pooler transacional quando houver um na CI, e o gate da construção dos `Data` (ADR-022, §3). O percentual por comando volta com o executor. Fundir as funções de contexto exigiria ADR próprio e a atualização coordenada das políticas e da guarda de rotinas do ADR-036 |
@@ -74,8 +74,8 @@ Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita d
     cria o banco temporário;
   - o catálogo dos papéis Vetra é conferido antes e depois.
 - **[ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md), aceito (C8 e C10), a unidade de trabalho e os repositórios.**
-  - As operações e a consulta restrita, com as formas que os corpos dos exemplos usam e hoje só rodam com duplos
-    de memória.
+  - As operações e a consulta restrita, com as formas usadas pelos corpos dos exemplos, implementadas nos
+    repositórios gerados e exercitadas pela sonda integrada.
   - Os erros de registro ausente e de conflito, e a forma do registro, conforme o ADR-022, §3.
   - A API da unidade de trabalho e de onde o emissor lê a chave e o `kid`.
   - O **contexto global**: blog e chat não têm tenant, e o ADR-036 exige tenant e ator UUID, reservando visitante
@@ -106,6 +106,28 @@ O [`db:migrate`](db-migrate.md) aplica os planos incrementais no banco real (K10
 `vetra.migration_steps`, com o começo do plano marcado depois da conferência da base pela linha `-- vetra:base`;
 retomada do passo seguinte; índice da tentativa anterior aceito só com a mesma definição, e inválido refeito;
 tentativas de `lock_timeout` por passo; e catálogos fora do dump conferidos antes dos passos.
+
+### Repositórios implementados
+
+O [Vetra Data](vetra-data.md) gera as classes de repositório e de registro a partir da IR validada, usando
+o mesmo modelo de atribuições do ADR-035. As capacidades vinculadas pelo linker determinam `read` ou
+`read_write`. Todas as operações terminais exigem a unidade ativa na fibra e aplicam o filtro de tenant,
+inclusive na raiz; os CRMs têm ainda o RLS do plano. Registros `Data`, dinheiro e decimais são imutáveis;
+consultas restritas não expõem dataset. Transições comparam o estado relido e travado no banco com o comando
+da unidade antes do DML. O relógio único da operação fornece created_at em UTC com microssegundos.
+
+Os métodos derivados de `many_to_many` travam o dono, conferem os dois registros, usam `ON CONFLICT` sobre o
+par da junção na inclusão e preservam os vínculos de `include_on_create`. A sonda executa todos os corpos
+Ruby de comandos e consultas dos quatro exemplos, com os argumentos vinculados, e disputa o mesmo dono
+em dois backends para conferir inclusão e remoção idempotentes. As revendas são preparadas pelo migrador,
+pois o plano existente só concede leitura em `dealers`; os corpos operam como `vetra_app` pelos repositórios.
+São 72 verificações, todas passando no PostgreSQL 18.6 e no job de planos da CI, com a
+[lista de resultados](vetra-data.md#sonda-dos-repositórios).
+
+A avaliação de `authorize` em Ruby, permissões por campo, reautorização do estado final, eventos, histórico
+e o executor das oito etapas continuam na rodada 5. Blog e chat usam contexto global e autorização da
+aplicação, conforme ADR-037/039. O contrato do ADR-039 foi preservado; nenhum modelo, plano, retrato,
+espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência foi acrescentada.
 
 ### Riscos e verificações
 

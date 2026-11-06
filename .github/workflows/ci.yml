@@ -149,6 +149,8 @@ jobs:
         run: bundle exec ruby script/sonda_db_migrate.rb
       - name: db:migrate incremental, passo a passo, com quedas e retomada
         run: bundle exec ruby script/sonda_db_migrate_incremental.rb
+      - name: Repositórios gerados e corpos dos exemplos contra o banco
+        run: bundle exec ruby script/sonda_repositorios.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

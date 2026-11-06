@@ -3,7 +3,7 @@
 module Vetra
   module Data
     class UnitOfWork
-      def initialize(db, issuer: nil, scope: :tenant)
+      def initialize(db, issuer: nil, scope: :tenant, clock: -> { Time.now })
         unless db.is_a?(RuntimeDatabase) || (db.adapter_scheme == :mock && db.database_type == :postgres)
           raise Error.single('data_connection', 'Crie o pool do runtime por Vetra::Data.connect para conferir o login de cada conexão.')
         end
@@ -12,6 +12,8 @@ module Vetra
         end
         @db, @issuer, @scope = Data.configure(db), issuer, scope
         @contexts = {}
+        @times = {}
+        @clock = clock
       end
 
       def transaction(tenant_id: nil, actor_id: nil, op_id:, cmd:, operator_id: nil, read_only: false)
@@ -24,9 +26,16 @@ module Vetra
           install_context(@issuer.issue(**context.claims)) if @scope == :tenant
           Sequel.synchronize { @contexts[Sequel.current] = context }
           begin
+            time = @clock.call
+            Values.invalid! unless time.is_a?(Time)
+            timestamp = Values.timestamp(time.getutc.floor(6))
+            Sequel.synchronize { @times[Sequel.current] = timestamp }
             yield self
           ensure
-            Sequel.synchronize { @contexts.delete(Sequel.current) }
+            Sequel.synchronize do
+              @contexts.delete(Sequel.current)
+              @times.delete(Sequel.current)
+            end
           end
         end
       end
@@ -47,6 +56,12 @@ module Vetra
 
       def context
         active_context!
+      end
+
+      # Relógio único da operação, compartilhado pelas criações e composições.
+      def now
+        active_context!
+        Sequel.synchronize { @times.fetch(Sequel.current) }
       end
 
       # Infraestrutura da C10: o repositório usa a guarda em cada execução terminal.

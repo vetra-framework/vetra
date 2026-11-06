@@ -72,7 +72,7 @@ tarefas seguem a ordem da tabela.
 | C8 | Unidade de trabalho sobre o Sequel, `sequel` e `pg` como dependências de runtime, emissão do contexto assinado em Ruby e contexto global: ADR-039 | Codex | concluída | `a98c4de`, `75dd5e2` | Aprovada pelo Claude na rodada 1; ADR-039 aceito por delegação; CI verde depois da correção dos lockfiles, sonda 23/23 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c8)) |
 | C9 | Diferenças aditivas do modelo para a IR em passos expand classificados, com recusa audível do resto | Codex | concluída | `e2bdd14` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 99/99 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c9)) |
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | `2db989c` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde, sonda 16/16 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k10)) |
-| C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | ver histórico | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; sonda 72/72 no PostgreSQL 18.6 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | a fazer | — | — |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | a fazer | — | — |
 | K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
@@ -101,6 +101,38 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria C10
+
+Implementado pelo Codex sobre `3e90795`; auditado pelo Claude, que rodou a suíte, o gate e as sondas no PostgreSQL
+18.6; o 17 roda no job `db-plan` da CI. A primeira execução do Codex parou no meio pelo limite de uso da conta e foi
+retomada a partir da árvore parcial.
+
+**Rodada 1 — devolvida pelo Claude.** A sonda nova passou 72/72 na primeira execução no PostgreSQL 18.6. Ela roda
+os corpos `call` dos quatro exemplos pelos repositórios, inclusive a disputa de `add_member!`/`remove_member!`
+entre dois backends.
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| `lib/vetra/data/repositories.rb:18` definia o `Data` com os nomes dos campos sem conferir colisões. Numa cópia do chat com `string :hash` e `string :class`, `graph:build` e `Repositories.new` passaram, `r.hash` devolveu `"x"` e `{ r => 1 }` levantou `TypeError`; um campo `public_send` quebraria o próprio repositório | sim | Ajustar: `Repositories.new` recusa, com `data_record_type` e antes de gerar qualquer tipo, o campo que coincide com um método público ou protegido do registro. A antecipação no compilador fica pendente |
+| Decimal e dinheiro recusam `Integer` na entrada | não | Não ajustar: a entrada estrita evita conversão implícita, e a coerção da entrada fica com o executor |
+
+Na leitura do código:
+
+- o OLD das transições vem do banco, sob `FOR UPDATE`, nunca do objeto recebido;
+- o tenant é filtro explícito, além do RLS, e vem só do contexto;
+- o `ON CONFLICT` da inclusão casa com o índice único exigido pelo ADR-032, inclusive com tenant;
+- os triggers dos CRMs usam `42501`, que o repositório traduz para `data_access_denied`, como o ADR-039 pede;
+- a capacidade `read` e a unidade READ ONLY recusam escrita antes de qualquer SQL.
+
+**Rodada 2 — aprovada pelo Claude.**
+
+- Suíte com 583 testes, 9.792 asserções e 216/216 diagnósticos; 35 testes e 865 asserções são da C10.
+- Sondas no PostgreSQL 18.6: repositórios 72/72, `db:migrate` incremental 16/16, plano aditivo 99/99, Vetra Data
+  23/23, plano incremental 18/18, contexto 58/58, RLS 103/103 e `db:migrate` 21/21.
+- `--check` nos quatro exemplos, e o gate contra `origin/main` sem alterações.
+- O Claude acrescentou a sonda ao job de planos da CI.
+- Planos, modelos, retratos, espelhos e grafos dos exemplos ficaram intactos.
 
 ## Auditoria K10
 

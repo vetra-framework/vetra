@@ -2,7 +2,7 @@
 
 O Vetra Data abre unidades de trabalho PostgreSQL pelo Sequel, como `vetra_app`, e emite o contexto assinado
 validado pelas funções dos planos atuais. O contrato está no [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md).
-Repositórios gerados e o executor de operações ainda são entregas próprias; esta API é infraestrutura do runtime.
+Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O executor de operações ainda não existe.
 
 ## Configurar o processo
 
@@ -12,6 +12,8 @@ require 'vetra/data'
 issuer = Vetra::Data::ContextIssuer.from_env
 db = Vetra::Data.connect(ENV.fetch('DATABASE_URL'), max_connections: 8)
 work = Vetra::Data::UnitOfWork.new(db, issuer: issuer)
+document = Vetra::Graph::Compiler.new(root: app_root).read_artifact.document
+repositories = Vetra::Data::Repositories.new(document)
 ```
 
 `VETRA_CONTEXT_KID` identifica a chave ativa; `VETRA_CONTEXT_SECRET_HEX` contém ao menos 32 bytes aleatórios,
@@ -38,15 +40,17 @@ O runtime confiável resolve identidades e autorização antes da abertura:
 ```ruby
 work.transaction(tenant_id: tenant.id, actor_id: actor.id,
                  op_id: operation_id, cmd: 'crm.create_lead') do |unit|
-  # A C10 fornecerá repositórios ligados a esta unidade.
+  leads = repositories.bind('crm.leads', unit: unit)
+  lead = leads.create!(name: 'Cliente novo')
   unit.compose do
-    # Mesmo contexto, savepoint próprio.
+    leads.update!(lead, name: 'Cliente revisado')
   end
 end
 
 work.read(tenant_id: tenant.id, actor_id: actor.id,
           op_id: operation_id, cmd: 'crm.read_lead') do |unit|
-  # Transação READ ONLY; composição mantém essa restrição.
+  leads = repositories.bind('crm.leads_read', unit: unit)
+  leads.order(:name).first(20)
 end
 ```
 
@@ -64,10 +68,78 @@ O comando assinado é o externo, inclusive durante composição. Compor outro co
 dele aos triggers de transição; a reautorização futura deve respeitar esse limite.
 
 `unit.context` é um valor imutável com as identidades, o comando e `read_only?`, disponível apenas dentro da unidade e na
-fibra que a abriu. Nunca contém chave nem token. Para a C10, cada operação terminal do repositório usará
+fibra que a abriu. Nunca contém chave nem token. Cada operação terminal do repositório usa
 `unit.access(multi_tenant: true/false) { |db| ... }`, sem devolver pool ou dataset ao código da aplicação.
 A guarda recusa um acesso multiempresa fora da unidade com `data_transaction_required`, antes de executar SQL,
-mesmo que exista um BEGIN externo. A C8 testa a guarda; a C10 a aplica nos repositórios.
+mesmo que exista um BEGIN externo.
+
+`UnitOfWork.new(..., clock: -> { Time.now })` aceita o relógio da operação. Ele é lido uma vez na abertura,
+convertido para UTC com microssegundos e compartilhado por `unit.now`, pelas criações e pelos savepoints.
+Esse relógio é separado do relógio de validade do emissor. O runtime pode fornecer a mesma fonte determinística
+às capacidades de relógio; os comandos do blog usam `now` para `published_at`.
+
+## Repositórios e registros
+
+`Repositories.new(document)` valida e copia a IR pelo mapeamento físico do ADR-035, sem conexão. Gera uma classe
+de repositório e um tipo Ruby `Data` para cada entidade. A fábrica pertence à borda confiável; o corpo `call`
+recebe somente os repositórios que o vínculo da operação declara. `bind('crm.leads_read', unit:)` conserva o
+acesso `read` da capacidade; uma consulta vinculada pelo linker já resolve `leads` para `leads_read`.
+
+| Operação | Resultado e restrições |
+|---|---|
+| `find!(id)` | Registro ou `RecordNotFound`; ausência e invisibilidade têm a mesma mensagem/código |
+| `lock!(id)` | Registro com `FOR UPDATE`; exige capacidade `read_write` e unidade gravável |
+| `create!(**atributos)` | Registro devolvido por `INSERT RETURNING`, com defaults, geração e normalização |
+| `update!(registro_ou_id, **atributos)` | Relê e trava a linha visível no banco, confere a transição e devolve nova versão |
+| `delete!(registro_ou_id)` | Registro removido por `DELETE RETURNING`; ausência é `RecordNotFound` |
+| `add_member!(owner_id, member_id)` / `remove_member!(owner_id, member_id)` | Métodos derivados de `many_to_many`, inclusive com `commands: false`; devolvem o dono |
+| `where(**igualdades)` | Igualdades tipadas em campos conhecidos; chamadas sucessivas compõem AND |
+| `order(*campos)` | Ascendente; ID acrescentado como desempate, ID por padrão |
+| `first(n)` / `last(n)` / `all` | Arrays congelados de registros; `n` inteiro positivo; `last` mantém a ordem declarada |
+
+Consulta é uma descrição imutável. Não aceita blocos, expressões SQL, listas como IN, joins ou projeções.
+Não expõe dataset, pool ou SQL. Os valores são copiados ao construir a consulta. Cada terminal confere a unidade
+na fibra atual, inclusive quando a consulta foi construída antes da abertura ou conservada depois do encerramento.
+
+O tenant é filtro explícito nas operações, além do RLS, e vem exclusivamente de `unit.context`. A criação da
+raiz usa esse tenant como ID. A entrada com coluna de tenant é recusada, mesmo que contenha o valor correto.
+Atualização não aceita `id`, tenant ou `created_at`; criação aceita UUID já alocado nas entidades que não são
+raiz, mas deixa o banco gerar o UUID por padrão. `created_at` é gerado uma vez pelo relógio da unidade.
+Defaults literais e `current_actor`/`current_tenant`, `downcase` e slug de origem declarada são aplicados antes
+do INSERT. Slugs usam decomposição Unicode, remoção de acentos e segmentos ASCII minúsculos separados por hífen;
+colisão de chave única é `Conflict`, sem sufixo ou nova tentativa automática.
+
+O repositório compara os campos `set_by` e os dois lados de `guarded` com o comando completo da unidade antes do
+SQL de escrita. Uma alteração parte de OLD relido com lock, nunca do estado do objeto recebido. Preservar o valor
+não constitui transição; defaults permitidos podem ser gravados na criação. Os triggers dos CRMs reforçam a
+mesma regra. A comparação usa defaults já convertidos ao tipo do campo, inclusive dinheiro, datas e contexto.
+Composição conserva o comando externo. Capacidade `read` e unidade READ ONLY recusam escrita e lock
+antes de qualquer SELECT ou DML da operação.
+
+`record_type('crm.lead')` devolve o tipo da entidade. Construção e `with` copiam e congelam em profundidade
+strings, hashes, arrays e datas. O registro não tem escritores nem métodos de persistência, e é compartilhável
+entre Ractors. Grupos de enum produzem predicados do tipo, como `lead.closed?`.
+
+`Repositories.new` recusa no runtime campos cujos nomes coincidam com métodos públicos ou protegidos do
+registro, inclusive os herdados de Object/Kernel, como `hash`, `class`, `with` e `public_send`. A recusa usa
+`data_record_type` e acontece antes de gerar qualquer tipo de entidade. A antecipação dessa checagem no
+compilador permanece pendente.
+
+Decimais são `BigDecimal`; `Vetra::Data::Money` é um `Data` imutável com `amount` BigDecimal e `currency` ISO 4217.
+Entrada monetária recebe `{ amount: '123.45', currency: 'BRL' }` ou `Money`; moeda omitida usa a da aplicação.
+Float, NaN, excesso de escala e estouro de precisão são recusados, sem arredondamento silencioso pelo banco.
+Aritmética, rateio e formatação monetária continuam pendentes. Timestamp exige Time ou ISO 8601 com fuso e até
+seis casas; a saída é UTC. JSON é convertido para jsonb, e dinheiro para as duas colunas físicas.
+
+`RecordNotFound#code` é `data_record_not_found`. `Conflict#code` é `data_conflict`, e `kind` classifica
+`:unique`, `:foreign_key`, `:serialization` ou `:deadlock`. Mensagem, `cause` e inspeção não carregam o erro,
+SQL nem valores do driver. Recusa SQL de acesso é `data_access_denied`, não conflito. Não há repetição automática.
+Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do rollback.
+
+Ainda não são avaliados `authorize`, papéis Ruby, permissões por campo nem a reautorização do estado final
+(etapa 6 do ADR-016). O isolamento disponível é o contexto da unidade e o RLS dos planos dos CRMs, nos limites
+do ADR-037; a aplicação continua responsável por autorizar as chamadas, inclusive administração de vínculos.
+Eventos, histórico, executor das oito etapas e execução dos descritores builtin são entregas posteriores.
 
 ## Aplicações globais
 
@@ -90,6 +162,20 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_transaction_nested` | Tentativa de abrir unidade dentro de uma transação |
 | `data_transaction_required` | Operação sem unidade e transação ativas na fibra |
 | `data_context_install` | Falha ao instalar contexto; causa do driver omitida por sigilo |
+| `data_repository` | Entidade/capacidade não encontrada na IR |
+| `data_record_type` | Campo ou predicado de enum em colisão com método do registro |
+| `data_relation` | Junção inelegível ou colisão de métodos gerados de vínculo |
+| `data_field` | Campo desconhecido ou expressão usada como nome de campo |
+| `data_value` | Valor inválido para o tipo, nulidade, limites ou precisão |
+| `data_assignment` | Tentativa de atribuir identidade, tenant ou timestamp reservado |
+| `data_query` | Bloco ou limite inválido na consulta restrita |
+| `data_read_only` | Escrita/lock sem capacidade ou unidade gravável |
+| `data_transition` | Alteração de transição fora do comando dono |
+| `data_required_link` | Remoção de vínculo obrigatório de `include_on_create` |
+| `data_record_not_found` | Registro ausente ou invisível |
+| `data_conflict` | Unicidade, FK, serialização ou deadlock |
+| `data_access_denied` | Banco recusou o acesso (42501) |
+| `data_database` | Outra falha do banco, sem detalhes do driver |
 
 `Token#value` exporta explicitamente o token para o protocolo. Não o registre, nem chave/hexadecimal/argumentos
 de assinatura. `inspect`/`to_s` do token, emissor, contexto e unidade são redigidos. O logger do Sequel não
@@ -127,4 +213,71 @@ identidade/poderes da sonda de contexto. Provisiona chave aleatória por parâme
 
 A numeração da saída é a ordem dos rótulos, sem IDs fixos; a tabela agrupa os resultados por assunto. A auditoria
 executa a sonda no 17/18 e a inclui na CI. Até essa execução, só sintaxe e testes sem banco estão conferidos.
-O custo com RLS/concorrência/pooler e os registros da C10 continuam sujeitos aos gates dos ADRs 022 e 023.
+O custo com RLS/concorrência/pooler e a construção dos registros continuam sujeitos aos gates dos ADRs 022 e 023.
+
+## Sonda dos repositórios
+
+```sh
+DATABASE_URL=... VETRA_APP_PASSWORD=... bundle exec ruby script/sonda_repositorios.rb
+```
+
+Exige o mesmo bootstrap e PostgreSQL descartável 17/18. Aplica o plano inicial de cada exemplo como
+`vetra_migrator`, abre login real `vetra_app`, provisiona chave efêmera nos CRMs e usa contexto global sem
+token no blog/chat. O harness acessa deliberadamente as closures privadas já verificadas pelo linker e injeta
+as capacidades na ordem vinculada; a capacidade de relógio é um valor que expõe apenas `now`.
+As revendas são preparadas como `vetra_migrator`, depois da confirmação da raiz: o plano existente só
+permite leitura em `dealers`. Usuários, vínculos e leads são criados pelos repositórios como `vetra_app`.
+O harness não cria um executor público nem avalia políticas Ruby.
+As 72 verificações são:
+
+| Posição na saída | Verificação e resultado esperado |
+|---|---|
+| 1, 18, 37, 50 | Os quatro planos aplicam com usuário/sessão migrador, dono do banco e sem poderes administrativos |
+| 2, 19 | Dois tenants criados pelos repositórios; tenant atribuído pelo contexto, created_at UTC, valor monetário exato e registro compartilhável |
+| 3, 20 | Consulta, find e raiz veem somente o tenant corrente, nos dois sentidos |
+| 4, 21 | ID inexistente e ID de outro tenant geram RecordNotFound idênticos |
+| 5, 22 | Objeto de outra empresa com tenant forjado não permite update |
+| 6, 23 | Tenant explícito e created_at na entrada são recusados |
+| 7, 24 | Status protegido fora do comando falha antes do UPDATE e permanece new |
+| 8, 25 | Corpo real de win_lead grava won com contexto assinado; closed? é verdadeiro |
+| 9, 26 | Segundo win_lead falha pela regra do corpo e desfaz a unidade |
+| 10, 27 | Saída de won pelo comando genérico também é recusada |
+| 11, 28 | Unidade READ ONLY e capacidade read recusam escrita/lock |
+| 12, 29 | PK duplicada produz Conflict unique |
+| 13, 30 | Exclusão de raiz referenciada produz Conflict foreign_key |
+| 14, 31 | Repositório fora da unidade falha explicitamente |
+| 32 | Outro vendedor cria lead na revenda preparada pelo migrador, no mesmo tenant |
+| 33 | RLS esconde esse lead do primeiro ator tanto em find quanto em update |
+| 38 | Blog atribui autor, draft e approved false; published_at permanece nulo |
+| 39 | Corpo real de find_post funciona com visitante, repositório read e unidade READ ONLY |
+| 40 | approved e published_at não mudam fora de seus comandos |
+| 41 | Corpo real de publish_post grava published e data do relógio, preservando created_at |
+| 42 | Segunda publicação falha pela regra do corpo |
+| 43 | Corpo real de approve_comment atualiza por ID e grava approved true |
+| 44 | delete devolve o valor removido; find seguinte é RecordNotFound |
+| 45 | FK de post inexistente produz Conflict foreign_key |
+| 51 | Chat normaliza emails e cria vínculo do dono ao criar a sala |
+| 52 | add_member real repetido mantém uma única junção |
+| 53 | add_member_by_email real consulta igualdade/first(2) e inclui o membro |
+| 54 | Email ausente é recusado pela regra do corpo |
+| 55 | remove_member real repetido não falha e deixa o vínculo ausente |
+| 56 | Corpo real recusa remover o dono |
+| 57 | Repositório também recusa remover o dono, independentemente do corpo |
+| 58 | Alvo inexistente é RecordNotFound antes de gravar junção |
+| 59 | Email normalizado duplicado produz Conflict unique |
+| 60 | 105 mensagens recebem autor e o mesmo created_at na operação |
+| 61 | room_page real retorna as últimas 100 por created_at/id, ainda em ordem ascendente e congeladas |
+| 62 | my_rooms real ordena nome e usa ID para desempatar |
+| 63 | Consulta recusa campo desconhecido e bloco |
+| 64 | Capacidade read recusa vínculo dentro de unidade gravável |
+| 65 | Vínculo e terminal de consulta fora da unidade são recusados |
+| 66, 67 | Dois backends disputam o lock do dono: inclusão sem duplicação e remoção ausente idempotente; nenhum statement nomeado no segundo backend |
+| 46, 68 | Blog/chat não instalam token e mantêm identidades SQL NULL |
+| 15, 34, 47, 69 | Inventário confirma execução de todos os corpos call de comandos e consultas de cada exemplo |
+| 16, 35, 48, 70 | Nenhum statement nomeado no backend principal reutilizado |
+| 17, 36, 49, 71 | Conexão devolvida sem contexto |
+| 72 | Nenhum papel global alterado |
+
+Sintaxe e execução dos corpos com `Sequel.mock` são conferidas sem banco. O Claude executa esta sonda no 17/18
+e acrescenta a chamada à CI. Só a execução real confirma SQL, triggers, RLS e corridas; serialização/deadlock
+são classificados nos testes sem banco. O gate de custo dos registros continua na medição do ADR-022.

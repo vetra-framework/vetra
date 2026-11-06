@@ -4,12 +4,11 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-06, sobre `5e349b8`: diferenças aditivas entre modelos físicos, com planos
-  `NNNN_expand.sql` determinísticos, índices concorrentes, FKs validadas em separado, enum alargado e políticas
-  atômicas (C9). O espelho mostra a segurança completa da IR atual. O [guia](db-plan.md) detalha as recusas e a sonda,
-  com 99/99 verificações no PostgreSQL 18.6 e no job de planos da CI.
-  A unidade de trabalho e o emissor Ruby do Vetra Data estão implementados (ADR-039 aceito), e o `db:migrate` aplica
-  também os planos incrementais, passo a passo, com retomada (K10). Repositórios e outbox continuam pendentes.
+- **Atualizado em:** 2026-11-06: o [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
+  gerados da IR, com registros `Data` imutáveis, consulta restrita, transições protegidas e vínculos idempotentes.
+  A sonda dos repositórios roda os corpos reais dos quatro exemplos, com 72/72 verificações no PostgreSQL 18.6 e no
+  job de planos da CI. Planos incrementais aditivos e `db:migrate` com retomada estão
+  implementados. Executor de operações e outbox continuam pendentes.
   A IR permanece 0.6; planos, modelos, retratos e espelhos dos exemplos conservam seus bytes.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
@@ -19,16 +18,17 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 39 aceitos (001 a 039), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 |
-| Testes do compilador, dados e exemplos | 543 testes e 8.819 asserções, sem falhas; 203/203 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador, dados e exemplos | 583 testes e 9.792 asserções, sem falhas; 216/216 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
 | Verificação da C6 | Planos com 33 passos no blog e no mini CRM, 49 no chat e 59 no mini CRM com revendas. No PostgreSQL 18.6: bootstrap repetível, sonda do contexto assinado 58/58 com o plano aplicado pelo `vetra_migrator` sem superusuário, sonda ADR-031 59/59, retratos com donos e `--check` nos quatro exemplos |
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
+| Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6, modo 100755, no job de planos da CI; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 18 em `script/`, mais o simulador do gate; `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Unidade de trabalho e emissor HMAC em Ruby implementados, com dependências Sequel/pg de runtime e carregamento explícito. Repositórios, executor de operações e outbox seguem pendentes |
+| Sondas | 19 em `script/`, mais o simulador do gate; repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Runtime | Unidade de trabalho, emissor HMAC e repositórios gerados da IR implementados, com dependências Sequel/pg de runtime e carregamento explícito. Autorização Ruby, reautorização final, executor de operações e outbox seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -51,9 +51,18 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Repositórios do [Vetra Data](vetra-data.md) gerados da IR e vinculados à unidade/capacidade:
+  busca, lock, criação, atualização por registro ou ID, exclusão, consulta restrita e vínculos de
+  `many_to_many`, incluindo o dono na criação. Tenant e relógio vêm da unidade; transições conferem o
+  comando e o estado relido no banco. Cada entidade tem um `Data` congelado em profundidade, compartilhável
+  entre Ractors, com predicados de grupos de enum. São 35 testes/865 asserções sem banco, incluindo os
+  dez corpos Ruby de comandos e consultas dos quatro exemplos. A sonda passa 72/72 no
+  PostgreSQL 18.6 e roda no job de planos da CI. Autorização Ruby,
+  reautorização final, eventos, histórico e executor de operações continuam pendentes.
+
 - [x] Infraestrutura do [Vetra Data](vetra-data.md): `transaction`, `read`, `compose` e `rollback!`, com
   `pg_auto_parameterize`, concorrência por fibra, sem statements nomeados e contexto instalado uma vez na
-  transação externa. Guarda transacional reutilizável pela C10; contexto global sem tenant fictício nem token,
+  transação externa. Guarda transacional usada pelos terminais dos repositórios; contexto global sem tenant fictício nem token,
   com identidades SQL NULL. Emissor com validade de 30 s/teto de 120 s, segredo por configuração/ambiente e
   inspeção/logs sensíveis redigidos. Sequel 5.110.0 e pg 1.7.0 nos cinco lockfiles, conferidos fora de development;
   compilador sem carga dessas gems. A C8 tem 17 testes/308 asserções e nove diagnósticos novos. Integrada em
@@ -487,11 +496,14 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 **Runtime**
 - [ ] Execução de `rate_limit:` por permissão: contadores compartilhados, janela móvel, reservas concorrentes
   e identidade anônima confiável, conforme o ADR-034
-- [ ] Execução das primitivas CRUD, de vínculo de `many_to_many` e dos comandos (hoje são descritores
-  reconhecidos, sem executor), incluindo preservação de `include_on_create`, locks e idempotência dos vínculos
+- [ ] Executor das primitivas CRUD, de vínculo de `many_to_many` e dos comandos (descritores reconhecidos,
+  sem executor). Os repositórios já implementam CRUD, `include_on_create`, locks e idempotência dos vínculos
 - [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
   as exposições e a exigência de idempotência já são compiladas e validadas
-- [ ] Repositórios do Vetra Data e executor de operações; unidade de trabalho e emissor Ruby já implementados
+- [ ] Executor de operações do Vetra Data, com `authorize` em Ruby, permissões por campo e reautorização do
+  estado final; repositórios, unidade de trabalho e emissor Ruby já implementados
+- [ ] Recusa no compilador dos nomes de campo que colidem com métodos do registro `Data` (`hash`, `class`,
+  `with`, `public_send` e outros); hoje só `Vetra::Data::Repositories` os recusa, com `data_record_type`
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
@@ -540,7 +552,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   heartbeat, a limitação de taxa e o comportamento num crash ou failover não têm sonda versionada
 - [ ] **ADR-021:** o protótipo representa `set_by`, `guarded` e `transitions enforce:`, omite os campos e valores
   protegidos do contrato do CRUD, recusa a gravação literal por um comando fora da lista (`transition_owner`) e o
-  valor protegido como `default:` (`guard_default`). O plano gera os triggers db; a verificação na etapa 6,
+  valor protegido como `default:` (`guard_default`). Os repositórios conferem transições antes do DML a partir
+  de OLD relido com lock e do cmd da unidade. O plano gera os triggers db; a reautorização na etapa 6,
   as telas administrativas, os eventos e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018
 - [ ] **ADR-014:** o protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor,
   mas o relay, as entregas, o lease e a reentrega não existem. O tratamento do ator de sistema já foi decidido
@@ -565,7 +578,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
   (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
-  as diferenças aditivas estão implementadas, e o `db:migrate` aplica o plano inicial e os incrementais, passo a passo; repositórios e medições restantes dependem das próximas tarefas (veja ADR-022 a ADR-025 abaixo)
+  as diferenças aditivas e os repositórios estão implementados, e o `db:migrate` aplica o plano inicial e os
+  incrementais, passo a passo; executor, outbox e medições restantes continuam pendentes (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
   Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
@@ -611,5 +625,5 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
    de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial e os incrementais,
    passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas e a unidade de trabalho com
-   contexto emitido em Ruby também existem. Faltam repositórios, outbox com relay/entregas e medição do custo do contexto.
+   contexto emitido em Ruby e os repositórios gerados também existem. Faltam outbox com relay/entregas e medição do custo do contexto.
    Executor das oito etapas, handlers com ator de sistema e fase contract têm entregas posteriores próprias
