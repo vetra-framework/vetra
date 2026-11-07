@@ -60,7 +60,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   crescente e leva a `dead` com a cópia para `vetra.dead_deliveries`. A manutenção (também `vetra outbox:maintain`)
   cria as partições diárias, recupera uma `DEFAULT` populada e purga por `DETACH`/`DROP` sem tocar pendências; o
   `db:migrate` reconhece só as partições idênticas à `DEFAULT` com o intervalo do dia. A sonda passa 38/38 no
-  PostgreSQL 17.11 e no 18.6.
+  PostgreSQL 17.11 e no 18.6, também na CI ([execução 42378937385](https://github.com/vetra-framework/vetra/actions/runs/42378937385)). Integrado em `3c9d6ff`.
 
 - [x] Outbox, armazenamento e emissão (K11, [ADR-040](adr/040-papeis-e-rls-da-outbox.md) aceito):
   `vetra.outbox` e `vetra.deliveries` particionadas por tempo, com partição `DEFAULT`, e `vetra.dead_deliveries`,

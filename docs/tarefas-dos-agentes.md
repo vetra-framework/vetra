@@ -74,7 +74,7 @@ tarefas seguem a ordem da tabela.
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | `2db989c` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde, sonda 16/16 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k10)) |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | `0fff3ee` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 36/36 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k11)) |
-| K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | ver histórico | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; sonda 38/38 no PostgreSQL 17.11 e 18.6 ([auditoria](#auditoria-k12)) |
+| K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | `3c9d6ff` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 38/38 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k12)) |
 | K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
 
 ### Parecer do Codex sobre o plano
@@ -142,6 +142,10 @@ hash antes e depois de cada rodada. O Claude rodou as sondas no PostgreSQL 18.6 
   16/16, plano aditivo 99/99, Vetra Data 23/23, plano incremental 18/18, `db:migrate` 21/21, contexto 58/58 e RLS
   103/103.
 - `db:plan --check` nos quatro exemplos no 17 e no 18, e o gate sem alterações nos grafos.
+
+**Envio e CI.** Commit `3c9d6ff` na `main`. A CI ([execução 42378937385](https://github.com/vetra-framework/vetra/actions/runs/42378937385)) passou nos cinco jobs. No job de planos, o PostgreSQL
+17.11 e o 18.6 deram relay 38/38, outbox 36/36, repositórios 72/72, `db:migrate` incremental 16/16, plano aditivo
+99/99, Vetra Data 23/23, plano incremental 18/18, contexto 58/58, RLS 103/103 e `db:migrate` 21/21.
 
 ## Auditoria K11
 
