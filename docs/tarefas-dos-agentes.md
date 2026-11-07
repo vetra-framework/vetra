@@ -75,7 +75,7 @@ tarefas seguem a ordem da tabela.
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | `0fff3ee` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 36/36 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k11)) |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | `3c9d6ff` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 38/38 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k12)) |
-| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
+| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
 
 ### Parecer do Codex sobre o plano
 
