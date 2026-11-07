@@ -59,7 +59,7 @@ class OutboxProbe < RepositoriesProbe
     plans = Vetra::SQL::Planner.new(root: root).migration_plans
     @connection = create_database
     @database_name = @databases.last
-    check_case('0001 aplica, recebe dados e o 0002 cria a outbox sem perder linhas') do
+    check_case('0001 aplica, recebe dados, e o 0002 e o 0003 criam a outbox e o relay sem perder linhas') do
       @plans = plans.first(1)
       apply_as_migrator(@connection)
       table = tenant? ? 'public.companies' : 'public.posts'
@@ -69,7 +69,7 @@ class OutboxProbe < RepositoriesProbe
       @plans = plans.drop(1)
       apply_as_migrator(@connection)
       @plans = plans
-      plans.map(&:file_name) == %w[0001_inicial.sql 0002_expand.sql] &&
+      plans.map(&:file_name) == %w[0001_inicial.sql 0002_expand.sql 0003_expand.sql] &&
         @connection.exec("SELECT count(*) FROM #{table}").getvalue(0, 0) == '1'
     end
     check_case('outbox e entregas particionadas com DEFAULT, entregas mortas fora da partição, todas com RLS forçado') do

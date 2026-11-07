@@ -1,0 +1,1838 @@
+{
+  "format": "vetra-db-model",
+  "plan": {
+    "file": "0003_expand.sql",
+    "sha256": "9313b5c3a7f8b36a4b77b60d05e83d9f8a658d709b2caa2ec9259a257c424672"
+  },
+  "plans": [
+    {
+      "file": "0001_inicial.sql",
+      "sha256": "66c4bfd7b0b3362515b351f05b767af3f4f64e9be25cc64f36af6e8e51b79c4f"
+    },
+    {
+      "file": "0002_expand.sql",
+      "sha256": "88668de15951d6145c2b99152c580d11be8ff597a03fceb70c2158132e3709d7"
+    },
+    {
+      "file": "0003_expand.sql",
+      "sha256": "9313b5c3a7f8b36a4b77b60d05e83d9f8a658d709b2caa2ec9259a257c424672"
+    }
+  ],
+  "previous": {
+    "file": "0002_expand.json",
+    "sha256": "d66bb5479d6fdb394cedc91fedb43626b0830077789123b7cddc69df4176d436"
+  },
+  "state": {
+    "statements": [
+      {
+        "kind": "guard",
+        "object": "vetra_context_roles",
+        "sha256": "a6a24e40a0187d823e2c27133cef8c8d488423bcf7280e76af1e3995ac24e1fc"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_database_privileges",
+        "sha256": "8663c554aacd5ad312523f602890d3251cf5853295cc916f76bedd754f0002a2"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra",
+        "sha256": "7a05cfaa14165be80a2d8b7e3ed05b6cec997853c3f42e98c80935d5391c50dc"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra_private",
+        "sha256": "f2f874143899e961999ba73e8d37c339cf22a328b2afa66687902ba2c7f64950"
+      },
+      {
+        "kind": "extension",
+        "object": "pgcrypto",
+        "sha256": "af522912e9fd77312d99b966da3cf14b3db2f539239efd309cddd95842d3d794"
+      },
+      {
+        "kind": "table",
+        "object": "vetra_private.keys",
+        "sha256": "33b9dc090078e0f637c07e31753624c55436de20af4697eb6e1dcd01cc28f5e8"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra_private.keys",
+        "sha256": "f82c2cb7540c2461825b0a26011d3b6cb92d32cbe9b7c47f68068155767e2f59"
+      },
+      {
+        "kind": "index",
+        "object": "vetra_private.vt_keys_active",
+        "sha256": "62bbf2f0a73257092512df00a940d003f5bd382851f28de3584500a33641eef7"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8cf4ea2ceaf40a86664680a5d4e2396d655e2e4ad723aa969f6bf91be7226845"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "076ec9d3ad049fd4b5159881fe2070107932e91e5bd1430aca631d3926a81853"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_tenant()",
+        "sha256": "7950bdf1c6be1a755eb992d058392db1bf4b2a86cb84193e9070d52c4d07e465"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_tenant()",
+        "sha256": "b872e261f9ef033f1cb4651b595cb62a3f631fcf8faac9b6eae8680a87ab9d49"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a31039fb59c0c748f7d5c374b1e0ed1e70d8cdc1166b00419ade8966b2ae7866"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f5bef7e7451690b3f112d2be32b426c991d794b7b3f3a7f9cec2405f2ec86afb"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_actor()",
+        "sha256": "436cf1c028bd80ddfb993530223004fbc2c099b83e26498b1ecdcb9218105442"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_actor()",
+        "sha256": "85e163a0975c9dfb046594183e7de3f83a76f66b0bf7e7061b773afb3ce917f5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "96a7ab52cdc935b57546223f37aeff42c1305a6312bf155cb218bc296d4e08e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a03de332c7c3bbdb609c9bdc33da6ecd481aaeb2667c5e26767ebc47b89c2059"
+      },
+      {
+        "kind": "table",
+        "object": "public.companies",
+        "sha256": "ede61650f6b3cefb334d13bcbf97f1f39fef9fb6649d43efd14cf4b4587f4838"
+      },
+      {
+        "kind": "table",
+        "object": "public.dealers",
+        "sha256": "ded1f82306ee40b40e78ddfe4ea7094cc1ea9e31e41f23327f44a84f6e7e106e"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.dealers.vt_uq_dec744303aacdbb8492f2eaa3c88bead",
+        "sha256": "dc1703da30a6cbbd8f55efe1972aac3f55500299a2981c278d063469b98875fa"
+      },
+      {
+        "kind": "table",
+        "object": "public.leads",
+        "sha256": "4b4de92e17c4ca7323c6ac92a7a72d66acbbafa52c8d3821c9fac1a4edc02732"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_uq_42a25356531b11d1e4d5decf7a0e1e24",
+        "sha256": "a687d4a25ae13174cf443fef3a18417fbdaa7747a6bfdfc196cef57e90fda3fd"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_507afec86a6c207e0ca28dd203ffb300",
+        "sha256": "f015df0acd62eccdeb02a5be5106808151023caa739089755fb2cd47ec61abb6"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_5d662343cb5148e8d65b15809c1e3c37",
+        "sha256": "305f2fe39b0c0fa1da28c979f1028e653b4fc8515b407168194b75bdd3892f35"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_f72a7756af1519cd4c2c3c51d5ec8b22",
+        "sha256": "d0acd547047fe8f26ea5d72c1e4cb3c91bb318edfd40d114ab73ea66bee7041f"
+      },
+      {
+        "kind": "table",
+        "object": "public.memberships",
+        "sha256": "49a65e49bd59be69d3ba3f81266c01617ac6757a7e909a8169f05b33e2189cb5"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.memberships.vt_uq_2ad0bcba005223984ee5a30c2cc7594b",
+        "sha256": "195d03e2b1093cc20c9a0f119f60c314c0b4711afc748d3a44d5d14f6caeafaf"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.memberships.vt_uq_f193c8e4d9da74f0e30aad2549ccca62",
+        "sha256": "43ecbf53b7915384dd4ab7441547a54cec689d1cff216c4b170b885184e63c56"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_ba6fa65b14061f8852d348fd2cc40b43",
+        "sha256": "587e2fb293244b3555e984c3a4c44ff62d1d2fe24b33034e66ad720d8467354a"
+      },
+      {
+        "kind": "table",
+        "object": "public.users",
+        "sha256": "b4eae0da6ba0e5a922796842eedc307234b5b4d8f635ce7204104be98c39d1c1"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.users.vt_uq_10292275116667a4cb37592c31190a5e",
+        "sha256": "a766d51ca53cc6c8b62f578e964cb8c236628b43f4706028d769f4e3fd2bf9cd"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.dealers.vt_fk_9b6e67cc348ce3c83008af98c8e65744",
+        "sha256": "61df58988f40bea306c095d1f9ef189f5596f344b2261fe81156ddce62d8b34c"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_fk_70eb50f95e008e03c285c62b8baf5678",
+        "sha256": "6a70fd53e7f66b171762a260a505f5dc222cebe4cfce63b563ae9d495c6037ad"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_fk_8b878e59781167f0360b2f869fcdf0af",
+        "sha256": "9d45ae6a12885ab047e5509ed71492c93eca24093331590814021c8ed006c475"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.leads.vt_fk_f0816bdf4c58bac7b3046779037a72d2",
+        "sha256": "056f05800c6f5e19766204b6c8393dbd78fdf1c11b625dcb5e991963221a5e3c"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.memberships.vt_fk_057ae10e2c51523cc3a35350d3d8ed01",
+        "sha256": "66969205d33b3e5144d99222c71eb7034a21861cce12bf2b7614412cbd253bdb"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.memberships.vt_fk_23e2862edd3ae0c1190f4dc21edfe150",
+        "sha256": "bbd0a3e3ae2d528a73234f4d3753f52e462919637d9abf5fc9a5b7d62fc80d47"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.memberships.vt_fk_7211b73e05e6868b82aaee0448e1153b",
+        "sha256": "f58b60e758ea39cdcb565a84287945a6093651b1cf3327a597a27dd49e4d04f2"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.users.vt_fk_ac86ccd4650187b1da6ac46730cc6d13",
+        "sha256": "33584103ca8b981cb3d7233f200f356a90b6d33d910d42136fed4e4278bac64f"
+      },
+      {
+        "kind": "owner",
+        "object": "schema public",
+        "sha256": "e6392d9571474f921205e6b7e2a509bbc462c87f9334877422c293845d267ee3"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "bd4d8b5ab0d73f3ec207193bcaafc0b4fab3057edc1b7d58dab4fb66db474faa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4e3183f74c6418040d47656687cf0c22f57585da72f57156848b9b42a7a5a5b9"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.companies",
+        "sha256": "d5ae16a024b284eac96b1117596479b19a857ae394d2706e2737318427e014df"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8dd5acb538fe69709f23e4a00026ac93d40066ad46116773692587a4336d3a7e"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "7adc952b21305901fb86b8472f27504556f7975af45a3130a15d0bd99840d5d5"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.dealers",
+        "sha256": "16cec85b71bee23df875cf6de70ee82f105e381983f60eef8e833a932555a965"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "da86645b18fa328896d94c234ad016dcf0399ca03423ed24ee8e1d8d80a07455"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "b7fc93947f3abfaec2e639189c5bc22733571bb2d745d7104606483579f259b3"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.leads",
+        "sha256": "8533d17fe536da4399aa7e462e5fd26bbdc542f344185ba64b525f26fe088339"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "15e8bbf2a9ba9a54b41f0033b63ba56d458ecc675b4fc514126eb933381f4c18"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "b998190cfcd62218d6d0386a2a0ff3ec8902556e2dd275b1774fe0db33dc4258"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.memberships",
+        "sha256": "8685d54099392abc8a68e4eb0279097cda9f64ffe840bbbc9d563bc4f418a2bf"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "185dc1967abc0682e47259e3eb600888d7bf1c10bd074ffc589ea71e9863690a"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a9814e711d88319d856710ff9539630f4bc0b68e037547c715bd8e54199cfc49"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.users",
+        "sha256": "3eb5db7cd69277d9deb420176a36c7e390e98f910cd6d16f9f26da84f7f01281"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "531e6fe42d4c9156fac6306f8015cfbc6f6465cf466681bd7514fd37fd0d5d79"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0abe449fe779b40cdabe7fe94d5325502ac170a113efa2ddddd6b34485fa3b82"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.outbox",
+        "sha256": "52901e2b946b17c9549e6bd0691b2a9194d52d1c9566b859c8c96dd4d62dd78f"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.outbox_default",
+        "sha256": "fa74447619423537d41dffa7ca48e2ec3e8f626f06f0c019f05eb43c6653634b"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.deliveries",
+        "sha256": "6621c337bc40352e89c5f880358d07d515a32a480e9f34909395c5cf5ff814c1"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.deliveries_default",
+        "sha256": "0ff4e07c4485128fa958fdcb5852008c4e3d9afb432214a5d15d5ee9edfdf595"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.dead_deliveries",
+        "sha256": "1970dec1bd53bdf2046904f4630efade0ef867b3d40131b54d56146ed714596f"
+      },
+      {
+        "kind": "index",
+        "object": "vetra.vt_outbox_relay",
+        "sha256": "55266e1ce55ece23bf0b65e907ca40740e6bd06443b5466246940427c4bb5766"
+      },
+      {
+        "kind": "index",
+        "object": "vetra.vt_deliveries_ready",
+        "sha256": "c650b42c28e59b613865a0b312bd1c68806b0b771ca2d37ea23db67d0157ce84"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.outbox",
+        "sha256": "638d3b703c9739763d72e2d44be76f422295e998efc0757389385feaa1aea76e"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "1f084538323adc8ba70b61efeec04fb2c7f68f77be457c242b01779b0d504d1e"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.outbox.enable",
+        "sha256": "e950b76a907cd015a2c5f0d58202757d42fc8820cfb430ac2518cf4fd03c3b73"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.outbox.force",
+        "sha256": "332bf4363c281dc7005ca482b6479940832aa5c83ddb907ae2a23ea64c5e0e11"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.outbox_default",
+        "sha256": "c8edf1b04fdcb6879c18a386555cbd21d8f16d2fd043644d32ea9bbba5228f50"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "b780def2911ca14b2abbcafd6488df9178a299eee43eedbdb265ddfe951d487e"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.outbox_default.enable",
+        "sha256": "cafed2aeb8dbd050d63717938df2d101d92981c12179e84018a9bc09a2587964"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.outbox_default.force",
+        "sha256": "25f7253592ab52e80c83598af8424b6a0bc0974049ce58580594294dd4c9668e"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.deliveries",
+        "sha256": "2d57d3637672fa80536b4b6208e6d88964bfad108ce2c9e3f2ce760c9fcff946"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "cf864976e06c19fb098c7c7b23b61c3a180078b0cc0b5c4fc58133df34e78410"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.deliveries.enable",
+        "sha256": "3f3ea47b86ce0327d5b7815738f32b25a6c8f35b3dd45e73ff55c47d60dcf83c"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.deliveries.force",
+        "sha256": "a0fc7da2dcfe56f032356b3fc7759428dfa891fc3083e30fe107557814f7e510"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.deliveries_default",
+        "sha256": "9e5ab5d9e101e1f974fb11bd3047311df1afb3b08d897ead0a41580c20f21245"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "e25a693c8b836e6417226e9366e7a17634db49a00027bf4677ab9370eaab2f13"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.deliveries_default.enable",
+        "sha256": "7a958f8a5dafb93526ff6bc582f5edb565a846113f5f715f3c32b483e4ab4301"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.deliveries_default.force",
+        "sha256": "5220b11d82cd47129cd5b2740fd87b76ac09ab30725980f381a3b109823718a2"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.dead_deliveries",
+        "sha256": "cad0ce3cd1b34630d174fdd6d9fabe7707bbd7dc44752461c5462fa39e75482d"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "93481deb71879717740cf27d2358d86b998a258ba1d0d86ae4dad7d3eb3d0806"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.dead_deliveries.enable",
+        "sha256": "0d950d3c56c20c78e82697de711d06b85a5365490793f59b1f7c3d01c8041f80"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.dead_deliveries.force",
+        "sha256": "cc8cd07141d5603e0f5eb1af88ca9b16ebc446f3cc84898f8f4a32716c941ef2"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.outbox.vt_outbox_insert",
+        "sha256": "ee09d2f3f48d3b22678f541b4b488c5f3aee6312c2621ddeb4200c10d0ee7553"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "1e357bf40b0d9c85566932f9ca7b8bcb44591fbca57a48e78b98ddc6e476aa5d"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_relay_role",
+        "sha256": "e9ee19ddd1fad71c014244c7db3323ca1da457182a97f6fa933f476bc58bf6a7"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.relay_checkpoints",
+        "sha256": "f35d00aba60240553139931a7a715ef4114bfae99e0f2229cb8683c90061faf1"
+      },
+      {
+        "kind": "seed",
+        "object": "vetra.relay_checkpoints",
+        "sha256": "6c2639302b423a184000acd337b148d7e8e2fb6d47e7d892270afb86c44c4bc6"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.relay_checkpoints",
+        "sha256": "b0a4e9217b8a01fcaf649199dc253885afad6be137af41552aec6af175bffa41"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "ad458f7f749a246aba8f29ad7bfabce5fb3359b3fd29b1efab8766a523691b71"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.relay_checkpoints.enable",
+        "sha256": "779cd6d5f509a82dd3044740ab506755085f8655e9d24f505a6a842840f601ce"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.relay_checkpoints.force",
+        "sha256": "4407c7b556ea7c71868763a3e4210acaa092a1bdf686f981aa1f5a83bed3b103"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.outbox.vt_outbox_relay",
+        "sha256": "9369597dbcf8f488d054ecd35039e95195f301e7c900cda2e48441f7b91e96e6"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.deliveries.vt_deliveries_relay",
+        "sha256": "ef3a757b225271819dcada8532c1ece48fd958a9233f8ee83fa6ed04175d57e9"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.dead_deliveries.vt_dead_deliveries_relay",
+        "sha256": "a866bf887d50e5e79f4d39ca19cfef1e068e59149a38994230b7bd4a27ddb558"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.relay_checkpoints.vt_relay_checkpoints_relay",
+        "sha256": "a82e7f6cf0a0fd153ecddc0348de4468ed381d2c7990b9692bbacd48fc25c55e"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.outbox.vt_outbox_owner",
+        "sha256": "d9c97a9f4585d21eb515d1ecdd45b7917d9944bffaaa21a2bb9be6b1c5af851c"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.outbox_default.vt_outbox_default_owner",
+        "sha256": "7ef5041fc738aea5465f5b64dbbbff771315bc3439ee4f882af6a91031eaee53"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.deliveries.vt_deliveries_owner",
+        "sha256": "d6567f1d5f59c9ca889cae1a18ce6f847fc2a0572a0f7372acc7372db882c0c3"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.deliveries_default.vt_deliveries_default_owner",
+        "sha256": "acffba64d1b7ccf81a297cb57797dc68ec7358eae59ca3b0c5d23a11c5076a79"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.relay_checkpoints.vt_relay_checkpoints_owner",
+        "sha256": "859bb66caadf93239b61f91561b8c7858b664cc45367fe83d75e88d4fed7b700"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "89a198b8d6ae295c972bffc9a563d39f39e5d94e153490bedebab0a5374468e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f2588241a12d6dfceccbfa8c75d0038860893b86aca3780db7a0093f844b237e"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "fc5d110c3ae40594ca7905c94eb2a019f3a688ba0e4cc051baee68bade643e69"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "7132ae0e215315be7f28d70408d38a251cc845dca2222b85348361ae9f7f4abb"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "961a8792cd84cd737ae2a0e4d3469d12f2115afe76bd084149bc95bea7214009"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.outbox_maintain(ahead integer, retention integer)",
+        "sha256": "8b1a22232575d1cd2b7bd248310927edeea876a2613164a71506a1e165532203"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.outbox_maintain(integer,integer)",
+        "sha256": "7ba07eb64de2815eb821d201f7d1c50017d6ec7ddc0f4dda41e58630bb90181e"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8e465a582c3cea0fe454a45a3804937e43d6bd0e9c65a2d77eabb0ac980dc46d"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "fd426dfcff780ddbca579cee53f073f5baf40106aa7e6256e813451949822eb3"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.companies.enable",
+        "sha256": "37269445f4bb5efa018c90d5a517154e6183ea02f6c7881a6551b7cb89d91e6b"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.companies.force",
+        "sha256": "bf01574c8c236b0efda1fb2ba7c1adf322f2b668bb7e31ad3726b34f3697124e"
+      },
+      {
+        "kind": "policy",
+        "object": "public.companies.vt_tenant",
+        "sha256": "eabae2a3a2913b20fd62d00b0a6df91aa6ee2674cca59d96e5cd265dd6ca8e40"
+      },
+      {
+        "kind": "policy",
+        "object": "public.companies.vt_access",
+        "sha256": "e7a1816a1d7dd1d25ff6b37cf7ef922f9bfd3ecb56a192c68bf314684613c2c6"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.dealers.enable",
+        "sha256": "8787c8b51a67b7b2a6712eb8fd9f8064e01dd465f1d5acd1723a032f61ad5b51"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.dealers.force",
+        "sha256": "873541e501da8d8ac2281aa1c0641a340317a1fc5fb701cd2b21619f5a383f4e"
+      },
+      {
+        "kind": "policy",
+        "object": "public.dealers.vt_tenant",
+        "sha256": "ba7484b3ad9383b9315e36774f7a246a714e9fb8dfb498d053e80f19becbe9f7"
+      },
+      {
+        "kind": "policy",
+        "object": "public.dealers.vt_scope_read",
+        "sha256": "ab0776f7c35c8c5412c6bafd63dc319638bc65af0418ba7b1add7160765143b0"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.leads.enable",
+        "sha256": "5516a3f924a223d1cfe13b2d5dc48a78f221f07895fe36aeae52ea33964c9412"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.leads.force",
+        "sha256": "c5bd09cb76f8f9bdc7eb2a45f8de6fe173e0b079afa6100ef2f14cd6a6a9b8bd"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_tenant",
+        "sha256": "91826f38c6cdf97b91ac162ac0b88d0436acfd9bd59eb506fbbe20116176f3f9"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_scope_read",
+        "sha256": "c60a4d77b6d6f44eb25abf0a41d523566017db0b4199fa69075dcf8fcfdd467e"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_scope_create",
+        "sha256": "12aaf3073dee7580eba27542d9c6773a0e9fb86b7e805d47484d6419e3b2cc6b"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_scope_update",
+        "sha256": "00feaad7586ccfbdd894158157a9abeee128e261f6aa94f220cdd911c59c87f2"
+      },
+      {
+        "kind": "policy",
+        "object": "public.leads.vt_scope_delete",
+        "sha256": "15d4668676525fbd264f26a53e73b6badbd24db5a4c60a05d1363a1e455ceed7"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.memberships.enable",
+        "sha256": "684d6a60ab0dfd27a444be459c48fd1f95455893899d6bb51f03af7e23ac2c92"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.memberships.force",
+        "sha256": "726d7d3d4d62ceee9f0b5e91bc7fd3b3ba9ca487f403cfc49c9a74a2eef9a436"
+      },
+      {
+        "kind": "policy",
+        "object": "public.memberships.vt_tenant",
+        "sha256": "a5180cea7e0ccb419d10959e2ed450b1be060a620ff3850916f7bb7dd033afa6"
+      },
+      {
+        "kind": "policy",
+        "object": "public.memberships.vt_access",
+        "sha256": "981b9463947973d658edab368d36196b5411829c839b3cb76d97e568fa2520e6"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.users.enable",
+        "sha256": "3af2b7dbc357cbda9c4bb2b19436df884e16471817c4a2339d5bc0f3a92dff54"
+      },
+      {
+        "kind": "row_security",
+        "object": "public.users.force",
+        "sha256": "1477b876beff49b1b4c22a33ef11630c13406269ffaa2b0153b195c8b528cb93"
+      },
+      {
+        "kind": "policy",
+        "object": "public.users.vt_tenant",
+        "sha256": "83b94e7527c3181f3e66419634b9e0aea87b9758fdf7cc63a9397c2bb1388e7c"
+      },
+      {
+        "kind": "policy",
+        "object": "public.users.vt_access",
+        "sha256": "a131ad24067d839655948a5e1f1faa23904e97086b9de112bfdba956b508da42"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_transition_f11b74e8383ca04610952e448ddcd983()",
+        "sha256": "3398df3fc4c39e6d244d6c159154afc9f019cfdfe59f55c86a738e9630a5d795"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_transition_f11b74e8383ca04610952e448ddcd983()",
+        "sha256": "2dc4420008d66603cf2177fe411c17b4e03be0dff475687ad286adf0bfe506fa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "04bb42ee7616bc4217affd22982d89f2d107de0effa70850caea3b85efe090a8"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_transition_f11b74e8383ca04610952e448ddcd983",
+        "sha256": "f137c57d919a8d9dca8e89d4dd61580b7d40d3a6b5414be0987a2c7024c9e222"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_transition_f11b74e8383ca04610952e448ddcd983",
+        "sha256": "f2549c71fdbee74cae372f1892f47767534d6175eff4bb60809035b1cb1d1e8d"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_roles",
+        "sha256": "7ff8b3b4c831563f2ef4fe0a02c7b5946d6d8c30fa148c4ed4ae359c7aba64c1"
+      },
+      {
+        "kind": "lock",
+        "object": null,
+        "sha256": "04ba85dde3fb96578b2b73276d79f3bddf3f17d59f0b6d23ba9e1ad314a36e66"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_tables",
+        "sha256": "158151db507a1af4e245f0d03129ba022c73ebbc70c4209c4dc2e5905df31a0f"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_shared_schema",
+        "sha256": "a21b65c3c8ae7e9312af51f49b821a0ec40d713a21421430067a8c5101d05e14"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.authz_revisions",
+        "sha256": "958f36590c82efb94bd7803b3c178696a9c4dd6f104a69e0bd00c80b676306ec"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.authz_revisions",
+        "sha256": "391ba03caab2242a37b2a27775cff9918f5fcfa2d296029e949da2cc4b61bfa2"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "1756d8ee772289725f0928a377e588a2db0b7fcdf12bf96066a36b0ff503687b"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "970ca01862c9e2a6bb10fbb582fd2aa9a6e4e3e9f99ec4b4f2ec76cddea23f1c"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_5aab7bffb3a1c59035452764_insert()",
+        "sha256": "70dc897c11022050ef2b848835a6ca1404118eec5707a24ebd861fe95cc26e70"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_5aab7bffb3a1c59035452764_insert()",
+        "sha256": "3e0fd2c1a077e368da1105992dc916a79bf41fde60a0329b5144686d716e9e0c"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2b7a41a518924a533cf5d127b1a3cea475fd784c7edcab4db95947cfad1a2a1a"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_insert",
+        "sha256": "cb6b0a7ac5ff56922ff7c03f6459c7ff4003b29133844c4e90f1f1ed6ee4746e"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_insert",
+        "sha256": "3919450e84452ebf566f084abbf3b9b831c167a17397522a127f0aa1eba44edc"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_5aab7bffb3a1c59035452764_delete()",
+        "sha256": "d30fdd8f05d8e78e330285c014899d6e17a2ba71dbc45dedebf4eb00448dc27f"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_5aab7bffb3a1c59035452764_delete()",
+        "sha256": "4c6e4ce45b670275ead145dc06040dc47abf1d923fa2f5f52c8f22b261b462c5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "d3f028b5cf06d053f685f991a45fb36c4803fd7996269646d5846e5ae2b40e76"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_delete",
+        "sha256": "af5cc12819b41d02ea79176808545986d310783294114957baa561d9b26dcfd7"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_delete",
+        "sha256": "13129b534439f2d67e34ed693e123e834ea8570a4ea524b415dd4c37a8faed56"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_5aab7bffb3a1c59035452764_update()",
+        "sha256": "638d047a78d3fb5bd5286b292238f0fdd0aca81b00f0e4e9e9f7e809bee0af5a"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_5aab7bffb3a1c59035452764_update()",
+        "sha256": "4110834c770db16a0eee90698b3969a14271959d7f85f6c406c00e6b09b009f9"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "58edb407dd32cbaf764277da79707866b88982916b7591fdee118126b84b1624"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_update",
+        "sha256": "976c40f35743f659d38654c92c262e71ec286b9c31d74f7d0913c6257d1cba72"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.companies.vt_authz_5aab7bffb3a1c59035452764_update",
+        "sha256": "863e273487520c485fc242b63c4b8c3386ed69d419b0cd4478fc2ac395752065"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2ce472751dd978ee47e5421e6617691deb2c925494185236d1f12b1b18670ccd"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_86073356dc99948c9f46bbfd_insert()",
+        "sha256": "3c9682044f601b22bd262b67d1e3c19444473787cb5a463183cff8a0bcb248fc"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_86073356dc99948c9f46bbfd_insert()",
+        "sha256": "c5685697f739446724a6e3cd915346101268047755fd78f92bdfa41d898d84de"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "01ef3f448337bb916820b7cc15e0d8e6ed594aaa74aa27f40ca93dbf6f5b0d0c"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_insert",
+        "sha256": "94668b4b14749672ad58b79ee10dc8d78cc71363ebad3c719d1fb5ce0db6919c"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_insert",
+        "sha256": "6d8a56d6e054ca5bfb9c575a2f673946e39209c789e60f7c7f078c7c0946f490"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_86073356dc99948c9f46bbfd_delete()",
+        "sha256": "113f151df909dfbb28dd894e18d52eb0db779eff9b733504a890c3469da59317"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_86073356dc99948c9f46bbfd_delete()",
+        "sha256": "29401008c9a71fc57b8d17dbf17634bb11105f0b810e99f926987434de0f0836"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0f1db8b3153da182a3420b4e1bb238a67103016c1c3dc4616a5026aaf7e3d94d"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_delete",
+        "sha256": "c28ef6f97ae1b06c8c4aaeb183dce4e9b64c5c989bdba1f4d88016cc5eb356ff"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_delete",
+        "sha256": "a56cc3ad73f46068a49e5e90392d0e0645a599e56e90c6e41c30daf08354e00e"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_86073356dc99948c9f46bbfd_update()",
+        "sha256": "411bb358266152696f1f82653d4099fdf35708f6dd3ccdacf08f426238afbc14"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_86073356dc99948c9f46bbfd_update()",
+        "sha256": "2dcce4bb08e6f8a38075c3261bbc26418fbb2398ba50b40ff70f480df8dd7678"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "44d674ac48c9eebe51826e6f3b1120f2bff6d34765ac429a5b4162c936e37c4f"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_update",
+        "sha256": "07191dd13f8335d85c682c2a3d5b36e052e8de6cf28e3158852a40c6b63ad53d"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.dealers.vt_authz_86073356dc99948c9f46bbfd_update",
+        "sha256": "36c2d7516f9bd757b90f9543068ef64815829e91133e42d2a4712c428f63b2eb"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a6d8d3d838f9ea52e2cdf7195c91983454c25fadde0c68cfb965c62dbbf4c0c0"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert()",
+        "sha256": "2bdb964133fc8614ff10f2368aaa0c15e3b00f229912f0fdfec8ec5d65a1e936"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_7bf2063f1fe867c04fa2ed84_insert()",
+        "sha256": "34f4e07355849951fa225c09ef679bfd3856d1618ec70b0dc09d096147ddf7a5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "35620009a4abe28e59b3f3da639281300cd9c59953307d9acf66135081e49ecc"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_insert",
+        "sha256": "1dd5f38a2064bec2d7488bb997c9521fd67026204018a85f14403cd06083805f"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_insert",
+        "sha256": "852391c7041e574c4d41391badade31f25d9a42dad5d6f1cc5c0e56e0be45d25"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete()",
+        "sha256": "1dadf7c2f2045bdcc8af35646bcbadcc33a9e828a2b567272e3a6615e2c28e11"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_7bf2063f1fe867c04fa2ed84_delete()",
+        "sha256": "57b2612153ffd1a9bbcbf73767dadf0e4a53b8a97ede6dde5b26b2b3cb674c97"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "c48b58f54113fc70cc02fa9f79195e09f4269786b244d2fdb6a87d83790ca960"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_delete",
+        "sha256": "6f8ed8fdb1522becacfa42a16503d2e5a7d43be7a7b0dcd3ac1f43f364e7a1fa"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_delete",
+        "sha256": "714bd0417f004ec81be7da682880fd569edd4fb38edcc79c7cbc3fb6ef861196"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update()",
+        "sha256": "6522a969df928b84df1bd9df82de9e66564b8001cbdb618158bbcc9918c78b3f"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_7bf2063f1fe867c04fa2ed84_update()",
+        "sha256": "4f045fd7c98c6fed7299897426990ffc0c1347d8760ca091c6074c41deea0cb2"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8bde4efb55bed59f3c1caec04d213b93627629a436f7814c425671a4a1ad5c34"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_update",
+        "sha256": "c581e35bc540a4058f79b5de00fde58a06e8a74afb5ce97a6913ad9244acc4fd"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.leads.vt_authz_7bf2063f1fe867c04fa2ed84_update",
+        "sha256": "5a3c63b1d3fc61eb29180d82fa93418e6334890b56eab85e081a636950ba757a"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "ef71ef273d6655c3f9fe7bb273496f226a24caa3ccec7fc17c5b0ed3ced7d4dd"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert()",
+        "sha256": "d4b57136c9bfeae19f5614784ff59e870ce63e16a1e700bb070ef7e3031cee2f"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_d19ed6c10293be4bf7dd9b93_insert()",
+        "sha256": "57640687df9bb1c08c4882f388e62afabc80f92e980dcd5fac7f79818505eb62"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0f01a3bd2ae1f557944a73adcc9fbef029e515f32a25b5542236c8d95fef31b0"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_insert",
+        "sha256": "04f3d8eaa3a224a143f5bea81232eacca08bcb01959d5a7770a31cfef64784ef"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_insert",
+        "sha256": "87e3571ec804d9c088cbad44df134c425a7d54987aeef6fcb8abf4b9b9c4a0bd"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete()",
+        "sha256": "1625115941d129bd8d8b6c8d5142012e900759fbb02ecbc11a2e2d2b89be57de"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_d19ed6c10293be4bf7dd9b93_delete()",
+        "sha256": "60d20d16bf7ca79cb8eb7973ccb0747c2ba6fb0dd153370733057d9f63339845"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "3a121b9b72ed045519b310ac076107ac65bfefc48936e282b20548d4b0d79fe3"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_delete",
+        "sha256": "69931d1a348cc59f28a51874626478be66cef11a23f08559a76e2ab11f0c4502"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_delete",
+        "sha256": "675f3a281adbe8b3e1e27e3bd8e0a1d063024af26de9061e1a30d2c8cff4883e"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update()",
+        "sha256": "3340b4cfc4596c3d6870e9b76d7466d9b8b383e99ef262522d06135ae8557c44"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_d19ed6c10293be4bf7dd9b93_update()",
+        "sha256": "63d8eff16992fd86bf9e41db5952e0419e16cccc2288275e060c6bfc0d8f3e72"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0a836336a28169feb0217c0ed43ff5bb066534819376510c8675ec325a8084bc"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_update",
+        "sha256": "3cf2981ecae2ea709efe2362cfc40e8a0101e3cabefeda1c5241c82d46ba6053"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.memberships.vt_authz_d19ed6c10293be4bf7dd9b93_update",
+        "sha256": "8b8622a7660f2a51ad743c285e3765316b9345691fb2b9ee9bac706c7909c901"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f97faeec9341987168d7317f9e34aa349a891d12df87bb24972d116875a3065b"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert()",
+        "sha256": "9840e109f22a3390c78bb1e32bf295aace15678755b3d06e6e51d08a21cce846"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_01e3b579ef1811b6be2c64ee_insert()",
+        "sha256": "e641873b64f12e89d774f95b7682664a76da871df045cc9634dadcae0e9eebf5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2bc841c006601823eb54090ce1bb6831bfe23b2b4e2b5dbc243a42d5f75ec1c4"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_insert",
+        "sha256": "ced34718de8523f37e127b21535e88d0d1816063166a3f0b5f20a177491b6574"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_insert",
+        "sha256": "725c12f0dfab15695e21d0b71a62c4ddd0af5354e0f825cc71a2b85b184b55d2"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete()",
+        "sha256": "a619aed04c58b95cb29beccef2fb31a5f5074d7a9a852ba315786ef9d7fa8435"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_01e3b579ef1811b6be2c64ee_delete()",
+        "sha256": "5d126988d63acf74acfbfd080c1cd7b3c46c5f04053107ae00e7a7f92b50dc91"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6da7a19500e2c81c9679a966a19220aead54f09f147187a83e0b8a7e60eeb96d"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_delete",
+        "sha256": "a2b3cc4a6da33e54e733f55bfda353732b33561bacf98ff765330780ce5ef988"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_delete",
+        "sha256": "d8bb4067cb30efc51f5598a4c49e337ce3391b3752dd6c277152f00d09af2251"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.vt_authz_01e3b579ef1811b6be2c64ee_update()",
+        "sha256": "223b67ce1f920a1aa092d6d86e7f75075bc8acc533381af007e2cb04413b0a08"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.vt_authz_01e3b579ef1811b6be2c64ee_update()",
+        "sha256": "277c4c2b0a0a3ff0c0ef863b1c16995298b3a26176eb3336d33241873ba4770d"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f00c6c2a16cc66a0e7b0eb483468f2a2dcf95b809cb353848b4a979ee52f026e"
+      },
+      {
+        "kind": "trigger",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_update",
+        "sha256": "4d31b5ef5dcfdba09986b54a4b27daf2461bea370b612c88d3a7d412d3f4da35"
+      },
+      {
+        "kind": "trigger_mode",
+        "object": "public.users.vt_authz_01e3b579ef1811b6be2c64ee_update",
+        "sha256": "2aa02aa80a05fc6e903f0570675de373195b97b6635fe27e03f4ade2bb41cfb6"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "1385c758752f747027199a76a321343f817e196d89c8af0004cd03bd87ddeb66"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_privileges",
+        "sha256": "6b400208145aacb1a67a3a7a1ce8f8a7083c6d8ce915867f0a466742d065b920"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_routines",
+        "sha256": "0451a9ed4bfc48bc914f9ccd016ff9373f99d9890d110ac778a5d0bacae9b3a4"
+      },
+      {
+        "kind": "seed",
+        "object": "vetra.authz_revisions",
+        "sha256": "05f3cda362018e68dfd7c0de3bc8a08731ad4ec0b25ddaf21b2344636e0023dd"
+      }
+    ],
+    "tables": [
+      {
+        "assignments": {
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "name": {}
+        },
+        "checks": [],
+        "columns": [
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.company",
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_c37b42fe24009eca08260a3f4ae04e1c"
+        },
+        "schema": "public",
+        "scope": "tenant_root",
+        "table": "companies",
+        "tenant_column": "id",
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      },
+      {
+        "assignments": {
+          "company_id": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "name": {}
+        },
+        "checks": [],
+        "columns": [
+          {
+            "default": null,
+            "field": "company_id",
+            "name": "company_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.dealer",
+        "foreign_keys": [
+          {
+            "columns": [
+              "company_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_9b6e67cc348ce3c83008af98c8e65744",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "companies"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_b43d772e1801c2820d5ce950c7904a03"
+        },
+        "schema": "public",
+        "scope": "tenant",
+        "table": "dealers",
+        "tenant_column": "company_id",
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "company_id",
+              "id"
+            ],
+            "name": "vt_uq_dec744303aacdbb8492f2eaa3c88bead"
+          }
+        ]
+      },
+      {
+        "assignments": {
+          "company_id": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "dealer_id": {},
+          "email": {},
+          "id": {},
+          "name": {},
+          "seller_id": {},
+          "status": {
+            "default": {
+              "kind": "literal",
+              "value": "new"
+            },
+            "guarded": [
+              {
+                "commands": [
+                  {
+                    "id": "crm.win_lead",
+                    "kind": "command"
+                  }
+                ],
+                "value": "won"
+              }
+            ]
+          },
+          "valor": {}
+        },
+        "checks": [
+          {
+            "expression": "\"valor_amount\" <> 'NaN'::numeric",
+            "name": "vt_ck_09fca56d131fbca8bb8b28409cfc25ce"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"name\") <= 160",
+            "name": "vt_ck_242d848d9fc19c20ee60aa78d6e27ba0"
+          },
+          {
+            "expression": "pg_catalog.char_length(\"name\") >= 2",
+            "name": "vt_ck_2ecae20e3dc7306aaef71329e733f2bc"
+          },
+          {
+            "expression": "\"status\" IN (E'contacted', E'lost', E'new', E'won')",
+            "name": "vt_ck_553df3e9e965bf8efdc803982848cf31"
+          },
+          {
+            "expression": "(\"valor_amount\" IS NULL) = (\"valor_currency\" IS NULL)",
+            "name": "vt_ck_6f555cb8ab4a60c13c3a43eea5c9b008"
+          },
+          {
+            "expression": "\"valor_currency\" IN (E'AED', E'AFN', E'ALL', E'AMD', E'AOA', E'ARS', E'AUD', E'AWG', E'AZN', E'BAM', E'BBD', E'BDT', E'BIF', E'BMD', E'BND', E'BOB', E'BOV', E'BRL', E'BSD', E'BTN', E'BWP', E'BYN', E'BZD', E'CAD', E'CDF', E'CHE', E'CHF', E'CHW', E'CLP', E'CNY', E'COP', E'COU', E'CRC', E'CUP', E'CVE', E'CZK', E'DJF', E'DKK', E'DOP', E'DZD', E'EGP', E'ERN', E'ETB', E'EUR', E'FJD', E'FKP', E'GBP', E'GEL', E'GHS', E'GIP', E'GMD', E'GNF', E'GTQ', E'GYD', E'HKD', E'HNL', E'HTG', E'HUF', E'IDR', E'ILS', E'INR', E'IRR', E'ISK', E'JMD', E'JPY', E'KES', E'KGS', E'KHR', E'KMF', E'KPW', E'KRW', E'KYD', E'KZT', E'LAK', E'LBP', E'LKR', E'LRD', E'LSL', E'MAD', E'MDL', E'MGA', E'MKD', E'MMK', E'MNT', E'MOP', E'MRU', E'MUR', E'MVR', E'MWK', E'MXN', E'MXV', E'MYR', E'MZN', E'NAD', E'NGN', E'NIO', E'NOK', E'NPR', E'NZD', E'PAB', E'PEN', E'PGK', E'PHP', E'PKR', E'PLN', E'PYG', E'QAR', E'RON', E'RSD', E'RUB', E'RWF', E'SAR', E'SBD', E'SCR', E'SDG', E'SEK', E'SGD', E'SHP', E'SLE', E'SOS', E'SRD', E'SSP', E'STN', E'SVC', E'SYP', E'SZL', E'THB', E'TJS', E'TMT', E'TOP', E'TRY', E'TTD', E'TWD', E'TZS', E'UAH', E'UGX', E'USD', E'USN', E'UYI', E'UYU', E'UZS', E'VED', E'VES', E'VND', E'VUV', E'WST', E'XAD', E'XAF', E'XCD', E'XCG', E'XOF', E'XPF', E'YER', E'ZAR', E'ZMW', E'ZWG')",
+            "name": "vt_ck_8917258bea0d4daa1b638f66d025afff"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "company_id",
+            "name": "company_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": null,
+            "field": "dealer_id",
+            "name": "dealer_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "email",
+            "name": "email",
+            "nullable": true,
+            "type": "text"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "seller_id",
+            "name": "seller_id",
+            "nullable": true,
+            "type": "uuid"
+          },
+          {
+            "default": "E'new'",
+            "field": "status",
+            "name": "status",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "valor",
+            "name": "valor_amount",
+            "nullable": true,
+            "type": "numeric(19, 2)"
+          },
+          {
+            "default": null,
+            "field": "valor",
+            "name": "valor_currency",
+            "nullable": true,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.lead",
+        "foreign_keys": [
+          {
+            "columns": [
+              "company_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_70eb50f95e008e03c285c62b8baf5678",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "companies"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "company_id",
+              "dealer_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_8b878e59781167f0360b2f869fcdf0af",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "dealers"
+            ],
+            "target_columns": [
+              "company_id",
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "company_id",
+              "seller_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_f0816bdf4c58bac7b3046779037a72d2",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "users"
+            ],
+            "target_columns": [
+              "company_id",
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "company_id",
+              "status"
+            ],
+            "name": "vt_ix_507afec86a6c207e0ca28dd203ffb300"
+          },
+          {
+            "columns": [
+              "company_id",
+              "dealer_id"
+            ],
+            "name": "vt_ix_5d662343cb5148e8d65b15809c1e3c37"
+          },
+          {
+            "columns": [
+              "company_id",
+              "seller_id"
+            ],
+            "name": "vt_ix_f72a7756af1519cd4c2c3c51d5ec8b22"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_c80c5863244cc35ab960f4dfbd32cf17"
+        },
+        "schema": "public",
+        "scope": "tenant",
+        "table": "leads",
+        "tenant_column": "company_id",
+        "transitions": {
+          "enforce": "db"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "company_id",
+              "id"
+            ],
+            "name": "vt_uq_42a25356531b11d1e4d5decf7a0e1e24"
+          }
+        ]
+      },
+      {
+        "assignments": {
+          "company_id": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "dealer_id": {},
+          "id": {},
+          "role": {},
+          "user_id": {}
+        },
+        "checks": [
+          {
+            "expression": "\"role\" IN (E'gerente', E'vendedor')",
+            "name": "vt_ck_65b396fea188eea8a1e8dbf919dbc23e"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "company_id",
+            "name": "company_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": null,
+            "field": "dealer_id",
+            "name": "dealer_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "role",
+            "name": "role",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "user_id",
+            "name": "user_id",
+            "nullable": false,
+            "type": "uuid"
+          }
+        ],
+        "entity": "crm.membership",
+        "foreign_keys": [
+          {
+            "columns": [
+              "company_id",
+              "user_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_057ae10e2c51523cc3a35350d3d8ed01",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "users"
+            ],
+            "target_columns": [
+              "company_id",
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "company_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_23e2862edd3ae0c1190f4dc21edfe150",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "companies"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "company_id",
+              "dealer_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_7211b73e05e6868b82aaee0448e1153b",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "dealers"
+            ],
+            "target_columns": [
+              "company_id",
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "company_id",
+              "dealer_id"
+            ],
+            "name": "vt_ix_ba6fa65b14061f8852d348fd2cc40b43"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_72678947e9265c089ef5e782916c070e"
+        },
+        "schema": "public",
+        "scope": "tenant",
+        "table": "memberships",
+        "tenant_column": "company_id",
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "company_id",
+              "id"
+            ],
+            "name": "vt_uq_2ad0bcba005223984ee5a30c2cc7594b"
+          },
+          {
+            "columns": [
+              "company_id",
+              "user_id",
+              "dealer_id",
+              "role"
+            ],
+            "name": "vt_uq_f193c8e4d9da74f0e30aad2549ccca62"
+          }
+        ]
+      },
+      {
+        "assignments": {
+          "company_id": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "email": {},
+          "id": {},
+          "name": {}
+        },
+        "checks": [],
+        "columns": [
+          {
+            "default": null,
+            "field": "company_id",
+            "name": "company_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": null,
+            "field": "email",
+            "name": "email",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "crm.user",
+        "foreign_keys": [
+          {
+            "columns": [
+              "company_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_ac86ccd4650187b1da6ac46730cc6d13",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "companies"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_344f37be5dc149cf8c9590e8719b61c5"
+        },
+        "schema": "public",
+        "scope": "tenant",
+        "table": "users",
+        "tenant_column": "company_id",
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "company_id",
+              "id"
+            ],
+            "name": "vt_uq_10292275116667a4cb37592c31190a5e"
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

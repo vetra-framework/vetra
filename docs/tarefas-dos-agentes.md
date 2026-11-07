@@ -74,7 +74,7 @@ tarefas seguem a ordem da tabela.
 | K10 | `db:migrate` incremental: progresso por passo, passos fora de transação, índices válidos e inválidos não registrados, base e estado intermediário conferidos, retomada | Claude | concluída | `2db989c` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde, sonda 16/16 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k10)) |
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | `0fff3ee` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 36/36 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k11)) |
-| K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
+| K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | ver histórico | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; sonda 38/38 no PostgreSQL 17.11 e 18.6 ([auditoria](#auditoria-k12)) |
 | K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | a fazer | — | — |
 
 ### Parecer do Codex sobre o plano
@@ -101,6 +101,47 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K12
+
+Implementado pelo Claude sobre `f45ee36`; auditado pelo Codex em modo somente leitura, com a árvore conferida por
+hash antes e depois de cada rodada. O Claude rodou as sondas no PostgreSQL 18.6 e no 17.11 local.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| A purga podia conferir as pendências enquanto um relay inseria entregas ainda não confirmadas e depois remover a partição com elas | sim | Ajustar: a rotina trava o checkpoint como o `relay!`; sonda com materialização em curso |
+| `work` dentro de uma transação externa não confirmava a reserva antes do efeito | sim | Ajustar: o relay recusa transação externa (`data_relay_transaction`) |
+| O lease do lote começava antes do primeiro efeito, e os últimos podiam rodar com o lease perdido | sim | Ajustar: `work` reserva uma entrega por vez, logo antes do efeito |
+| O passo do `0003` levava `lock=nenhum`, mas cria políticas em tabelas existentes | sim | Ajustar: rótulo pelo lock mais forte das instruções (`AccessExclusive`) |
+| O filtro da deriva dividia o dump por linha vazia, inclusive dentro de corpos de função | sim | Ajustar: instruções de topo pelo `StatementScanner` |
+| O bootstrap não conferia um `vetra_relay` que já existia | não | Ajustar: a guarda do relay mora no contexto e o bootstrap a roda |
+
+**Rodada 2 — devolvida pelo Codex.** Os ajustes 2 a 6 fecharam os achados.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| A manutenção pedia o checkpoint depois do lock de criação de partição, e o relay faz o contrário: ciclo de locks | sim | Ajustar: o checkpoint vem antes de qualquer lock nas tabelas; sonda com partição faltando e o relay segurando o checkpoint |
+
+**Rodada 3 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| `failed` atualizava as entregas e depois lia a outbox, e a manutenção trava a outbox e depois as entregas: outro ciclo | sim | Ajustar: a rotina trava checkpoint, outbox e entregas de uma vez, no modo mais forte; a reserva e a falha travam a outbox antes das entregas; sonda com um worker na mesma ordem |
+| O filtro tirava o CR de uma quebra CRLF dentro de literais | sim | Ajustar: só o LF, como a normalização; teste com default `'a\r\nb'` |
+
+**Rodada 4 — aprovada pelo Codex**, com um achado não bloqueante.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| O guia dizia que quem grava espera até o `lock_timeout` de 3 s, que só limita a espera da rotina por cada lock | não | Ajustar: o guia e o comentário da rotina fazem a distinção |
+
+- Suíte com 607 testes, 11.199 asserções e 222/222 diagnósticos.
+- Sondas no PostgreSQL 18.6 e no 17.11: relay 38/38, outbox 36/36, repositórios 72/72, `db:migrate` incremental
+  16/16, plano aditivo 99/99, Vetra Data 23/23, plano incremental 18/18, `db:migrate` 21/21, contexto 58/58 e RLS
+  103/103.
+- `db:plan --check` nos quatro exemplos no 17 e no 18, e o gate sem alterações nos grafos.
 
 ## Auditoria K11
 

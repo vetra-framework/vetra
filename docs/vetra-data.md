@@ -139,7 +139,7 @@ Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do r
 Ainda não são avaliados `authorize`, papéis Ruby, permissões por campo nem a reautorização do estado final
 (etapa 6 do ADR-016). O isolamento disponível é o contexto da unidade e o RLS dos planos dos CRMs, nos limites
 do ADR-037; a aplicação continua responsável por autorizar as chamadas, inclusive administração de vínculos.
-A emissão para a outbox está descrita abaixo; o relay, a entrega aos handlers, o histórico, o executor das oito
+A emissão para a outbox e o relay estão descritos abaixo; os handlers reais, o histórico, o executor das oito
 etapas e a execução dos descritores builtin são entregas posteriores.
 
 ## Emissão de eventos
@@ -168,8 +168,55 @@ end
   `data_event_personal` e **condena a unidade**: a transação termina em rollback mesmo que o `call` resgate o
   erro, inclusive dentro de `compose` e numa saída por `throw`, `break` ou `return` (`rollback_on_exit`).
 
-Os eventos ficam na partição `DEFAULT` até a manutenção da K12 criar as partições diárias. O relay, as entregas e
-os handlers são da K12 e da rodada 5.
+Com a manutenção em dia, cada evento cai na partição do seu dia; sem ela, na `DEFAULT`, que a manutenção recupera.
+Os handlers reais, com o ator de sistema, são da rodada 5; o relay e as entregas estão descritos abaixo.
+
+## Relay, entregas e manutenção
+
+`Vetra::Data::Relay` roda como `vetra_relay` (ADR-040, §3), num pool próprio aberto por
+`Relay.connect(url)`, que sobrescreve o usuário e confere cada conexão. Os handlers de cada evento vêm do grafo.
+Cada operação abre e confirma a própria transação curta; chamá-la dentro de outra transação é recusado
+(`data_relay_transaction`), porque a reserva não confirmaria antes do efeito.
+
+```ruby
+db = Vetra::Data::Relay.connect(ENV.fetch('DATABASE_URL'))
+relay = Vetra::Data::Relay.new(db, document: document)
+relay.maintain(ahead: 3, retention: 7) # antes de liberar quem grava, e uma vez por dia
+relay.relay!                           # materializa as entregas de uma faixa de xid8
+relay.work('crm.notify_sales') { |delivery| mailer.deliver(delivery.payload, key: delivery.event_id) }
+```
+
+- **`relay!`** lê a faixa `[checkpoint, pg_snapshot_xmin)` da outbox, em ordem de `xid8` e `seq` (ADR-008, §2), cria
+  uma entrega por handler com `ON CONFLICT DO NOTHING` sobre `(handler, event_id, event_created_at)` e avança o
+  checkpoint de `vetra.relay_checkpoints`, tudo numa transação curta. Uma transação aberta segura a faixa: nada
+  dela nem depois dela é lido até ela terminar, então nenhum evento é pulado. Outro relay com o checkpoint
+  travado recebe 0 sem esperar (`SKIP LOCKED`).
+- **`reserve`** marca até `limit` entregas pendentes com `leased_until = agora + lease` (60 s por padrão), com
+  `FOR UPDATE SKIP LOCKED`, e confirma na hora; devolve `Relay::Delivery`, congelado, com o payload do evento.
+- **`work`** reserva **uma entrega por vez**, logo antes do efeito, para que o lease cubra o efeito inteiro; chama o
+  bloco **fora de qualquer transação** do relay e conclui. `complete` e `failed` só valem
+  para quem ainda tem o lease: depois que ele vence, outro worker pode repetir a entrega, e a conclusão atrasada
+  devolve `false` (contada como `lost`). A deduplicação é do consumidor, pelo `event_id` (ADR-014, §3).
+- **Falha.** Uma exceção comum repete com espera de `min(1800 s, 10 s × 2^(n−1))` ±20%; a décima falha, ou
+  `Relay::PermanentFailure`, leva a entrega a `dead` e a copia, com o evento, para `vetra.dead_deliveries` na mesma
+  transação (ADR-024). Só a classe do erro é guardada, nunca a mensagem.
+- **Manutenção.** `maintain` chama a rotina `vetra.outbox_maintain`, `SECURITY DEFINER` de dono `vetra_owner`,
+  executável só pelo relay. Ela cria as partições diárias, de dia UTC, de hoje até `ahead` dias, com RLS forçado e
+  sem concessões. Recupera as linhas de uma `DEFAULT` populada, movendo-as para a partição do dia numa transação que
+  segura quem grava, sem perder nem duplicar. E remove por `DETACH` e `DROP` as partições mais antigas que
+  `retention` dias, exceto quando há entrega pendente no dia ou evento que o relay ainda não leu. A rotina trava,
+  nesta ordem e antes de tudo, o checkpoint, a outbox e as entregas, já no modo mais forte de que precisa; o
+  `relay!` trava o checkpoint e depois lê a outbox, e a reserva e a falha travam a outbox antes das entregas. Uma
+  materialização em curso termina antes, as entregas dela contam como pendências, e não há ciclo de locks. Obtidos
+  os locks, quem grava espera a manutenção terminar; o `lock_timeout` de 3 s limita só a espera da rotina por cada
+  lock, e ela falha sem alterar nada se não os obtiver. As entregas
+  mortas ficam em `vetra.dead_deliveries`, fora da purga. Devolve o que criou, recuperou, removeu e manteve.
+  `vetra outbox:maintain [--ahead 3] [--retention 7]` faz o mesmo pela linha de comando, com `DATABASE_URL`
+  carregando a senha do `vetra_relay`.
+- Com RLS forçado também para o dono, a rotina age por políticas próprias do `vetra_owner` na outbox, nas
+  entregas, nas partições `DEFAULT` e no checkpoint. O relay tem `SELECT` na outbox; `SELECT`, `INSERT` e `UPDATE`
+  nas entregas; `SELECT` e `INSERT` nas entregas mortas; `SELECT` e `UPDATE` no checkpoint. Não lê as tabelas da
+  aplicação, as chaves nem as partições diretamente, e a aplicação não executa a rotina.
 
 ## Aplicações globais
 
@@ -208,6 +255,10 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_database` | Outra falha do banco, sem detalhes do driver |
 | `data_event` | Emissão sem evento declarado pelo comando, registro de outra IR ou projeção inconsistente |
 | `data_event_personal` | Payload com campo pessoal; a unidade inteira é desfeita |
+| `data_relay_connection` | Pool do relay fora do `vetra_relay` ou falha ao abri-lo, sem detalhes do driver |
+| `data_relay_handler` | Handler sem evento declarado no grafo |
+| `data_relay_limit` | Limite, lease ou dias fora do intervalo aceito |
+| `data_relay_transaction` | Operação do relay chamada dentro de outra transação |
 
 `Token#value` exporta explicitamente o token para o protocolo. Não o registre, nem chave/hexadecimal/argumentos
 de assinatura. `inspect`/`to_s` do token, emissor, contexto e unidade são redigidos. O logger do Sequel não
@@ -246,6 +297,23 @@ identidade/poderes da sonda de contexto. Provisiona chave aleatória por parâme
 A numeração da saída é a ordem dos rótulos, sem IDs fixos; a tabela agrupa os resultados por assunto. A auditoria
 executa a sonda no 17/18 e a inclui na CI. Até essa execução, só sintaxe e testes sem banco estão conferidos.
 O custo com RLS/concorrência/pooler e a construção dos registros continuam sujeitos aos gates dos ADRs 022 e 023.
+
+## Sonda do relay
+
+`script/sonda_relay.rb` usa o mini CRM e o blog num PostgreSQL 17 ou 18 descartável, com o bootstrap que cria o
+`vetra_relay`. Aplica os três planos pelo `db:migrate`, grava eventos como `vetra_app` pelos comandos reais e roda o
+relay, as entregas e a manutenção como `vetra_relay`, com consumidores simulados.
+
+| Verificação | Resultado esperado |
+|---|---|
+| Planos e manutenção | Os três planos aplicam; a manutenção cria as partições de hoje a três dias e não repete; o `db:migrate` as aceita, e recusa uma com concessão a mais ou com intervalo errado |
+| Relay | Eventos na partição do dia; uma entrega por handler, uma vez só; uma transação aberta segura a faixa; um rollback não gera entrega; outro relay com o checkpoint travado recebe 0; sem handlers, o checkpoint avança |
+| Entregas (CRM) | Dois workers não reservam a mesma entrega; um worker que cai é repetido depois do lease, com um efeito no provedor com chave e dois sem; o efeito roda sem transação aberta; espera crescente sem a mensagem do erro; `dead` na décima falha e na falha definitiva, com a cópia |
+| Partições (CRM) | Uma `DEFAULT` populada é recuperada sem perder nem duplicar; a purga mantém o dia com evento não lido ou entrega pendente e o remove depois, sem tocar as entregas mortas; com uma materialização em curso, a purga espera e mantém as entregas dela, e a criação de partição espera o relay e um worker sem deadlock |
+| Isolamento | O relay não lê a aplicação, as chaves nem as partições e não grava na outbox; a aplicação não executa a manutenção nem lê entregas e checkpoint; nenhuma instrução nomeada; nenhum papel global alterado |
+
+São 23 verificações no mini CRM, 14 no blog e a dos papéis: 38 no total, todas passando no PostgreSQL 17.11 e no
+18.6.
 
 ## Sonda da outbox
 

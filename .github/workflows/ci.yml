@@ -117,6 +117,8 @@ jobs:
       VETRA_MIGRATOR_PASSWORD: vetra-migrator-ci
       # Idem para vetra_app: a sonda do Vetra Data conecta o pool do runtime como a aplicação (ADR-039).
       VETRA_APP_PASSWORD: vetra-app-ci
+      # Idem para vetra_relay: a sonda do relay conecta o relay e a manutenção como esse papel (ADR-040, §3).
+      VETRA_RELAY_PASSWORD: vetra-relay-ci
     steps:
       - uses: actions/checkout@v7
         with:
@@ -132,9 +134,9 @@ jobs:
       - name: Bootstrap operacional dos papéis (idempotente, fora dos planos)
         run: |
           bundle exec ruby -Ilib -rvetra -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| 2.times { c.exec(Vetra::SQL::Context.roles_sql) } }'
-      - name: Senhas de login do vetra_migrator e do vetra_app neste servidor descartável
+      - name: Senhas de login do vetra_migrator, do vetra_app e do vetra_relay neste servidor descartável
         run: |
-          bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_migrator PASSWORD #{c.escape_literal(ENV.fetch("VETRA_MIGRATOR_PASSWORD"))}"); c.exec("ALTER ROLE vetra_app PASSWORD #{c.escape_literal(ENV.fetch("VETRA_APP_PASSWORD"))}") }'
+          bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_migrator PASSWORD #{c.escape_literal(ENV.fetch("VETRA_MIGRATOR_PASSWORD"))}"); c.exec("ALTER ROLE vetra_app PASSWORD #{c.escape_literal(ENV.fetch("VETRA_APP_PASSWORD"))}"); c.exec("ALTER ROLE vetra_relay PASSWORD #{c.escape_literal(ENV.fetch("VETRA_RELAY_PASSWORD"))}") }'
       - name: Fundação do plano incremental como vetra_migrator
         run: bundle exec ruby script/sonda_plano_incremental.rb
       - name: Vetra Data, unidade de trabalho e contexto emitido em Ruby
@@ -153,6 +155,8 @@ jobs:
         run: bundle exec ruby script/sonda_repositorios.rb
       - name: Outbox, armazenamento e emissão na unidade de trabalho
         run: bundle exec ruby script/sonda_outbox.rb
+      - name: Relay, entregas e manutenção das partições da outbox
+        run: bundle exec ruby script/sonda_relay.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

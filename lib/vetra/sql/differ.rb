@@ -21,7 +21,8 @@ module Vetra
         @new = schema.tables.to_h { |table| [table['entity'], table] }
         @steps = []
         # A seção da outbox (ADR-040, §5) é reconhecida pelo texto exato que o gerador atual produz.
-        @outbox = Outbox.new(schema).digests
+        outbox = Outbox.new(schema)
+        @outbox, @outbox_storage = outbox.digests, outbox.storage_digests
         # Num plano por passo o GRANT só pode tornar uma tabela nova acessível depois de toda a proteção.
         @new_table_grants = @new.reject { |id, _| @old.key?(id) }.values.map do |table|
           "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{relation(table)} TO #{quote('vetra_app')};"
@@ -49,12 +50,13 @@ module Vetra
         table.values_at('schema', 'table').map { |name| quote(name) }.join('.')
       end
 
-      def emit(sql, existing: true, transaction: 'sim')
+      def emit(sql, existing: true, transaction: 'sim', lock: nil)
         if @revision_sql
           @revision_sql << sql
           return
         end
-        lock, cost = Plan.classify(sql, existing: existing)
+        classified, cost = Plan.classify(sql, existing: existing)
+        lock ||= classified
         @steps << Plan::Step.new(number: @steps.size + 1, phase: 'expand', lock: lock, cost: cost, sql: sql, transaction: transaction)
       end
 
@@ -229,11 +231,12 @@ module Vetra
       def outbox_object?(item)
         object = item['object'].to_s.delete_prefix('table ')
         schema, name = object.split('.')
-        schema == 'vetra' && (Outbox::TABLES.include?(name) || %w[vt_outbox_relay vt_deliveries_ready].include?(name))
+        schema == 'vetra' && ((Outbox::TABLES + Outbox::RELAY_TABLES).include?(name) || %w[vt_outbox_relay vt_deliveries_ready].include?(name))
       end
 
-      # A outbox nasce inteira, num passo transacional, quando o modelo anterior não a tem. Fora disso, qualquer
-      # diferença nela é recusada: o plano incremental ainda não a traduz (ADR-040, §5).
+      # A outbox nasce inteira, num passo transacional, quando o modelo anterior não a tem; numa base com só o
+      # armazenamento da K11, o relay entra inteiro, também num passo. Fora disso, qualquer diferença nela é recusada:
+      # o plano incremental ainda não a traduz (ADR-040, §5).
       def outbox!(old, current)
         existed = old.any? { |item| outbox_object?(item) }
         wanted = @initial.steps.zip(current).select { |_, item| outbox_item?(item) }
@@ -242,9 +245,16 @@ module Vetra
           # Igualdade nos dois sentidos: uma instrução a mais na base (política, índice, trigger) também é alteração.
           # Privilégios não têm objeto; os excedentes caem na conferência genérica de instruções removidas.
           current_items = wanted.map(&:last)
-          unless current_items.all? { |item| old.include?(item) } &&
-                 old.select { |item| outbox_object?(item) }.all? { |item| current_items.include?(item) }
+          missing = wanted.reject { |_, item| old.include?(item) }
+          present = (current_items - missing.map(&:last)).map { |item| item['sha256'] }
+          only_relay = present == @outbox_storage && missing.map { |_, item| item['sha256'] } == @outbox - @outbox_storage
+          unless (missing.empty? || only_relay) && old.select { |item| outbox_object?(item) }.all? { |item| current_items.include?(item) }
             fail!('db_plan_statement', 'seção da outbox alterada')
+          end
+          unless missing.empty?
+            # O passo cria políticas nas tabelas da outbox, que já existem: o rótulo é o lock mais forte das instruções.
+            locks = missing.map { |step, _| Plan.classify(step.sql, existing: true).first }
+            emit(missing.map { |step, _| step.sql }.join("\n"), lock: locks.max_by { |lock| Plan::LOCKS.index(lock) })
           end
         elsif wanted.any?
           emit(wanted.map { |step, _| step.sql }.join("\n"), existing: false)

@@ -70,7 +70,9 @@ psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f /tmp/vetra-papeis.sql
 O bootstrap cria somente papéis ausentes, sem senhas. Pode ser repetido; atributos/vínculos incompatíveis
 fazem a transação falhar. `vetra_app` tem LOGIN, sem superusuário/BYPASSRLS/CREATEDB/CREATEROLE/REPLICATION
 nem vínculo a outro papel. `vetra_owner` tem NOLOGIN e esses poderes desligados. `vetra_migrator` tem
-LOGIN, BYPASSRLS e somente vínculo INHERIT/SET ao dono, sem ADMIN. Todos têm INHERIT. Autenticação, senhas e
+LOGIN, BYPASSRLS e somente vínculo INHERIT/SET ao dono, sem ADMIN. `vetra_relay` (ADR-040, §3) tem LOGIN, os
+mesmos poderes desligados e nenhum vínculo com outro papel; o bootstrap confere isso também para um `vetra_relay` que já
+existia, e o plano de uma aplicação com eventos repete a conferência antes de lhe conceder qualquer coisa. Todos têm INHERIT. Autenticação, senhas e
 `CONNECT` são operacionais; não entram em artefatos. O plano confere esses atributos antes do DDL e revoga
 `CREATE`/`TEMPORARY` no banco de `PUBLIC` e da aplicação. Não use banco pertencente a `vetra_app`.
 
@@ -252,6 +254,7 @@ Todos os passos são `expand`. As formas sobre tabelas existentes são:
 | FK, simples ou composta | Todos os índices de apoio e únicas, `ADD ... FOREIGN KEY ... NOT VALID`, `VALIDATE CONSTRAINT` | `ShareRowExclusive` / `catalogo` nas duas tabelas; `ShareUpdateExclusive` / `varre_tabela` na origem e `RowShare` no destino ao validar | `sim`, `sim` para a FK |
 | Enum alargado | CHECK auxiliar com a expressão nova `NOT VALID`, validação, troca final | `AccessExclusive` / `catalogo`, `ShareUpdateExclusive` / `varre_tabela`, `AccessExclusive` / `catalogo` | `sim` em cada passo; troca final indivisível |
 | Políticas RLS alteradas | `DROP` das políticas anteriores e `CREATE` das políticas atuais da tabela em **um passo**, inclusive ao trocar `vt_access` por `vt_scope_*` | `AccessExclusive` / `catalogo` | Um único `sim` |
+| Relay da outbox (ADR-040, §§ 3 e 4), numa base com só o armazenamento | A seção do relay inteira em **um passo**: guarda do `vetra_relay`, `vetra.relay_checkpoints` com a linha inicial, políticas do relay e do dono, concessões ao relay e a rotina `vetra.outbox_maintain`, executável só pelo relay | `AccessExclusive` / `catalogo`: o lock mais forte das instruções, porque as políticas recaem nas tabelas da outbox, que já existem | Um único `sim` |
 | Outbox (ADR-040), quando a aplicação passa a ter eventos | A seção inteira em **um passo**: `vetra.outbox` e `vetra.deliveries` particionadas com as partições `DEFAULT`, `vetra.dead_deliveries`, os índices, os donos, os REVOKEs, o RLS forçado, a política de `INSERT` e a concessão por coluna | `nenhum` / `catalogo`: só cria objetos | Um único `sim` |
 
 O CHECK auxiliar tem nome derivado do SHA-256 do nome final e da expressão nova. A restrição antiga permanece
@@ -298,7 +301,8 @@ e [ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html) do Postg
 
 A seção da outbox é reconhecida pelo texto exato que o gerador produz para a IR atual. Depois de criada, qualquer
 diferença nela é recusada com `db_plan_statement`, e a sua remoção, quando a aplicação deixa de ter eventos, com
-`db_plan_remove`. As partições diárias não são instruções de plano: são da manutenção da K12 (ADR-040, §4).
+`db_plan_remove`. Numa base com só o armazenamento da K11, falta apenas a seção do relay, que entra inteira; uma
+base com parte dela é recusada. As partições diárias não são instruções de plano: são da manutenção (ADR-040, §4).
 
 Uma combinação que contém qualquer recusa não grava plano, modelo nem espelho parcial. Nenhuma dessas recusas
 habilita `migrate` ou `contract`: preenchimento em lotes, renomeações e estreitamento de enum exigem fases futuras.

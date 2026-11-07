@@ -36,8 +36,10 @@ class ContextSQLTest < GraphTest
 
   def test_bootstrap_is_separate_and_checks_all_attributes_and_memberships
     sql = Vetra::SQL::Context.roles_sql
-    assert_equal 3, sql.scan('CREATE ROLE').size
-    assert_equal 3, sql.scan('IF NOT EXISTS').size
+    # vetra_owner, vetra_app, vetra_migrator e, para a outbox, vetra_relay (ADR-040, §3).
+    assert_equal 4, sql.scan('CREATE ROLE').size
+    # Mais um da guarda do relay, que o bootstrap também roda.
+    assert_equal 5, sql.scan('IF NOT EXISTS').size
     assert_includes sql, 'WITH ADMIN FALSE, INHERIT TRUE, SET TRUE'
     assert_includes sql, 'NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS'
     assert_includes sql, 'LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS'

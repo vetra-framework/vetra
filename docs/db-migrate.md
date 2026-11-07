@@ -69,6 +69,16 @@ exigido, como no `db:plan --check`.
 9. Depois de aplicar, compara de novo o esquema e os privilégios do banco. Uma diferença é apontada como deriva, com a
    mensagem de que o plano já foi aplicado e registrado.
 
+## Partições da manutenção
+
+`vetra outbox:maintain` cria partições diárias que o retrato não tem (ADR-040, §4). Antes de comparar, o
+`db:migrate` tira do dump cada partição `outbox_pAAAAMMDD` ou `deliveries_pAAAAMMDD` cujas instruções são
+exatamente as da partição `DEFAULT` do mesmo pai, com o nome trocado, e cujo intervalo é o dia UTC do nome. A
+conferência é textual, por instrução de topo do dump normalizado, nunca dentro de um literal ou de um corpo de
+função, e sem tirar o CR de um literal: uma concessão, uma política ou um índice a mais, outro dono, outro
+intervalo ou um nome fora do padrão deixam a partição no dump, e ela aparece como deriva. A mesma regra vale para a
+base de um plano pendente.
+
 ## Retomada
 
 Um plano de transação única é retomado inteiro: uma conexão derrubada ou uma falha no meio desfazem o plano e o seu

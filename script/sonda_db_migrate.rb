@@ -86,9 +86,9 @@ class MigrateProbe
     name = database
     connection = connect(name)
     expected = expected_records
-    check('aplica o plano inicial e o incremental num banco vazio como vetra_migrator e registra o hash de cada um') do
+    check('aplica o plano inicial e os incrementais num banco vazio como vetra_migrator e registra o hash de cada um') do
       result = migrate(connection)
-      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand] && records(connection) == expected
+      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand 0003_expand] && records(connection) == expected
     end
     check('segunda execução não aplica nada e confere o esquema com o retrato') do
       migrate(connection).status == :up_to_date && records(connection) == expected

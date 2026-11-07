@@ -423,7 +423,9 @@ module Vetra
         output, errors, status = Open3.capture3(environment, @pg_dump, *options, '--exclude-table=vetra.migrations',
                                                 '--exclude-table=vetra.migration_steps', '--lock-wait-timeout=3s', *target)
         raise Graph::Error.single('db_pg_dump', "pg_dump falhou: #{errors.lines.first&.strip}") unless status.success?
-        ScratchDatabase.normalize_dump(output.force_encoding(Encoding::UTF_8))
+        # As partições diárias da manutenção não estão no retrato; só saem do dump as que seguem exatamente as regras
+        # do ADR-040, §4. Uma partição adulterada continua no dump e aparece como deriva.
+        Outbox.without_operational_partitions(ScratchDatabase.normalize_dump(output.force_encoding(Encoding::UTF_8)))
       end
 
       private

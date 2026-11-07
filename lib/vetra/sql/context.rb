@@ -32,9 +32,32 @@ module Vetra
               CREATE ROLE "vetra_migrator" LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
               GRANT "vetra_owner" TO "vetra_migrator" WITH ADMIN FALSE, INHERIT TRUE, SET TRUE;
             END IF;
+            -- Relay e manutenção da outbox (ADR-040, §3): login próprio, sem vínculo com os demais papéis.
+            IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'vetra_relay') THEN
+              CREATE ROLE "vetra_relay" LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            END IF;
           END $vetra_bootstrap$;
           #{role_guard}
+          #{relay_guard}
           COMMIT;
+        SQL
+      end
+
+      # O papel do relay vem do bootstrap operacional (ADR-036), nunca de um plano: o bootstrap e o plano de uma
+      # aplicação com eventos o conferem, e o plano falha antes de conceder qualquer coisa (ADR-040, §3).
+      def self.relay_guard
+        <<~SQL.chomp
+          DO $vetra_relay_role$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'vetra_relay' AND rolcanlogin
+                AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls) THEN
+              RAISE EXCEPTION 'Papel vetra_relay ausente ou incompatível; execute o bootstrap operacional do ADR-036';
+            END IF;
+            IF EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m
+                WHERE m.member = 'vetra_relay'::regrole OR m.roleid = 'vetra_relay'::regrole) THEN
+              RAISE EXCEPTION 'vetra_relay não pode pertencer a outro papel nem ter membros (ADR-040, §3)';
+            END IF;
+          END $vetra_relay_role$;
         SQL
       end
 

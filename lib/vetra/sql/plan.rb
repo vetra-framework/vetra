@@ -75,7 +75,7 @@ module Vetra
         [/\ACREATE OR REPLACE FUNCTION /, 'nenhum', 'catalogo'],
         [/\ACREATE OR REPLACE TRIGGER /, 'ShareRowExclusive', 'catalogo'],
         [/\ADO \$vetra_(context_roles|database_privileges)\$/, 'nenhum', 'catalogo'],
-        [/\ADO \$vetra_(roles|shared_schema|privileges|routines)\$/, 'nenhum', 'catalogo'],
+        [/\ADO \$vetra_(roles|shared_schema|privileges|routines|relay_role)\$/, 'nenhum', 'catalogo'],
         [/\ADO \$vetra_tables\$/, 'AccessShare', 'tabela_vazia'],
         [/\ALOCK TABLE /, 'ShareRowExclusive', 'tabela_vazia'],
         [/\ACREATE SCHEMA /, 'nenhum', 'catalogo'],

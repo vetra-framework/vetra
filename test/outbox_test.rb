@@ -27,7 +27,7 @@ class OutboxTest < GraphTest
   def test_only_applications_with_events_get_the_outbox_before_the_security_section
     EVENTS.each do |example|
       statements = Vetra::SQL::Outbox.new(schema(example)).statements
-      assert_equal 29, statements.size
+      assert_equal 29, Vetra::SQL::Outbox.new(schema(example)).storage.size
       initial = Vetra::SQL::Plan.initial(schema(example)).steps.map(&:sql)
       first = initial.index(statements.first)
       assert_equal statements, initial[first, statements.size]
@@ -41,8 +41,8 @@ class OutboxTest < GraphTest
   end
 
   def test_application_writes_only_the_allowed_columns_and_only_its_own_tenant
-    crm = Vetra::SQL::Outbox.new(schema('mini_crm')).statements
-    blog = Vetra::SQL::Outbox.new(schema('blog')).statements
+    crm = Vetra::SQL::Outbox.new(schema('mini_crm')).storage
+    blog = Vetra::SQL::Outbox.new(schema('blog')).storage
     grant = 'GRANT INSERT ("event_id", "event", "version", "tenant_id", "actor_id", "op_id", "cmd", "payload") ON TABLE "vetra"."outbox" TO "vetra_app";'
     assert_equal grant, crm.last
     assert_equal grant, blog.last
@@ -86,8 +86,9 @@ class OutboxTest < GraphTest
       step = plan.steps.first
       assert_equal %w[sim nenhum catalogo], [step.transaction, step.lock, step.cost]
       assert_equal Vetra::SQL::Outbox.new(schema(example)).statements.join("\n"), step.sql
-      committed = File.read(File.join(PROJECT, 'examples', example, 'db/plans/0002_expand.sql'))
-      assert_equal committed, plan.render
+      # O 0002 integrado tem só o armazenamento (K11); o relay da K12 vem no 0003, sobre ele.
+      committed = Vetra::SQL::Plan.parse(File.read(File.join(PROJECT, 'examples', example, 'db/plans/0002_expand.sql')), file: '0002_expand.sql')
+      assert_equal [Vetra::SQL::Outbox.new(schema(example)).storage.join("\n")], committed.steps.map(&:sql)
     end
   end
 

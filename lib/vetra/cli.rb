@@ -6,7 +6,7 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]\n     vetra db:migrate [--root diretório]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]\n     vetra db:migrate [--root diretório]\n     vetra outbox:maintain [--root diretório] [--ahead dias] [--retention dias]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
@@ -16,12 +16,14 @@ module Vetra
         flags.on('--app-role NAME', 'Papel da aplicação já existente') { |value| options[:app_role] = value }
         flags.on('--snapshot', 'db:plan: regravar db/schema.sql num banco descartável (DATABASE_URL)') { options[:snapshot] = true }
         flags.on('--check', 'db:plan: conferir plano e retrato num banco descartável (DATABASE_URL)') { options[:check] = true }
+        flags.on('--ahead DAYS', Integer, 'outbox:maintain: dias de partições adiante (padrão 3)') { |value| options[:ahead] = value }
+        flags.on('--retention DAYS', Integer, 'outbox:maintain: dias de retenção (padrão 7)') { |value| options[:retention] = value }
         flags.on('-h', '--help', 'Mostrar ajuda') { out.puts(flags); return 0 }
         flags.on('--version', 'Mostrar versão do protótipo') { out.puts(VERSION); return 0 }
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan db:migrate].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan db:migrate outbox:maintain].include?(command)
         err.puts(parser)
         return 2
       end
@@ -40,6 +42,26 @@ module Vetra
         return 0
       end
       raise OptionParser::InvalidArgument, '--snapshot e --check exigem db:plan' if options[:snapshot] || options[:check]
+      if command == 'outbox:maintain'
+        unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
+          raise OptionParser::InvalidArgument, 'outbox:maintain aceita somente --root, --ahead e --retention'
+        end
+        url = ENV['DATABASE_URL']
+        raise Graph::Error.single('db_database_url', 'Defina DATABASE_URL com o banco alvo e a senha do vetra_relay.') if url.nil? || url.empty?
+        # A manutenção roda como vetra_relay, pela rotina fechada do plano; o vetra_migrator não entra no runtime.
+        require_relative 'data'
+        document = Graph::Compiler.new(root: options[:root]).read_artifact.document
+        db = Data::Relay.connect(url, max_connections: 1)
+        begin
+          summary = Data::Relay.new(db, document: document).maintain(ahead: options.fetch(:ahead, 3), retention: options.fetch(:retention, 7))
+        ensure
+          db.disconnect
+        end
+        out.puts("outbox:maintain: OK — #{summary['criadas'].size} partição(ões) criada(s), #{summary['recuperadas']} linha(s) recuperada(s) " \
+                 "da DEFAULT, #{summary['removidas'].size} removida(s), #{summary['mantidas'].size} mantida(s) por pendência")
+        return 0
+      end
+      raise OptionParser::InvalidArgument, '--ahead e --retention exigem outbox:maintain' if options.key?(:ahead) || options.key?(:retention)
       if command == 'db:migrate'
         unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
           raise OptionParser::InvalidArgument, 'db:migrate aceita somente --root'
