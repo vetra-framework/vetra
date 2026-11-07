@@ -58,7 +58,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `created_at`, `xid8` e `seq` vêm do banco. `Repositories#emit!` grava os eventos que o comando declara, com o
   payload projetado e um `pg_notify` só com o tenant; um payload com campo pessoal desfaz a unidade inteira. O
   retrato normaliza o nome herdado do NOT NULL nas partições, que o `pg_dump` 18 escreve e o 17 não. São 11 testes e
-  223 asserções sem banco; a sonda passa 36/36 no PostgreSQL 17.11 e no 18.6.
+  223 asserções sem banco; a sonda passa 36/36 no PostgreSQL 17.11 e no 18.6, também na CI
+  ([execução 42367368631](https://github.com/vetra-framework/vetra/actions/runs/42367368631)). Integrada em `0fff3ee`.
 
 - [x] Repositórios do [Vetra Data](vetra-data.md) gerados da IR e vinculados à unidade/capacidade:
   busca, lock, criação, atualização por registro ou ID, exclusão, consulta restrita e vínculos de
