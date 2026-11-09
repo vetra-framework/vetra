@@ -75,7 +75,7 @@ tarefas seguem a ordem da tabela.
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | `0fff3ee` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 36/36 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k11)) |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | `3c9d6ff` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 38/38 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k12)) |
-| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
+| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | concluída | ver histórico | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; medição informativa no PostgreSQL 17.11 e 18.6 ([auditoria](#auditoria-k13)) |
 
 ### Parecer do Codex sobre o plano
 
@@ -101,6 +101,39 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K13
+
+Implementado pelo Claude sobre `338fd87`; auditado pelo Codex em modo somente leitura, com a árvore conferida por
+hash antes e depois de cada rodada. O Claude rodou a medição no PostgreSQL 18.6 e num 17.11 local. A K13 é uma
+medição **informativa**: não cumpre o teste de aceitação 6 do ADR-023, e esse gate continua pendente.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| A forma alternativa do escopo só considerava `gerente`, e a política gerada aceita `gerente` ou `vendedor`; também não havia alternativa de escrita | sim | Ajustar: a lista usa os dois papéis; o relatório limita a conclusão à leitura e diz que o ADR novo precisa medir as formas com `WITH CHECK` |
+| A conferência comparava contagens, não conjuntos, e o controle só com o tenant era apresentado como forma equivalente | sim | Ajustar: comparação por conjunto de IDs para seis atores, plano das duas políticas e controle descrito como linha de base de custo |
+| Um filho que falhava na preparação travava o pai, que esperava 16 sinais | sim | Ajustar: prontidão por filho (`R`/`E`), espera limitada, encerramento e recolhimento dos filhos nos caminhos de erro |
+| O cancelamento entre séries de 1 e 11 instruções, medidas sempre na mesma ordem, não sustentava a precisão alegada (0,487 ms contra um limiar de 0,5 ms) | sim | Ajustar: 3 rodadas com a ordem das séries alternada e a das variantes girada, tabelas limpas nas escritas, latências brutas e dispersão; o veredito passa a incluir "inconclusivo" |
+| O texto atribuía a falta de falha acima do limiar à regra dos ADRs, contra o teste de aceitação 6 do ADR-023 | sim | Ajustar: a medição declara que é informativa e não cumpre o teste 6, que fica pendente |
+| Extrapolações sem base nos números (independência do tamanho da tabela e das linhas) e o gate do ADR-022 com 9 campos em vez de 10 | não | Ajustar: afirmações restritas às cargas medidas e o gate classificado como aproximação |
+
+**Rodada 2 — devolvida pelo Codex.** Os ajustes funcionais fecharam os achados.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| O relatório falava em acréscimos negativos na questão 1 do 18 e em "uma rodada acima", mas a tabela tem mínimo de +0,200 ms e três das doze estimativas passam de 0,5 ms (+0,520, +0,728 e +0,613) | sim | Ajustar: o texto, o plano e a situação dizem "três de doze estimativas acima no 18"; o −0,560 ms é da questão 2 |
+| O ator misto não entra nas séries temporizadas | não | Ajustar: o relatório e o comentário da sonda dizem que os seis atores entram na conferência funcional e só quatro são temporizados |
+
+**Rodada 3 — aprovada pelo Codex**, sem achados novos.
+
+- Suíte com 607 testes, 11.199 asserções e 222/222 diagnósticos, sem mudança desde a K12.
+- Medição, 3 rodadas de 3 s: contexto assinado sobre o RLS ingênuo com mediana de 0,212 ms no 17 (dentro) e de
+  0,344 ms no 18 (inconclusivo); política de escopo gerada de +0,83 a +2,85 ms na leitura (acima de 1 ms); lista do
+  ator de −0,56 a +1,76 ms, com mediana de +1,098 ms para o gerente de 100 no 18; construção dos registros de 72% a
+  193% da consulta (acima de 10%).
+- `db:plan --check` nos quatro exemplos no 17 e no 18, e o gate sem alterações nos grafos.
 
 ## Auditoria K12
 

@@ -157,6 +157,11 @@ jobs:
         run: bundle exec ruby script/sonda_outbox.rb
       - name: Relay, entregas e manutenção das partições da outbox
         run: bundle exec ruby script/sonda_relay.rb
+      - name: Custo do contexto assinado e dos registros, medição informativa (ADR-023 e ADR-022)
+        env:
+          VETRA_MEDICAO_SEGUNDOS: '1.5'
+          VETRA_MEDICAO_RODADAS: '2'
+        run: bundle exec ruby script/sonda_custo_contexto.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

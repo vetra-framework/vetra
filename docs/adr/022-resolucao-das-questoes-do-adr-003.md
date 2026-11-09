@@ -2,6 +2,7 @@
 
 - Status: aceito
 - Data: 2026-10-31
+- Evidência posterior ao aceite: [medição preliminar do custo do contexto e dos registros](../sondas/custo-contexto.md), adicionada em 2026-11-07 com o gate do §3 em Ruby 4.0.9; o relatório registra os resultados, sem alterar a decisão abaixo.
 - Resolve: ADR-003 (as seis questões em aberto)
 - Depende de: ADR-003 (Sequel e repositórios), ADR-001 (analisador do `call`), ADR-004 (Effect Boundary)
 - Relacionados: ADR-005 (contexto assinado), ADR-008 (conexão `LISTEN`), ADR-018 (código de UI)

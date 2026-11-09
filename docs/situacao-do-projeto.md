@@ -10,8 +10,10 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   `0002_expand`, com a outbox e as entregas particionadas por tempo, e o comando grava o evento na unidade de
   trabalho. O relay materializa e entrega os eventos a consumidores simulados, com lease, tentativas e entrega
   morta, e a manutenção cria, recupera e purga as partições (K12, no `0003_expand`). Planos incrementais aditivos e
-  `db:migrate` com retomada estão implementados. Executor de operações e handlers reais continuam pendentes. A IR
-  permanece 0.6; o chat conserva seus artefatos.
+  `db:migrate` com retomada estão implementados. A medição preliminar do custo do contexto (K13) fecha a rodada 4:
+  o contexto assinado fica abaixo do limiar na maior parte das rodadas, e a política de escopo e a construção dos
+  registros ficam acima, o que leva a ADRs novos. Executor de operações e handlers reais continuam pendentes. A IR permanece 0.6; o chat conserva
+  seus artefatos.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
 
@@ -29,7 +31,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
 | Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42282609424](https://github.com/vetra-framework/vetra/actions/runs/42282609424)), modo 100755; integrada em `5c15ebf`; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 21 em `script/`, mais o simulador do gate; relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Sondas | 22 em `script/`, mais o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), contexto assinado (58), RLS/integridade (103) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
 | Runtime | Unidade de trabalho, emissor HMAC e repositórios gerados da IR implementados, com dependências Sequel/pg de runtime e carregamento explícito. A emissão grava na outbox, e o relay entrega a consumidores simulados; autorização Ruby, reautorização final, executor de operações e handlers reais seguem pendentes |
 
 ## Como manter este arquivo
@@ -52,6 +54,16 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Medição preliminar e informativa do custo do contexto assinado e dos registros (K13), pela sonda
+  `sonda_custo_contexto.rb`, no PostgreSQL 17 e 18, com 16 clientes, 3 rodadas alternadas e os papéis de produção
+  ([relatório](sondas/custo-contexto.md)). Não cumpre o teste de aceitação 6 do ADR-023, que exige falhar acima do
+  limiar: esse gate continua pendente. O contexto assinado acrescenta de 0,2 a 0,4 ms por instrução na maior parte das
+  rodadas, abaixo do limiar de 0,5 ms, com três de doze estimativas acima no 18 (inconclusivo). Com 1 milhão de vínculos, a política
+  de escopo gerada acrescenta de 0,8 a 2,8 ms na leitura, acima do limiar de 1 ms; a forma com a lista do ator reduz o
+  acréscimo, mas fica em torno do limiar com 100 revendas no 18, e nenhuma das duas foi medida em escrita. Construir
+  10.000 registros custa de 72% a 193% da consulta, acima do limiar de 10% do ADR-022, §3. A sonda roda no job de
+  planos da CI.
 
 - [x] Relay, entregas e manutenção da outbox (K12, [ADR-040](adr/040-papeis-e-rls-da-outbox.md), §§ 3 e 4): o
   bootstrap cria o `vetra_relay`, e o `0003_expand` do blog e dos dois CRMs traz a guarda do papel, o checkpoint, as
@@ -604,13 +616,19 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
   as diferenças aditivas e os repositórios estão implementados, e o `db:migrate` aplica o plano inicial e os
   incrementais, passo a passo; executor, outbox e medições restantes continuam pendentes (veja ADR-022 a ADR-025 abaixo)
-- [ ] **ADR-022:** as medições pendentes são a `sonda_pooler` contra o pooler da aplicação, o `pg` sob o Falcon em
-  Ruby 4.0.9 com o adaptador Rack (hoje só medido em Ruby 3.3.6) e o custo dos registros no repositório real. O
+- [ ] **ADR-022:** o custo dos registros no repositório real foi medido (K13): de 72% a 193% da consulta, acima do
+  limiar de 10%, o que leva a um ADR novo sobre a construção sob demanda e uma coerção mais barata do que vem do banco.
+  Continuam pendentes a `sonda_pooler` contra o pooler da aplicação e o `pg` sob o Falcon em Ruby 4.0.9 com o
+  adaptador Rack (hoje só medido em Ruby 3.3.6). O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
   interpolação em `uses :sql` espera a capacidade `uses :sql`, que não existe
-- [ ] **ADR-023:** o custo do contexto assinado foi medido só num protótipo descartável, no PostgreSQL 16.15, com um
-  cliente e sem `WITH CHECK`, comparação em tempo constante, concorrência nem pooler; o gate da fase 1 (0,5 ms por
-  instrução e 25% da latência do comando, hipóteses) está por medir no 17 e no 18. O gerador de políticas
+- [ ] **ADR-023:** a medição informativa (K13) no 17 e no 18, com 16 clientes, `WITH CHECK` e a comparação em tempo
+  constante, deu de 0,2 a 0,4 ms por instrução para o contexto assinado na maior parte das rodadas, abaixo do limiar
+  de 0,5 ms, com três de doze estimativas acima no 18 (inconclusivo). A política de escopo com 1 milhão de vínculos ficou acima do
+  limiar de 1 ms na leitura (de 0,8 a 2,8 ms), o que leva a um ADR novo sobre a forma da política; a forma com a lista
+  do ator reduz o acréscimo mas fica em torno do limiar com 100 revendas no 18, e nenhuma foi medida em escrita. O
+  teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. Faltam o pooler, ausente na CI, e o
+  gate de 25% por comando, que espera o executor. O gerador de políticas
   compõe o plano inicial com a forma tenant/ator não correlacionada e recusa vínculo sem índice físico
   tenant/ator. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
@@ -645,10 +663,13 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
    A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
    A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
    comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
-2. [ ] Persistência (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
+2. [x] Persistência, rodadas 1 a 4 (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
    criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
    de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial e os incrementais,
    passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas, a unidade de trabalho com
    contexto emitido em Ruby, os repositórios gerados e a outbox, com armazenamento, emissão, relay, entregas e
-   manutenção das partições, também existem. Falta a medição do custo do contexto.
-   Executor das oito etapas, handlers com ator de sistema e fase contract têm entregas posteriores próprias
+   manutenção das partições, também existem, e o custo do contexto tem medição preliminar ([relatório](sondas/custo-contexto.md))
+3. [ ] Persistência, rodada 5: o executor das oito etapas do ADR-016 e os adaptadores, com o gate de 25% por comando
+   do ADR-023; os handlers reais, com o ator de sistema e a autoridade dos `calls`; a fase contract; a cifra dos
+   campos pessoais (ADR-013) e o distribuidor do live. Antes, dois ADRs que a medição da K13 pede: a forma da
+   política de escopo, a ser medida também em escrita, e a construção dos registros

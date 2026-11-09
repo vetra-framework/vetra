@@ -2,6 +2,7 @@
 
 - Status: aceito
 - Data: 2026-10-31
+- Evidência posterior ao aceite: [medição preliminar do custo do contexto e dos registros](../sondas/custo-contexto.md), adicionada em 2026-11-07 no PostgreSQL 17 e 18; o relatório registra os resultados, sem alterar a decisão abaixo.
 - Resolve: ADR-005 (as cinco questões que ele deixa para outros)
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-002 (somente PostgreSQL), ADR-020 (revisão de autorização)
 - Relacionados: ADR-015 (índices e políticas no plano de migração), ADR-016 (ciclo de vida da operação)
