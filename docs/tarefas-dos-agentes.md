@@ -75,7 +75,7 @@ tarefas seguem a ordem da tabela.
 | C10 | Repositórios gerados da IR, com registros `Data` congelados, métodos de vínculo e consulta restrita; corpos dos quatro exemplos contra o banco | Codex | concluída | `5c15ebf` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde, sonda 72/72 no PostgreSQL 17 e 18 ([auditoria](#auditoria-c10)) |
 | K11 | Outbox, armazenamento e emissão: ADR-040 proposto (papéis e RLS), tabelas particionadas no `0002` dos exemplos com eventos, gravação na unidade de trabalho | Claude | concluída | `0fff3ee` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde, sonda 36/36 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k11)) |
 | K12 | Relay, entregas e manutenção com consumidores simulados: lease, tentativas, entrega morta, partições e purga reconhecidas pela deriva | Claude | concluída | `3c9d6ff` | Rodadas 1 a 3 devolvidas pelo Codex; rodada 4 aprovada; CI verde, sonda 38/38 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k12)) |
-| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | concluída | ver histórico | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; medição informativa no PostgreSQL 17.11 e 18.6 ([auditoria](#auditoria-k13)) |
+| K13 | Custo do contexto assinado por instrução, medição preliminar na matriz do ADR-023, e construção dos `Data` (ADR-022, §3) | Claude | concluída | `3a9c3b2` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; medição informativa no PostgreSQL 17 e 18 ([auditoria](#auditoria-k13)) |
 
 ### Parecer do Codex sobre o plano
 
@@ -134,6 +134,17 @@ medição **informativa**: não cumpre o teste de aceitação 6 do ADR-023, e es
   ator de −0,56 a +1,76 ms, com mediana de +1,098 ms para o gerente de 100 no 18; construção dos registros de 72% a
   193% da consulta (acima de 10%).
 - `db:plan --check` nos quatro exemplos no 17 e no 18, e o gate sem alterações nos grafos.
+
+**Envio e CI.** Commit `3a9c3b2` na `main`. A CI ([execução 42672241740](https://github.com/vetra-framework/vetra/actions/runs/42672241740)) só ficou verde na tentativa 3: um
+incidente do GitHub Actions e da Checks API, aberto das 18:12 às 18:59 UTC, fez a primeira tentativa não criar job
+algum e a segunda criar só 3 dos 5; o `ci.yml` do commit só acrescenta um passo e não tem relação com a falha. Na
+tentativa 3, os cinco jobs passaram. No job de planos, o PostgreSQL 17.11 e o 18.6 deram relay 38/38, outbox 36/36,
+repositórios 72/72, `db:migrate` incremental 16/16, plano aditivo 99/99, Vetra Data 23/23, plano incremental 18/18,
+contexto 58/58, RLS 103/103, `db:migrate` 21/21 e a sonda de custo 4/4, com os limiares relatados no relatório.
+
+**Correção posterior do Claude, sem nova auditoria do Codex.** Depois da aprovação, o relatório passou a usar a
+mediana, e não a menor repetição, para o gate do ADR-022 (uma repetição isolada deu −8,6%) e a registrar os números
+da CI. A mudança só restringe uma afirmação e acrescenta dados; nenhuma conclusão foi ampliada.
 
 ## Auditoria K12
 

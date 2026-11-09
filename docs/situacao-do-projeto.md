@@ -63,7 +63,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   de escopo gerada acrescenta de 0,8 a 2,8 ms na leitura, acima do limiar de 1 ms; a forma com a lista do ator reduz o
   acréscimo, mas fica em torno do limiar com 100 revendas no 18, e nenhuma das duas foi medida em escrita. Construir
   10.000 registros custa de 72% a 193% da consulta, acima do limiar de 10% do ADR-022, §3. A sonda roda no job de
-  planos da CI.
+  planos da CI, onde a dispersão é maior, e a medição não serve como gate numa CI compartilhada ([execução 42672241740](https://github.com/vetra-framework/vetra/actions/runs/42672241740)).
+  Integrada em `3a9c3b2`.
 
 - [x] Relay, entregas e manutenção da outbox (K12, [ADR-040](adr/040-papeis-e-rls-da-outbox.md), §§ 3 e 4): o
   bootstrap cria o `vetra_relay`, e o `0003_expand` do blog e dos dois CRMs traz a guarda do papel, o checkpoint, as
