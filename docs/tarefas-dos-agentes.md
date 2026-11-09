@@ -58,6 +58,67 @@ incorpora o parecer do Codex.
 
 Rodada concluída. Todos os exemplos vão do banco vazio ao plano inicial aplicado por `db:migrate`.
 
+## Rodada 5 (2026-11-09)
+
+Persistência, parte 3: um executor **parcial** do ADR-016 (sem histórico, auditoria nem adaptadores, que são da rodada
+6), em duas fases. A fase A traz as decisões que a medição da K13 pediu, o ator de sistema, a idempotência e a
+autorização em Ruby; a fase B, o executor e os handlers de sistema, é replanejada ao fim da fase A. O objetivo, as
+decisões a tomar, os riscos e o que fica para a rodada 6 estão no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial).
+O planejamento foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer do Codex (abaixo), aprovado na terceira rodada. As
+tarefas seguem a ordem da tabela.
+
+| ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
+|---|---|---|---|---|---|
+| K14 | Forma da política de escopo: ADR-041 proposto, escrita medida por ação, permissões comparadas e as três formas avaliadas | Claude | a fazer | — | — |
+| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | a fazer | — | — |
+| C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
+| K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
+| K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
+| C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
+| P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
+| K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
+| K18 | Executor II (fase B): autorização nos acessos dos repositórios, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
+| K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
+| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
+| K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
+
+### Parecer do Codex sobre o plano da rodada 5
+
+Pedido em modo somente leitura, sobre `233421c`. O Codex devolveu a primeira versão do plano, com oito achados
+bloqueantes e três não bloqueantes; a decisão de cada um é do Claude.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O objetivo prometia cumprir as oito etapas do ADR-016, mas histórico e auditoria não existirão | sim | Ajustar: o plano descreve um executor **parcial**, lista o que não cumpre e reserva a conformidade integral para a rodada 6 |
+| A C12 lia as concessões numa unidade somente leitura, que abre transação, contra a promessa do ADR-016 de nenhuma transação para o ator sem permissão | sim | Ajustar: a decisão vira o ADR-044, na C13, com as duas saídas (concessões resolvidas por uma borda confiável ou uma transação curta que termina antes da recusa) |
+| Nenhuma entrega protegia os acessos dos repositórios, que não aplicam papéis nem campos visíveis; o `chat.add_member_by_email` lê `users_read` sem concessão de leitura de `chat.user` | sim | Ajustar: a K18 aplica a autorização aos acessos e reautoriza o estado final; o ADR-044 decide o que um `uses` de leitura concede e a origem dos papéis; sondas no blog e no chat, sem RLS |
+| A K15 pressupunha uma infraestrutura que a C9 não entrega (o `Differ` recusa função nova de contexto, a exceção do ADR-036 reconhece só as atuais, o contexto Ruby exige `actor_id`) | sim | Ajustar: a K15 inclui a tradução incremental das rotinas, a atualização estrita das guardas, `Context` e `UnitOfWork`, e limita o ator de sistema a aplicações com tenant, para que blog e chat não mudem |
+| A K16 não fechava o contexto global (tenant nulo) nem a purga num aplicativo sem outbox | sim | Ajustar: o ADR-043 escolhe a representação do tenant nulo sem sentinela, a retenção por origem e quem purga; K16 antes de K17 se mantém |
+| A C14 não ligava a entrega à chave do comando nem ao provedor, e os handlers dos exemplos têm `calls: []` | sim | Ajustar: chave derivada do `event_id`, Effect Boundary na C14, fixture com um handler que chama um comando e testes de queda depois do commit |
+| A regra de repetição ignorava `unsafe_effect` | sim | Ajustar: a K19 exige as duas condições e a sonda cobre a recusa |
+| Adiar `rate_limit:` exigia uma recusa explícita, porque o blog já limita os comentários | sim | Ajustar: a C13 recusa a operação que dependa só de concessões com limite, e a concessão sem limite continua permitindo |
+| A K17 concentrava entregas demais e não explicitava a borda anterior aos adaptadores nem os timeouts | não | Ajustar: o executor vira K17 a K19, com a borda interna e os timeouts na K17 |
+| As medições tinham a direção certa, mas `DELETE` usa `USING`, e faltavam permissões por ação, a tabela materializada, a hidratação de `Money`, JSON e datas, o pooler e a contagem das validações de contexto | não | Ajustar: o texto da K14, da C11 e da K20 muda; o teste 6 do ADR-023 continua pendente e os limiares não mudam |
+| O item 2 da seção 7 misturava as lacunas do critério 7 com outras pendências e invertia uma dependência (`subject` e `retention` podem ser declarados antes da cifra; o ADR-018 já está aceito; `returns`/`authorize` já foi decidido como recusado) | não | Ajustar a seção 7, separando as lacunas medidas das demais e indicando a dependência de cada uma |
+
+**Segunda rodada do parecer.** O Codex confirmou os onze ajustes e devolveu o plano por três lacunas bloqueantes e
+duas não bloqueantes; a decisão de cada uma é do Claude.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A C14 testava o reprocessamento de uma entrega `dead`, que o ADR-014 exige como comando explícito e auditado, e a auditoria está adiada | sim | Ajustar: o reprocessamento é da rodada 6; a C14 mantém a retenção das chaves e uma fixture controlada, sem oferecê-lo |
+| A C14 não alocava o timeout total do handler (30 s, com lease de 60 s, ADR-024, §1), que o `Relay#work` não impõe | sim | Ajustar: o timeout total entra na C14, com testes de expiração, falha e recuperação por outro worker |
+| A K17 não cobria `transaction_timeout` nem `idle_in_transaction_session_timeout`, que o ADR-008, §5 exige para não prender o `xmin` de todos os tenants | sim | Ajustar: a K17 os provisiona e os verifica, com uma sonda de encerramento e de `xmin` liberado |
+| O plano conservava, no texto da rodada 4, promessas antigas (histórico, oito etapas, adaptadores, contract, cifra e live) que apontavam para a rodada 5 | não | Ajustar: marcadas como planejamento anterior, substituído, com o destino de cada item |
+| O replanejamento da fase B não aparecia como entrega própria, e a aprovação atual não pode valer antecipadamente para ele | não | Ajustar: o marco P5 (plano revisado, parecer do Codex, decisão, integração) precede a K17 |
+
+**Terceira rodada do parecer — aprovada pelo Codex.** Os três achados bloqueantes e o marco P5 foram confirmados
+como fechados, sem promessa descoberta nem contradição com um ADR aceito. Restou um achado não bloqueante:
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O texto ainda falava em "gate por comando" do ADR-023 onde a K20 entrega a **medição** por comando e mantém o teste 6 pendente | não | Ajustar: "medição por comando", com a ressalva de que o gate do teste 6 continua pendente |
+
 ## Rodada 4 (2026-11-05)
 
 Persistência, parte 2: o banco da rodada 3 evolui por plano incremental, e o Vetra Data grava nele pelos

@@ -3,8 +3,91 @@
 A persistência transforma o grafo em banco PostgreSQL 17+, por plano versionado, com papéis, contexto
 assinado e RLS. O mapeamento físico está no ADR-035 aceito; o bootstrap dos papéis globais e o contexto
 assinado estão no [ADR-036](adr/036-papeis-e-contexto-assinado.md), também aceito. Responsáveis e decisões de auditoria ficam no [quadro dos agentes](tarefas-dos-agentes.md).
-A rodada 3 levou cada exemplo de um banco vazio ao plano inicial aplicado; a rodada 4 faz esse banco evoluir e
-ser usado pelo Vetra Data.
+A rodada 3 levou cada exemplo de um banco vazio ao plano inicial aplicado; a rodada 4 fez esse banco evoluir e ser
+usado pelo Vetra Data; a rodada 5 faz o Vetra Data executar operações com um executor parcial, sem histórico, auditoria nem adaptadores.
+
+## Rodada 5: decisões da K13, ator de sistema, idempotência, autorização e executor parcial
+
+### Objetivo
+
+Entregar um **executor parcial** do [ADR-016](adr/016-ciclo-de-vida-da-operacao.md) e as peças de que ele depende. A
+rodada tem duas fases. Na **fase A**, as fundações, que não dependem do executor: as duas decisões que a medição da
+K13 deixou acima do limiar, o ator de sistema, a idempotência e a autorização em Ruby. Na **fase B**, o executor e os
+handlers de sistema, que o Claude **replaneja ao fim da fase A**, porque as decisões e as auditorias da fase A mudam
+o que a fase B constrói.
+
+Ao fim da rodada, um comando passa pelo executor contra o PostgreSQL 17 e 18, nos quatro exemplos, por um chamador
+interno confiável que resolve o comando, o ator, os papéis e a chave de idempotência: a entrada é validada pelo
+contrato, a política `authorize` é avaliada em Ruby, o `call` roda numa unidade de trabalho com as capacidades
+autorizadas, o estado final é reautorizado, os eventos do `emits` entram na outbox sem que o `call` os grave, a chave
+de idempotência é registrada na mesma transação, e um handler de um evento roda como o **ator de sistema** do tenant
+do evento, com a autoridade dos seus `calls`.
+
+**O que a rodada não cumpre do ADR-016, de propósito.** A etapa 7 grava só os eventos: o **histórico e a auditoria**
+não existem, e dependem da cifra dos campos pessoais (ADR-013), que fica na rodada 6. Sem a cifra, a outbox continua
+recusando payload com campo pessoal (ADR-040, §2). A etapa 1 não tem adaptador: um chamador interno confiável a
+resolve. Os testes de aceitação do ADR-016 e do ADR-014 que dependem de histórico, de auditoria ou de adaptador ficam
+explicitamente pendentes, e a **conformidade integral com o ADR-016 é da rodada 6**; esta rodada não a anuncia. A IR
+permanece 0.6.
+
+**Fica para a rodada 6** (cada item tem dependência própria): os adaptadores HTTP, CLI, job e webhook; a cifra dos
+campos pessoais, o histórico e a auditoria; o distribuidor do live; a fase contract e `vetra.instances` e
+`vetra.schema_state`; os contadores de `rate_limit:`; o modo hospedado em Rails.
+
+### Entregas e dependências
+
+As tarefas rodam nesta ordem, uma por vez no checkout compartilhado; a sonda de cada entrega do Codex roda com o
+Claude, porque o sandbox do Codex não alcança o PostgreSQL. A numeração dos planos de banco segue o que for
+efetivamente integrado, não a ordem desta tabela.
+
+| Tarefa | Implementador | Dependência | Entrega |
+|---|---|---|---|
+| **Fase A** | | | |
+| K14 — forma da política de escopo | Claude | K13 | ADR-041 proposto. Mede a **escrita** que a K13 não mediu, por ação: `INSERT` (`WITH CHECK`), `UPDATE` (`USING` e `WITH CHECK`) e `DELETE` (`USING`), com 1 milhão de vínculos, e compara as **permissões** por ação para gerente, vendedor, ator de papéis mistos e ator sem vínculos. Avalia as três formas: a gerada, a lista do ator calculada uma vez por instrução e a tabela materializada que o ADR-023 pede para avaliar. Se a forma nova valer, o gerador muda e os dois CRMs ganham um plano de troca atômica das políticas (C9), com a sonda de RLS refeita |
+| C11 — construção dos registros | Codex | K13 | ADR-042 proposto. Um caminho de leitura do banco que não repete a validação de entrada que o banco já garante, mas **ainda monta** o que o banco não entrega pronto: `Money`, JSON, UTC e as invariantes que o DDL não garante, como a faixa de datas do `Values`. Mantém o congelamento em profundidade, o `Ractor.shareable?` e os predicados de `enum`; a entrada de `create!`, `update!` e das consultas continua estrita. O gate do ADR-022, §3 é refeito pela sonda de custo; se o limiar de 10% não for atingido, o ADR avalia a construção sob demanda com a medição |
+| C12 — colisão de nomes no compilador | Codex | — | `graph:build` recusa o campo cujo nome colide com um método do registro `Data` (`hash`, `class`, `with`, `public_send` e outros), com código próprio, em vez de só `Repositories.new` (pendência da K12). Item 2 da seção 7 da [situação](situacao-do-projeto.md) |
+| K15 — ator de sistema | Claude | K14 | Implementa o [ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4, **só nas aplicações com tenant**: a claim `system_actor` no contexto assinado, `vetra.is_system_actor()` e a condição permissiva nas políticas de escopo, com o isolamento de tenant ainda `RESTRICTIVE`; um visitante não é ator de sistema. Inclui o que a C9 não entrega: a **tradução incremental** das rotinas de contexto (o `Differ` hoje recusa função nova ou alterada, e a exceção do ADR-036 reconhece só as funções atuais, de retorno `uuid`), a atualização estrita das guardas, o `Context` e a `UnitOfWork` aceitando `system_actor` sem `actor_id` num contexto de tenant, a convergência dos quatro exemplos (blog e chat não mudam) e testes de adulteração |
+| K16 — idempotência da operação | Claude | K15 | ADR-043 proposto. `vetra.idempotency` nos quatro exemplos, com chave única por `(tenant, comando, chave)`, hash da entrada e resultado serializado. O ADR escolhe uma representação que valha para o **contexto global**, em que o tenant é nulo (blog e chat), sem inventar um tenant sentinela: por exemplo `UNIQUE NULLS NOT DISTINCT`. Decide privilégios e RLS, o limite do resultado guardado, a **retenção por origem** (as chaves de adaptador, 24 horas; as derivadas de um evento, enquanto a entrega existir, inclusive as `dead`) e **quem purga** nas aplicações sem outbox, como o chat. Testes de concorrência e de rollback; o `Differ` ganha a tradução da tabela e da rotina de purga |
+| C13 — entrada e autorização em Ruby | Codex | C10 | ADR-044 proposto, sobre o ADR-016 etapa 3 e os ADRs 003, 005 e 037. Etapas 2 e 3: validação pelo contrato de entrada, com os tipos e os erros do `Values`, e avaliação das políticas `authorize` (papel, escopo por vínculo, registro referenciado, permissões por campo). O ADR decide **três coisas**: (1) como ler as concessões, porque `UnitOfWork#read` abre transação e o ADR-016 promete nenhuma transação para o ator sem permissão, então ou uma borda confiável entrega as concessões já resolvidas, com contrato de atualização, ou o ADR autoriza uma transação curta somente leitura que termina antes da recusa; (2) o que um `uses` de leitura concede, caso do `chat.add_member_by_email`, que lê `users_read` sem que o grafo conceda leitura de `chat.user`; (3) a origem confiável dos papéis. O executor **recusa**, com código próprio, a operação cuja autorização dependa só de concessões com `rate_limit:` (o blog limita os comentários), enquanto não houver contadores; uma concessão aplicável sem limite continua permitindo a execução sem consumir cota (ADR-034) |
+| P5 — replanejamento da fase B | Claude | C13, K16 e o resto da fase A | Marco, não código: o Claude entrega o plano revisado da fase B com o que as decisões e as auditorias da fase A mudaram, o Codex o audita em modo somente leitura, o Claude decide os achados e o integra, e só então a K17 começa. O parecer atual não vale antecipadamente para o conteúdo replanejado, e o [AGENTS.md](../AGENTS.md) segue valendo: entrega, árvore congelada, auditoria cruzada e decisão |
+| **Fase B** (replanejada ao fim da fase A) | | | |
+| K17 — executor I: despacho e primitivas | Claude | P5 | A borda interna confiável que o chamador usa: resolve o comando, o ator, os papéis e a chave. Vincula as capacidades do `call` e executa as primitivas CRUD e de vínculo, que o linker ainda marca como `executor: pending`. A `UnitOfWork` ganha `statement_timeout` e `lock_timeout` por operação (hoje fixa `READ COMMITTED` e não recebe nenhum) e os dois limites que protegem o `xmin` do relay, `transaction_timeout` e `idle_in_transaction_session_timeout` (ADR-008, §5, com 30 s e 10 s como valores propostos): a K17 os provisiona e os verifica, com uma sonda em que a transação que passa do limite é encerrada e o `xmin` volta a avançar. Documenta o limite da composição: o `cmd` externo é mantido nos savepoints, e um comando composto não empresta a autoridade de transição de outro (ADR-039) |
+| K18 — executor II: autorização nos acessos | Claude | K15, K17 | Aplica a autorização aos **acessos dos repositórios**, que hoje (`Repository#execute`) verificam só capacidade de escrita, unidade e tenant, e não papéis, campos visíveis nem autorização Ruby: leituras, escritas e registros além do principal. Reautoriza o estado final (etapa 6). O ramo de sistema aplica os `calls` nas etapas 3 e 6, como o ADR-024 manda. Sondas com registros adicionais, campos e consultas globais, inclusive no blog e no chat, que não têm RLS e dependem só disto |
+| K19 — executor III: fechamento transacional | Claude | K16, K18 | Os eventos do `emits` entram na etapa 7 sem que o `call` os grave; a idempotência na etapa 4; `fail!` vira 422, conflito 409 e erro inesperado 500. A **repetição** (no máximo 3, com espera crescente) de falha de serialização ou deadlock repete a operação externa inteira, depois do rollback, e só quando **nenhuma capacidade é `retry_safe: false` e o comando não declara `unsafe_effect`** (ADRs 004, §5, e 022, §6). Sondas de deadlock e serialização, sem evento duplicado, e a recusa da repetição com `unsafe_effect` |
+| C14 — handlers de sistema | Codex | K19 | O runner que reserva as entregas pelo `Relay`, monta o contexto do ator de sistema do tenant do evento e roda o `call` do handler, que só chama os comandos de `calls`, pelo executor. O runner impõe o **timeout total do handler** (30 s por padrão, com lease de 60 s, ADR-024, §1), que nem os timeouts das capacidades nem os das instruções SQL substituem. A chave de idempotência do comando é **derivada do `event_id`** e passada ao provedor, e o despachante do Effect Boundary é desta tarefa. Os dois handlers dos exemplos têm `calls: []`, então a tarefa traz uma fixture com um handler que realmente chama um comando. Testes: queda depois do commit do comando e antes da conclusão da entrega, repetição do evento sem repetir a escrita, o provedor simulado recebendo a mesma chave, comando fora de `calls` recusado, expiração do timeout total com recuperação por outro worker, e a retenção das chaves derivadas de um evento enquanto a entrega existir, inclusive `dead`. O **reprocessamento** de uma entrega `dead` (comando explícito e auditado, ADR-014, §4) é da rodada 6, porque pede a auditoria, e a fixture não o oferece |
+| K20 — ponta a ponta e medição por comando | Claude | C14 | Sonda dos quatro exemplos pelo executor, com o handler de sistema e o relay, no 17 e no 18, na CI. Refaz a medição do ADR-023 com o executor: o percentual da latência de cada comando de referência, a contagem das validações de contexto por instrução e o pooler transacional, que a K13 deixou de fora. O teste de aceitação 6 do ADR-023 **continua pendente**: relatar percentuais não o cumpre, e os limiares não mudam para acomodar um resultado. Qualquer mudança de contrato desse teste é decisão formal do mantenedor |
+
+### Decisões que a rodada precisa tomar
+
+Cada decisão entra como ADR `proposto` na tarefa que a implementa e é aceita depois da auditoria, como nas rodadas
+anteriores. Nenhuma muda o formato da IR.
+
+- **ADR-041 (K14), forma da política de escopo.** A K13 mediu só leitura: a política gerada acrescentou de 0,8 a
+  2,8 ms por instrução com 1 milhão de vínculos (limiar de 1 ms), e a forma com a lista do ator ficou entre −0,6 e
+  +1,8 ms, em torno do limiar com 100 revendas no 18. O ADR decide com a escrita medida por ação e as permissões
+  comparadas, e a escolha altera a política de todas as tabelas com escopo por vínculo.
+- **ADR-042 (C11), construção dos registros.** A construção custou de 72% a 193% da consulta, contra um limiar de 10%.
+- **ADR-043 (K16), idempotência da operação.** O ADR-016 descreve o contrato, mas não o esquema, o contexto global, a
+  retenção por origem nem quem purga onde não há outbox.
+- **ADR-044 (C13), autorização em Ruby.** A leitura das concessões diante da promessa de nenhuma transação, o que um `uses` de
+  leitura concede e a origem dos papéis.
+- **O teste 6 do ADR-023 (K20).** Fica pendente; só o mantenedor pode alterar o seu contrato.
+
+### Riscos e verificações
+
+- **Duas tarefas mudam as políticas de escopo (K14 e K15).** A K15 depende da K14, e cada uma entra numa integração
+  própria: o gate recusa mais de um plano novo por aplicação por integração.
+- **Autorização em Ruby contra o RLS.** Avaliar a política em Ruby pode divergir do RLS do banco; a sonda confere os
+  dois lados nos mesmos casos, inclusive o escopo de revenda e o ator de sistema. No blog e no chat, que não têm RLS,
+  a autorização do executor é a única barreira; a K18 as cobre com sondas próprias.
+- **O executor é o primeiro uso do contexto assinado fora de sondas.** A K20 mede o custo por instrução dos comandos
+  reais, e uma regressão acima do limiar da K13 volta como achado, não como ajuste silencioso.
+- **Repetição de operação.** Só é segura sem efeito externo; as duas condições (`retry_safe` e `unsafe_effect`) são
+  checadas, e a sonda força uma falha de serialização para provar as duas saídas.
+- **A idempotência é uma tabela nova com crescimento.** A retenção e a purga entram no ADR-043, e a purga não pode
+  depender de a aplicação ter outbox.
+- **Sondas.** Cada entrega do Codex roda no PostgreSQL 17 e 18 com o Claude; mudança de SQL exige suíte, grafos, gate e
+  a sonda afetada, como nas regras abaixo.
 
 ## Rodada 4: plano incremental, repositórios e outbox
 
@@ -20,8 +103,8 @@ ADR-022, ADR-014 e ADR-024, ADR-008). Ao fim da rodada:
 - uma sonda grava pelos repositórios numa unidade de trabalho e emite o evento; o relay materializa as entregas e
   as leva a consumidores simulados, no PostgreSQL 17 e 18. Os handlers reais, com o ator de sistema e os comandos
   dos `calls`, dependem do executor da rodada 5;
-- o custo do contexto assinado por instrução tem uma medição preliminar, na matriz do ADR-023. O gate completo,
-  por comando, volta quando houver o executor.
+- o custo do contexto assinado por instrução tem uma medição preliminar, na matriz do ADR-023. A medição por
+  comando volta com o executor (rodada 5, K20); o gate do teste de aceitação 6 do ADR-023 continua pendente.
 
 A IR permanece 0.6: nada desta rodada muda o formato do grafo.
 
@@ -125,7 +208,7 @@ São 72 verificações, todas passando no PostgreSQL 18.6 e no job de planos da 
 [lista de resultados](vetra-data.md#sonda-dos-repositórios).
 
 A avaliação de `authorize` em Ruby, permissões por campo, reautorização do estado final, eventos, histórico
-e o executor das oito etapas continuam na rodada 5. Blog e chat usam contexto global e autorização da
+e o executor das oito etapas continuam na rodada 5, parcial (o histórico, na rodada 6). Blog e chat usam contexto global e autorização da
 aplicação, conforme ADR-037/039. O contrato do ADR-039 foi preservado; nenhum modelo, plano, retrato,
 espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência foi acrescentada.
 
@@ -161,7 +244,7 @@ espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência f
 
 ### Fora da rodada 4
 
-Ficam para a rodada 5:
+**Planejamento anterior, substituído** pelo recorte da [rodada 5](#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial) e pela rodada 6 (veja o destino de cada item abaixo da lista). Ficavam para a rodada 5:
 
 - o executor das oito etapas do ADR-016 e os adaptadores, e com eles o gate do ADR-023 por comando;
 - os handlers reais, com o ator de sistema (`is_system_actor`, ADR-024, §4) e a autoridade dos `calls`;
@@ -170,6 +253,8 @@ Ficam para a rodada 5:
 - o preenchimento em lotes, as mudanças de tipo e as renomeações declaradas;
 - as políticas de administração dos vínculos, dentro do limite que o ADR-037 já documenta;
 - a cifra dos campos pessoais (ADR-013) e o distribuidor do live.
+
+Destino no planejamento atual: o executor das oito etapas, a medição do ADR-023 por comando (o teste 6 continua pendente) e os handlers de sistema estão na rodada 5, o executor sem histórico nem auditoria; os adaptadores, a fase contract, a cifra e o distribuidor do live estão na rodada 6; o preenchimento em lotes, as mudanças de tipo, as renomeações declaradas e as políticas de administração dos vínculos ainda não têm rodada.
 
 Cada uma dessas mudanças de modelo é recusada com código próprio pela diferença aditiva, sem plano parcial.
 

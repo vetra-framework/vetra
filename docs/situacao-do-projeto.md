@@ -628,8 +628,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   de 0,5 ms, com três de doze estimativas acima no 18 (inconclusivo). A política de escopo com 1 milhão de vínculos ficou acima do
   limiar de 1 ms na leitura (de 0,8 a 2,8 ms), o que leva a um ADR novo sobre a forma da política; a forma com a lista
   do ator reduz o acréscimo mas fica em torno do limiar com 100 revendas no 18, e nenhuma foi medida em escrita. O
-  teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. Faltam o pooler, ausente na CI, e o
-  gate de 25% por comando, que espera o executor. O gerador de políticas
+  teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. Faltam o pooler, ausente na CI, e a
+  medição de 25% da latência por comando, que espera o executor (rodada 5, K20); o teste 6 segue pendente. O gerador de políticas
   compõe o plano inicial com a forma tenant/ator não correlacionada e recusa vínculo sem índice físico
   tenant/ator. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
@@ -652,25 +652,37 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 
 ## 7. Próximos passos propostos
 
-Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o
-[quadro dos agentes](tarefas-dos-agentes.md). A persistência é o passo seguinte às lacunas declarativas.
+Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o [quadro dos agentes](tarefas-dos-agentes.md).
+O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
 
-1. [ ] Fechar as lacunas declarativas da fase 0 e os critérios 6 e 7, com os exemplos da proposta. A escala
-   por moeda de `money`, as exposições do ADR-007 e os comandos explícitos de membros do chat, incluindo
-   inclusão por e-mail, estão implementados, assim como o `created_at` implícito na IR 0.2. Os demais itens
-   seguem pendentes nas seções 4 e 5. As consultas do chat já têm coleções e contratos compostos na IR 0.3.
-   No chat, `room_page` também declara live com dependências verificadas. A geração automática dos comandos
-   de vínculo está implementada (C1, ADR-032); o chat a desliga para conservar seus comandos explícitos.
-   A C3 declara `rounding:` em `currency` e mantém o padrão comercial, com IR 0.5 e ADR-033 aceito.
-   A C4 declara `rate_limit:` em `can`, com IR 0.6 e ADR-034 aceito; o blog reproduz o limite de
-   comentários da proposta. Faltam expansões de membros/autores, entrega live, autenticação, UI e realtime
-2. [x] Persistência, rodadas 1 a 4 (o Vetra Data): o [plano](plano-persistencia.md) leva cada exemplo a um banco
-   criado por plano versionado, com papéis e RLS, aplicado por `db:migrate`. O modelo físico, o plano e a infraestrutura
-   de contexto, RLS, revisão e transições estão implementados; `db:migrate` aplica o plano inicial e os incrementais,
-   passo a passo, com retomada. A fundação do plano incremental, suas diferenças aditivas, a unidade de trabalho com
-   contexto emitido em Ruby, os repositórios gerados e a outbox, com armazenamento, emissão, relay, entregas e
-   manutenção das partições, também existem, e o custo do contexto tem medição preliminar ([relatório](sondas/custo-contexto.md))
-3. [ ] Persistência, rodada 5: o executor das oito etapas do ADR-016 e os adaptadores, com o gate de 25% por comando
-   do ADR-023; os handlers reais, com o ator de sistema e a autoridade dos `calls`; a fase contract; a cifra dos
-   campos pessoais (ADR-013) e o distribuidor do live. Antes, dois ADRs que a medição da K13 pede: a forma da
-   política de escopo, a ser medida também em escrita, e a construção dos registros
+1. [ ] Persistência, rodada 5: um executor **parcial** do ADR-016, sem histórico, auditoria nem adaptadores, em duas
+   fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo e a construção dos
+   registros), o ator de sistema, a idempotência e a autorização em Ruby; a fase B, o executor (despacho,
+   autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, é
+   replanejada ao fim da fase A. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
+   no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
+   pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
+2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:
+   - **As cinco famílias que o DSL ainda recusa nos exemplos da proposta** (critério 7, parcial por desenho):
+     `auth`, a UI, `realtime`, a consulta sem `returns` e sem `authorize`, e o escopo por vínculo sem o `has_many`
+     inverso. Nenhuma está na rodada 5, e cada uma depende de algo diferente: `auth` não tem ADR de autenticação; a UI
+     tem o ADR-018 aceito e espera a implementação e a sua representação no grafo; `realtime` espera o distribuidor do
+     live; a consulta sem `returns` e sem `authorize` **já foi decidida como recusada** (seção 3, 2026-11-03), e só um
+     novo aceite do mantenedor a reabre; o escopo por vínculo sem o inverso ainda não tem desenho e **pode ser
+     antecipado**, porque não depende do executor.
+   - **Outras pendências, que não pertencem ao critério 7:** a recusa, no compilador, de nomes de campo que colidem com
+     métodos do registro `Data`, que **entra na rodada 5** (C12); `subject` e `retention`, cujo desenho declarativo
+     **pode ser antecipado**, porque só a execução depende da cifra do ADR-013, como foi com `rate_limit:` (exige IR
+     0.7 e um ADR); e as famílias da seção 5 sem destino ainda, como a moeda por tenant e as políticas por atributo
+     do ator além de `id`, que esperam um ADR.
+
+   O critério 6 depende de existir um servidor de produção. Cada família vira tarefa ao planejar a rodada 6 e as
+   seguintes, e as que podem ser antecipadas entram antes se o mantenedor assim priorizar. Já estão implementados a
+   escala por moeda de `money`, as exposições do ADR-007, os comandos explícitos de membros do chat, o `created_at`
+   implícito (IR 0.2), as consultas do chat com coleções e contratos compostos (IR 0.3) e o live de `room_page`, a
+   geração automática dos comandos de vínculo (C1, ADR-032), `rounding:` em `currency` (C3, ADR-033, IR 0.5) e
+   `rate_limit:` em `can` (C4, ADR-034, IR 0.6)
+3. [ ] Persistência, rodada 6: os adaptadores HTTP, CLI, job e webhook; a cifra dos campos pessoais, o histórico e a
+   auditoria, com o que a conformidade integral com o ADR-016 pede; o distribuidor do live; a fase contract
+   (`vetra.instances` e `vetra.schema_state`); os contadores de `rate_limit:`; e o modo hospedado em Rails. Entra
+   depois da rodada 5 e será planejada ao fim dela, como esta foi
