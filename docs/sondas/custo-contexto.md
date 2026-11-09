@@ -121,13 +121,16 @@ maior** de forma robusta; mostra que ela reduz o acréscimo e muda a forma como 
 | PostgreSQL 17.11 | 193,2 ms | 456,4 ms | 263,2 ms | 136% | 142% (109% a 153%) |
 
 Construir 10.000 registros, com a coerção e o congelamento em profundidade de cada campo, custa cerca de 26 a 28 µs
-por registro, de **72% a 193% da consulta em qualquer execução, sempre acima do limiar de 10%**. Esta é uma
+por registro. A razão tem **mediana de 136% a 167%** e, nas repetições da medição completa, de 72% a 193%, sempre
+acima do limiar de 10%. Numa execução curta posterior, com a mesma sonda e parâmetros da CI, uma repetição isolada do
+18 chegou a −8,6%: é ruído da consulta (uma leitura mais lenta que a construção que se seguiu), e as medianas dessa
+mesma execução continuaram em 166% (18) e 177% (17). Por isso o veredito usa a mediana, não a menor repetição. Esta é uma
 aproximação do cenário do ADR (9 campos lógicos, 10 colunas): ela captura o custo adicional do repositório sobre a
 mesma consulta, mas não é literalmente a carga de 10 campos.
 
 ## O que decide
 
-- **Questão 1: dentro na ordem de grandeza; inconclusivo no 18.** O desenho do contexto assinado do ADR-005 não é
+- **Questão 1: dentro na ordem de grandeza localmente; inconclusivo.** O desenho do contexto assinado do ADR-005 não é
   contrariado, mas a folga é pequena e, no 18, três das doze estimativas passam do limiar. Uma medição com mais rodadas, numa máquina
   mais quieta e com o pooler, e o gate de 25% por comando, ficam para quando houver o executor. Nada aqui dispensa o
   teste de aceitação 6 do ADR-023.
@@ -150,3 +153,17 @@ mesma consulta, mas não é literalmente a carga de 10 campos.
 
 A sonda roda também no job de planos da CI, no 17 e no 18, com 2 rodadas de 1,5 s por série. Ela falha só nas
 conferências funcionais; os limiares são relatados como dentro, inconclusivo ou acima.
+
+**Execução na CI.** Num runner compartilhado do GitHub e com só 2 rodadas de 1,5 s por série, a dispersão é maior que a
+das medições locais. Na [execução 42672241740](https://github.com/vetra-framework/vetra/actions/runs/42672241740) (tentativa 3; as duas primeiras foram
+afetadas por um incidente do GitHub Actions e a segunda chegou a relatar, no job do 17, o contexto assinado com
+mediana de 0,520 ms, acima do limiar), a sonda passou nas conferências funcionais (4/4) nas duas versões e relatou:
+
+| | Contexto assinado sobre o ingênuo | Escopo gerado, leitura | Construção dos registros |
+|---|---|---|---|
+| PostgreSQL 17 | 0,374 ms (de 0,287 a 0,597): inconclusivo | +3,165 ms (de 2,894 a 3,696): acima | 198% (de 144% a 250%): acima |
+| PostgreSQL 18 | 0,428 ms (de 0,370 a 0,686): inconclusivo | +3,189 ms (de 2,907 a 3,988): acima | 160% (de 129% a 204%): acima |
+
+Os três veredictos coincidem com os das medições locais (a questão 1 passa de "dentro" no 17 a "inconclusivo", o que
+reforça esse veredito), mas os custos absolutos da CI são maiores, principalmente o do escopo. Isso mostra que a
+medição não serve como gate numa CI compartilhada: os números da CI mostram a dispersão, não substituem os do relatório.
