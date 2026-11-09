@@ -69,7 +69,7 @@ tarefas seguem a ordem da tabela.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| K14 | Forma da política de escopo: ADR-041 proposto, escrita medida por ação, permissões comparadas e as três formas avaliadas | Claude | a fazer | — | — |
+| K14 | Forma da política de escopo: ADR-041 proposto, escrita medida por ação, permissões comparadas e as três formas avaliadas | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | a fazer | — | — |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
