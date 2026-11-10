@@ -72,7 +72,7 @@ tarefas seguem a ordem da tabela.
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
-| K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | integrada, CI pendente | — | Rodada 1 aprovada pelo Codex; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18 ([auditoria](#auditoria-k15)) |
+| K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
@@ -184,6 +184,9 @@ restritiva de tenant, e que os corpos e hashes das aplicações globais ficam id
 sem diferenças; sondas no 17 e no 18: contexto assinado 78, RLS e integridade 112, plano incremental 18, Vetra Data 23, plano aditivo 99,
 `db:migrate` 21, `db:migrate` incremental 16, repositórios 72, outbox 36, relay 38 e escopo 4/4. Os testes de outbox, relay, plano inicial
 e plano aditivo, e as sondas de `db:migrate` e relay, passaram a esperar os planos novos dos CRMs.
+
+**CI.** A [execução 42831231168](https://github.com/vetra-framework/vetra/actions/runs/42831231168) do commit `e84dc76` passou nos cinco jobs,
+com as sondas de contexto (78) e de RLS (112) no 17 e no 18.
 
 **Decisão pendente do mantenedor.** A medição de custo ([relatório](sondas/ator-de-sistema.md)) mostra que a permissiva `vt_system` encarece o
 ator comum (de +0,03 a +0,45 ms na leitura por chave e de +0,83 a +1,84 ms nas varreduras). A K15 implementa o que o ADR-024, §4 decidiu;

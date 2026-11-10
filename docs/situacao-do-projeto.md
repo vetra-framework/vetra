@@ -73,8 +73,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   de tenant. As sondas de contexto (78) e de RLS (112) cobrem a adulteração do token e o alcance do ator de sistema. A medição de custo
   ([relatório](sondas/ator-de-sistema.md)) mostra que a `vt_system` encarece o ator comum, de +0,03 a +0,45 ms na leitura por chave e de
   +0,83 a +1,84 ms nas varreduras: a decisão entre manter assim, uma função única de contexto ou um papel de banco próprio é do mantenedor.
-  A autorização do comando pelo `calls` do handler continua do executor (K18). Não cumpre o teste 6 do ADR-023. Integrada no commit da K15,
-  CI pendente.
+  A autorização do comando pelo `calls` do handler continua do executor (K18). Não cumpre o teste 6 do ADR-023. Integrada em `e84dc76`, com a CI verde
+  ([execução 42831231168](https://github.com/vetra-framework/vetra/actions/runs/42831231168)).
 
 - [x] Recusa de colisões de nomes no compilador (C12, ADR-022, §3): `graph:build` e `graph:check` emitem
   `field_name_collides_with_record` durante a normalização, com origem, ponteiro do campo ou grupo de enum
