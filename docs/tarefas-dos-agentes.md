@@ -71,7 +71,7 @@ tarefas seguem a ordem da tabela.
 |---|---|---|---|---|---|
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
-| C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | integrada, CI pendente | — | Rodada 1 devolvida pelo Claude; rodada 2 aprovada ([auditoria](#auditoria-c12)) |
+| C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
@@ -173,6 +173,8 @@ Implementado pelo Codex sobre `e221477`; auditado pelo Claude (leitura do diff c
 | Achado do Claude | Bloqueia | Decisão |
 |---|---|---|
 | `reserved_method?` reservava todos os métodos privados do registro, inclusive 55 funções privadas do `Kernel` (`format`, `open`, `select`, `test`, `system`, `load`, `print`, `exec`, `warn`...). Um campo `format` ou `open` funciona num `Data` (construção, leitura e `with` conferidos), então a regra proibia nomes plausíveis sem motivo | sim | Ajustar: reservar os métodos públicos e protegidos, os privados que não são do `Kernel` e só os ganchos que o Ruby chama sozinho (`initialize*`, `method_missing`, `respond_to_missing?`, `singleton_method_*`, `instance_variables_to_inspect`); testes de aceitação de `format`, `open`, `select`, `test`, `system` e `load` e de recusa dos ganchos; docs ajustadas |
+
+**CI.** A [execução 42817593744](https://github.com/vetra-framework/vetra/actions/runs/42817593744) do commit `35d4a99` passou nos cinco jobs.
 
 **Rodada 2 — aprovada pelo Claude.** O ajuste fecha o achado: a lista final de privados reservados é a dos ganchos mais `enum_group?`
 (e `DelegateClass` e `Digest`, de dono `Object`, fora da sintaxe do DSL). O diagnóstico `field_name_collides_with_record` recusa campos e

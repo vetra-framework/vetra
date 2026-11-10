@@ -70,7 +70,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   aceitas como campos; a mesma regra vale para os predicados de enum. A reserva é compartilhada com a defesa
   `data_record_type` dos repositórios e consultada a cada checagem. Testes conferem as duas bordas,
   construção, leitura, `with` e mudanças de visibilidade após o carregamento. IR 0.6, modelos, grafos e
-  planos dos quatro exemplos preservados.
+  planos dos quatro exemplos preservados. Integrada em `35d4a99`, com a CI verde
+  ([execução 42817593744](https://github.com/vetra-framework/vetra/actions/runs/42817593744)).
 
 - [x] Conversão imediata de leitura dos registros (C11, [ADR-042 proposto](adr/042-construcao-dos-registros.md)),
   separada da validação estrita da entrada: monta `Money`, JSON e UTC, mantém a faixa de datas e o congelamento
