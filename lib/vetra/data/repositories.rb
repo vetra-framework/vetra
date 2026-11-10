@@ -128,7 +128,7 @@ module Vetra
         end
       rescue Sequel::DatabaseError => error
         wrapped = error.wrapped_exception
-        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field('C') : nil
+        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field(PG::PG_DIAG_SQLSTATE) : nil
         raise Error.single('data_access_denied', 'Acesso aos dados recusado.'), cause: nil if state == '42501'
         raise Error.single('data_database', 'Falha ao acessar os dados.'), cause: nil
       end

@@ -23,6 +23,8 @@ module Vetra
         # A seção da outbox (ADR-040, §5) é reconhecida pelo texto exato que o gerador atual produz.
         outbox = Outbox.new(schema)
         @outbox, @outbox_storage = outbox.digests, outbox.storage_digests
+        # A seção da idempotência (ADR-043) também é reconhecida pelo texto exato do gerador atual.
+        @idempotency = Idempotency.new(schema).digests
         # Num plano por passo o GRANT só pode tornar uma tabela nova acessível depois de toda a proteção.
         @new_table_grants = @new.reject { |id, _| @old.key?(id) }.values.map do |table|
           "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{relation(table)} TO #{quote('vetra_app')};"
@@ -227,6 +229,31 @@ module Vetra
         @outbox.include?(item['sha256'])
       end
 
+      def idempotency_item?(item)
+        @idempotency.include?(item['sha256'])
+      end
+
+      # Objeto da seção da idempotência num modelo anterior, mesmo gerado por outro texto: tabela, índice, dono, RLS ou política.
+      def idempotency_object?(item)
+        object = item['object'].to_s.delete_prefix('table ')
+        schema, name = object.split('.')
+        schema == 'vetra' && [Idempotency::TABLE, Idempotency::PURGE_INDEX].include?(name)
+      end
+
+      # A seção nasce inteira, num passo transacional, quando o modelo anterior não a tem. Fora disso, qualquer diferença
+      # nela é recusada: o plano incremental ainda não a traduz (ADR-043, §7).
+      def idempotency!(old, current)
+        wanted = @initial.steps.zip(current).select { |_, item| idempotency_item?(item) }
+        if old.any? { |item| idempotency_object?(item) }
+          current_items = wanted.map(&:last)
+          unless wanted.all? { |_, item| old.include?(item) } && old.select { |item| idempotency_object?(item) }.all? { |item| current_items.include?(item) }
+            fail!('db_plan_statement', 'seção da idempotência alterada')
+          end
+        elsif wanted.any?
+          emit(wanted.map { |step, _| step.sql }.join("\n"), existing: false)
+        end
+      end
+
       # Objeto da outbox num modelo anterior, mesmo gerado por outro texto: tabela, índice, dono, RLS ou política.
       def outbox_object?(item)
         object = item['object'].to_s.delete_prefix('table ')
@@ -265,9 +292,10 @@ module Vetra
         old = @base['statements']
         current = @state['statements']
         outbox!(old, current)
+        idempotency!(old, current)
         deferred_grants = []
         # As políticas de cada tabela são uma unidade: inclusive a troca vt_access -> vt_scope_*.
-        policy_tables = (old + current).select { |item| item['kind'] == 'policy' && !outbox_object?(item) }
+        policy_tables = (old + current).select { |item| item['kind'] == 'policy' && !outbox_object?(item) && !idempotency_object?(item) }
           .map { |item| item['object'].split('.')[0, 2] }.uniq
         replacements = {}
         policy_tables.each do |path|
@@ -289,7 +317,7 @@ module Vetra
         end
         emitted_policies = []
         @initial.steps.zip(current).each do |step, item|
-          next if outbox_item?(item)
+          next if outbox_item?(item) || idempotency_item?(item)
           kind, object = item.values_at('kind', 'object')
           # O bootstrap de revisão é a última seção do plano inicial. Seu LOCK precisa cobrir os triggers,
           # REVOKEs e guardas na mesma transação, não terminar num passo anterior a eles.

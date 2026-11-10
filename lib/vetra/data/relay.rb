@@ -47,6 +47,8 @@ module Vetra
       def initialize(db, document:, random: Random.new)
         @db, @random = Data.configure(db), random
         @handlers = self.class.handlers(document)
+        # Só uma aplicação com outbox tem chaves derivadas de um evento (ADR-043, §5).
+        @events = SQL::Outbox.needed?(document)
         @known = @handlers.values.flatten.uniq.sort.freeze
       end
 
@@ -189,6 +191,47 @@ module Vetra
           raise Error.single('data_relay_limit', 'A manutenção exige dias inteiros para ahead e retention.')
         end
         JSON.parse(@db.get(Sequel.function(Sequel[:vetra][:outbox_maintain], ahead, retention).cast(:text)))
+      end
+
+      # Purga do registro de idempotência pelo papel de manutenção (ADR-043, §5). Apaga, em lotes, as chaves de adaptador
+      # mais velhas que `retention_hours` e, numa aplicação com outbox, as chaves derivadas de um evento cuja entrega já
+      # não existe (nem em vetra.deliveries nem em vetra.dead_deliveries) e que também passaram do prazo. Chama de novo
+      # enquanto um lote vier cheio; devolve o total apagado por origem.
+      def purge_idempotency(retention_hours: 24, batch: 1000)
+        outside_transaction!
+        unless retention_hours.is_a?(Integer) && retention_hours.between?(1, 8760) && batch.is_a?(Integer) && batch.between?(1, 10_000)
+          raise Error.single('data_relay_limit', 'A purga exige retention_hours entre 1 e 8760 e batch entre 1 e 10000.')
+        end
+        # O corte vem do relógio do PostgreSQL (o de `created_at`), fixado uma vez por execução: chaves que vencem enquanto a purga corre
+        # ficam para a próxima, e o laço termina. Viaja como texto com o fuso (`timestamptz::text`), nunca como `timestamp` sem fuso.
+        cutoff = @db.fetch('SELECT (pg_catalog.clock_timestamp() - pg_catalog.make_interval(hours => ?))::text AS cutoff', retention_hours).first.fetch(:cutoff)
+        totals = { 'adapter' => 0 }
+        totals['event'] = 0 if @events
+        totals.each_key do |origin|
+          loop do
+            deleted = purge_batch(origin, cutoff, batch)
+            totals[origin] += deleted
+            break if deleted < batch
+          end
+        end
+        totals
+      end
+
+      ORPHAN = <<~SQL.freeze
+        AND NOT EXISTS (SELECT 1 FROM vetra.deliveries d WHERE d.handler = i.handler AND d.event_id = i.event_id
+                          AND d.event_created_at = i.event_created_at)
+        AND NOT EXISTS (SELECT 1 FROM vetra.dead_deliveries x WHERE x.handler = i.handler AND x.event_id = i.event_id)
+      SQL
+
+      private def purge_batch(origin, cutoff, batch)
+        orphan = origin == 'event' ? ORPHAN : ''
+        @db.fetch(<<~SQL, origin, cutoff, batch).all.size
+          WITH doomed AS (
+            SELECT i.id FROM vetra.idempotency i
+             WHERE i.origin = ? AND i.created_at < CAST(? AS timestamptz) #{orphan}
+             ORDER BY i.created_at, i.id LIMIT ?)
+          DELETE FROM vetra.idempotency t USING doomed WHERE t.id = doomed.id RETURNING 1
+        SQL
       end
 
       def inspect

@@ -43,6 +43,11 @@ a construção sob demanda em Ruby. Preserva os registros `Data` e a entrada est
 continua aberto: no PostgreSQL 17 e 18 a construção custa de 40% a 56% da consulta (antes, de 136% a 167%), e a decisão do
 orçamento é do mantenedor.
 
+O [ADR-043](043-registro-de-idempotencia-da-operacao.md), aceito, decide o registro de idempotência da operação:
+a tabela `vetra.idempotency` com chave única `NULLS NOT DISTINCT` (que vale também no contexto global), o principal como parte da
+chave, o teto de 64 KiB do resultado, a retenção por origem (24 horas para o adaptador, enquanto a entrega existir para o evento)
+e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executor é da K19.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -89,6 +94,7 @@ orçamento é do mantenedor.
 | [040](040-papeis-e-rls-da-outbox.md) | Papéis, RLS e armazenamento da outbox | aceito |
 | [041](041-forma-da-politica-de-escopo.md) | Forma da política de escopo por vínculo | aceito |
 | [042](042-construcao-dos-registros.md) | Construção dos registros | proposto |
+| [043](043-registro-de-idempotencia-da-operacao.md) | Registro de idempotência da operação | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

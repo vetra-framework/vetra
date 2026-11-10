@@ -119,6 +119,8 @@ module Vetra
         if schema.respond_to?(:document) && schema.document
           # Antes da segurança: o Differ trata a revisão como a última seção do plano (ADR-040, §5).
           statements.concat(Outbox.new(schema).statements)
+          # Depois da outbox (a guarda do papel de manutenção e o USAGE vêm do relay) e antes da segurança (ADR-043).
+          statements.concat(Idempotency.new(schema).statements)
           statements.concat(Security.new(schema).generate.statements)
           if schema.document.dig('app', 'tenant')
             statements.concat(Authorization.new(schema.document).generate.statements)

@@ -257,6 +257,39 @@ relay.work('crm.notify_sales') { |delivery| mailer.deliver(delivery.payload, key
   nas entregas; `SELECT` e `INSERT` nas entregas mortas; `SELECT` e `UPDATE` no checkpoint. Não lê as tabelas da
   aplicação, as chaves nem as partições diretamente, e a aplicação não executa a rotina.
 
+## Idempotência da operação
+
+`Vetra::Data::Idempotency` ([ADR-043](adr/043-registro-de-idempotencia-da-operacao.md)) é da borda confiável, dentro da unidade
+de trabalho (etapas 4 e 7 do ADR-016); o `call` da aplicação nunca o recebe. O executor da K19 a liga ao adaptador.
+
+```ruby
+work.transaction(tenant_id: tenant.id, actor_id: actor.id, op_id: operation_id, cmd: 'crm.create_lead') do |unit|
+  idempotency = Vetra::Data::Idempotency.new(unit)
+  claim = idempotency.claim!(command: 'crm.create_lead', key: request_key, input: input)
+  next claim.result if claim.replay            # a repetição devolve o resultado guardado, sem executar
+  result = execute(unit)                       # o call
+  idempotency.complete!(claim, result)         # JSON de até 64 KiB, guardado na mesma transação
+  result
+end
+```
+
+- `claim!` insere `(tenant, comando, chave)` com o hash da entrada e o principal (o `actor_id`, `system:<handler>` do ator de
+  sistema, ou nulo para o visitante). A mesma chave com outra entrada **ou** outro principal é `data_idempotency_key_reuse`, sem
+  devolver o resultado nem dizer qual dos dois diferiu. Uma chave em uso por uma operação aberta faz o `INSERT` esperar: se a outra
+  confirma, a repetição devolve o resultado dela; se desfaz, a chave é nossa; passado o `lock_timeout`, é `Conflict(:lock_timeout)`.
+- A chave tem de 1 a 255 caracteres ASCII visíveis. A origem `:event` exige `event: { handler:, event_id:, event_created_at: }`, que
+  a retenção usa; só existe numa aplicação com outbox.
+- `complete!` guarda o resultado na mesma transação; o rollback da unidade desfaz a chave e o resultado juntos. Só aceita o claim
+  novo que `claim!` emitiu nesta unidade (registrado por identidade do objeto): um replay, um claim de outra transação, um `Claim`
+  construído à mão e uma segunda conclusão são `data_idempotency_state`, e o `UPDATE` exige `result IS NULL` e o mesmo principal. O
+  resultado é JSON de até 64 KiB **no banco** (`octet_length(result::text)`, sobre o `jsonb` normalizado, com chaves repetidas reduzidas e
+  números reescritos): o `CHECK` decide a fronteira, e Ruby só impõe o limite adicional de 1 MiB ao payload serializado.
+  Enquanto a cifra do ADR-013 não existe, um resultado com campo pessoal não deve ser guardado em claro (a K19 o recusa).
+- **Purga.** A aplicação nunca apaga chaves. `Relay#purge_idempotency(retention_hours: 24, batch: 1000)` apaga, em lotes, a partir de um corte fixado uma vez no relógio do PostgreSQL, as chaves de
+  adaptador mais velhas que o prazo e, numa aplicação com outbox, as de evento cuja entrega já não existe (nem em `deliveries` nem em
+  `dead_deliveries`) e que também passaram do prazo. `vetra idempotency:purge [--retention-hours 24] [--batch 1000]` faz o mesmo pela
+  linha de comando, com `DATABASE_URL` carregando a senha do `vetra_relay`.
+
 ## Aplicações globais
 
 Blog e chat usam `UnitOfWork.new(db, scope: :global)`, sem emissor. A transação recebe `op_id`, `cmd` e
@@ -301,6 +334,11 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_relay_handler` | Handler sem evento declarado no grafo |
 | `data_relay_limit` | Limite, lease ou dias fora do intervalo aceito |
 | `data_relay_transaction` | Operação do relay chamada dentro de outra transação |
+| `data_idempotency_key_reuse` | A chave de idempotência já foi usada com outra entrada ou por outro principal (422), sem devolver o resultado |
+| `data_idempotency_state` | A chave não tem resultado confirmado, ou o resultado foi concluído sem reivindicação |
+| `data_idempotency_result` | Resultado que não é JSON válido ou passa de 64 KiB |
+| `data_idempotency_input` | Entrada que não é JSON, e portanto não tem hash canônico |
+| `data_idempotency_key` | Chave fora de 1 a 255 caracteres ASCII visíveis, ou origem sem os dados da retenção |
 
 `Token#value` exporta explicitamente o token para o protocolo. Não o registre, nem chave/hexadecimal/argumentos
 de assinatura. `inspect`/`to_s` do token, emissor, contexto e unidade são redigidos. O logger do Sequel não

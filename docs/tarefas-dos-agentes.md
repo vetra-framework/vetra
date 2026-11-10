@@ -73,7 +73,7 @@ tarefas seguem a ordem da tabela.
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
-| K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
+| K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | integrada, CI pendente | — | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
 | K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
@@ -162,6 +162,49 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K16
+
+Implementado pelo Claude sobre `bc15835`; auditado pelo Codex em modo somente leitura, com a árvore conferida por hash antes e depois de cada
+rodada. O Claude rodou a suíte, o gate, `db:plan --check` e as sondas no PostgreSQL 18.6 e num 17.11 local, que o sandbox do Codex não alcança.
+O ADR-043 foi aceito pelo Claude por delegação do mantenedor depois da rodada 3.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `complete!` não traduzia os erros do banco (a mensagem do driver saía crua e o mapeamento de conflitos se perdia) | sim | Ajustar: tradução com `cause: nil`, testada pela API pública |
+| Ruby media o resultado em JSON compacto e o `CHECK` em `jsonb::text`: 65.536 bytes passavam em Ruby e violavam o `CHECK` | sim | Ajustar: o banco decide o teto; o 23514 vira `data_idempotency_result`; fronteira testada no PostgreSQL |
+| `complete!` aceitava qualquer linha visível com o `id`: replay, claim de outra transação e outro principal | sim | Ajustar: claim ligado à transação, `UPDATE` com `result IS NULL` e o principal |
+| A purga podia não terminar sob carga contínua (o prazo era recalculado por lote) | não | Ajustar: corte fixado por execução |
+| A sonda consultava uma chave diferente da operação recusada | não | Ajustar |
+| O teste de `id` esperava 428C9 e não discriminava a concessão por coluna | não | Ajustar: tentativa com `OVERRIDING SYSTEM VALUE`, que exige 42501 |
+
+**Rodada 2 — devolvida pelo Codex.** Fechou o achado 1 e deixou lacunas nos demais.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O filtro de tamanho em Ruby recusava o que caberia: o JSON compacto pode ser maior que o `jsonb::text` (chaves repetidas e números reescritos) | sim | Ajustar: filtro removido, só um limite adicional de 1 MiB ao payload serializado; premissa do ADR corrigida; sonda com chaves repetidas e números que encolhem |
+| O campo público `context` não autenticava o claim: um `Claim` construído à mão foi aceito, e a sonda testava uma linha já concluída | sim | Ajustar: registro dos claims emitidos por identidade do objeto (`ObjectSpace::WeakMap`); teste e sonda contra linha ainda sem resultado |
+| O corte da purga usava o relógio do processo, que pode antecipar a expiração | sim | Ajustar: corte lido uma vez no relógio do PostgreSQL |
+| O parâmetro do corte perdia o fuso (`$2::timestamp`) | sim | Ajustar: texto com fuso e `CAST(? AS timestamptz)`; sonda com a sessão em `America/Sao_Paulo` |
+
+**Rodada 3 — aprovada pelo Codex.** Os quatro bloqueantes foram confirmados como fechados, com o `WeakMap` verificado sob oito threads, GC e
+compactação. Três observações não bloqueantes foram ajustadas pelo Claude:
+
+| Observação do Codex | Decisão do Claude |
+|---|---|
+| O limite de 1 MiB estava descrito como "absurdo em qualquer representação", mas recusa também um JSON que normalizaria para menos | Ajustar: descrito como limite adicional do payload serializado (código, teste e ADR) |
+| O ADR dizia lotes "por `id`", e o SQL ordena por `created_at` | Ajustar: ADR alinhado, e `id` entra como desempate |
+| `--batch` e `--retention-hours` eram recusados depois dos retornos de `db:plan` e `outbox:maintain`, que os ignoravam | Ajustar: a exclusividade é validada antes dos retornos, com teste para `db:plan`, `outbox:maintain` e `db:migrate` |
+
+**Correção colateral.** A sonda expôs que `error_field('C')` levanta `TypeError` neste `pg`; o mapeamento de deadlock, serialização, lock e acesso
+negado do repositório e do catálogo estava quebrado em silêncio. Os três usos passaram a `PG::PG_DIAG_SQLSTATE`.
+
+**Verificações do Claude.** Suíte 662 testes, 0 falhas, 229/229 diagnósticos; `db:plan --check` nos quatro exemplos no 17 e no 18; gate sem
+diferenças; sondas no 17 e no 18: idempotência 83, contexto assinado 78, RLS e integridade 112, plano incremental 18, Vetra Data 23, plano
+aditivo 99, `db:migrate` 21, `db:migrate` incremental 16, repositórios 72, outbox 36 e relay 38. O Differ cria a seção inteira num passo;
+cada exemplo ganhou um plano novo (blog `0004`, chat `0002`, mini CRM `0005` e CRM com revendas `0006`).
 
 ## Auditoria K15
 

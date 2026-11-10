@@ -74,7 +74,7 @@ class MigrateProbe
     connection.exec('SELECT plan, sha256, steps, applied_by FROM vetra.migrations ORDER BY plan').to_a
   end
 
-  # Os planos commitados, na ordem: o inicial, o 0002 e o 0003 (outbox e relay, ADR-040) e o 0004 (forma da política de escopo, ADR-041).
+  # Os planos commitados, na ordem: o inicial, o 0002 e o 0003 (outbox e relay, ADR-040) e o 0004 (forma da política de escopo, ADR-041), o 0005 (ator de sistema) e o 0006 (idempotência, ADR-043).
   def expected_records
     Vetra::SQL::Planner.new(root: ROOT).migration_plans.map do |plan|
       { 'plan' => plan.file_name.delete_suffix('.sql'), 'sha256' => Vetra::SQL::Migrator.digest(plan),
@@ -93,7 +93,7 @@ class MigrateProbe
     expected = expected_records
     check('aplica o plano inicial e os incrementais num banco vazio como vetra_migrator e registra o hash de cada um') do
       result = migrate(connection)
-      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand 0003_expand 0004_expand 0005_expand] && records(connection) == expected
+      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand 0003_expand 0004_expand 0005_expand 0006_expand] && records(connection) == expected
     end
     check('segunda execução não aplica nada e confere o esquema com o retrato') do
       migrate(connection).status == :up_to_date && records(connection) == expected

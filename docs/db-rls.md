@@ -28,6 +28,10 @@ sistema de um handler ([ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), 
 porque a restritiva de tenant continua valendo; um ator comum, um visitante e um token com os dois claims não satisfazem a política.
 O limite fino, quais comandos o handler chama, é o `calls` do grafo. O mini CRM não tem escopo SQL e não ganha a política.
 
+O registro de idempotência (`vetra.idempotency`, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md)) tem RLS forçado em toda aplicação:
+numa com tenant, a política da aplicação é o tenant do contexto (o ator de sistema também tem tenant); numa global, só a linha com tenant nulo.
+Um tenant não lê nem grava a chave de outro.
+
 A permissão SQL das tabelas sem escopo não implementa o RBAC inteiro. Em particular, administrar
 `memberships` exige autorização da aplicação; SQL arbitrário como vetra_app pode modificar esses
 vínculos dentro do tenant. Campos, papéis sem vínculo materializado e limites de taxa também ficam no

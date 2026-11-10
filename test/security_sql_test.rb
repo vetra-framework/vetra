@@ -221,12 +221,14 @@ class SecuritySQLTest < GraphTest
       sql = Vetra::SQL::Plan.initial(model).render
       refute_includes sql, 'authz_revisions'
       # Numa aplicação global, as políticas são só as da outbox (ADR-040): a de INSERT da aplicação, que exige tenant
-      # nulo, e as do relay e do dono. Nenhuma tabela da aplicação tem política.
+      # nulo, e as do relay e do dono, mais as duas do registro de idempotência (ADR-043). Nenhuma tabela da aplicação tem política.
       policies = sql.scan(/^CREATE POLICY .*$/)
       refute policies.any? { |policy| !policy.include?(' ON "vetra".') }
       app = policies.select { |policy| policy.include?('TO "vetra_app"') }
-      assert_equal(example == 'blog' ? ['CREATE POLICY "vt_outbox_insert" ON "vetra"."outbox" AS PERMISSIVE FOR INSERT TO "vetra_app" WITH CHECK ("tenant_id" IS NULL);'] : [], app)
-      assert_equal(example == 'blog' ? 10 : 0, policies.size)
+      idempotency = 'CREATE POLICY "vt_idempotency_app" ON "vetra"."idempotency" AS PERMISSIVE FOR ALL TO "vetra_app" USING ("tenant_id" IS NULL) WITH CHECK ("tenant_id" IS NULL);'
+      outbox = 'CREATE POLICY "vt_outbox_insert" ON "vetra"."outbox" AS PERMISSIVE FOR INSERT TO "vetra_app" WITH CHECK ("tenant_id" IS NULL);'
+      assert_equal(example == 'blog' ? [outbox, idempotency] : [idempotency], app)
+      assert_equal(example == 'blog' ? 12 : 2, policies.size)
     end
   end
 

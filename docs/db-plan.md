@@ -322,6 +322,19 @@ Uma combinação que contém qualquer recusa não grava plano, modelo nem espelh
 habilita `migrate` ou `contract`: preenchimento em lotes, renomeações e estreitamento de enum exigem fases futuras.
 Estas regras detalham o ADR-038 aceito; não mudam formato, cadeia, convergência ou escopo do executor real.
 
+## Registro de idempotência
+
+Toda aplicação, global ou com tenant, tem a tabela `vetra.idempotency` ([ADR-043](adr/043-registro-de-idempotencia-da-operacao.md)):
+chave única `UNIQUE NULLS NOT DISTINCT (tenant_id, command, key)`, que vale também com tenant nulo, o `input_hash` e o `principal` da
+operação, o `result` (JSON de até 64 KiB) e a origem `adapter` ou `event`. A aplicação lê, grava a chave e só atualiza `result`;
+nunca apaga. O papel de manutenção `vetra_relay` lê e apaga, e a purga é `vetra idempotency:purge`
+(veja o [guia do Vetra Data](vetra-data.md#idempotência-da-operação)).
+
+A seção entra no plano inicial depois da outbox e antes da segurança, e o `Differ` a cria inteira, num passo, numa base que ainda
+não a tem: uma instrução alterada ou a mais na base é recusada com `db_plan_statement`, como a outbox. Numa aplicação com outbox,
+a guarda do papel de manutenção e o `USAGE` do schema vêm da seção do relay e não se repetem. Cada exemplo ganhou um plano novo
+(`0004` no blog, `0002` no chat, `0005` no mini CRM e `0006` no CRM com revendas).
+
 ## Contenção
 
 Os planos commitados rodam no servidor de quem executa `--check` ou `--snapshot`. Antes da integração, o gate ainda

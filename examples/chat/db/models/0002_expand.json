@@ -1,0 +1,760 @@
+{
+  "format": "vetra-db-model",
+  "plan": {
+    "file": "0002_expand.sql",
+    "sha256": "87c4681dc14dbe0447290dbdf21934c0cf29e2abfe97583a4cbd19828a7bd8fe"
+  },
+  "plans": [
+    {
+      "file": "0001_inicial.sql",
+      "sha256": "93ca0e5098200e0d6a59a2ddc8cfa66b2bb5fed06dd2f74dd8e48e199422ef8e"
+    },
+    {
+      "file": "0002_expand.sql",
+      "sha256": "87c4681dc14dbe0447290dbdf21934c0cf29e2abfe97583a4cbd19828a7bd8fe"
+    }
+  ],
+  "previous": {
+    "file": "0001_inicial.json",
+    "sha256": "b52d0645ef0b9d0d54fd989ca35a8b768e181c32e2411bc7c62c3f538a23d34d"
+  },
+  "state": {
+    "statements": [
+      {
+        "kind": "guard",
+        "object": "vetra_context_roles",
+        "sha256": "a6a24e40a0187d823e2c27133cef8c8d488423bcf7280e76af1e3995ac24e1fc"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_database_privileges",
+        "sha256": "8663c554aacd5ad312523f602890d3251cf5853295cc916f76bedd754f0002a2"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra",
+        "sha256": "7a05cfaa14165be80a2d8b7e3ed05b6cec997853c3f42e98c80935d5391c50dc"
+      },
+      {
+        "kind": "schema",
+        "object": "vetra_private",
+        "sha256": "f2f874143899e961999ba73e8d37c339cf22a328b2afa66687902ba2c7f64950"
+      },
+      {
+        "kind": "extension",
+        "object": "pgcrypto",
+        "sha256": "af522912e9fd77312d99b966da3cf14b3db2f539239efd309cddd95842d3d794"
+      },
+      {
+        "kind": "table",
+        "object": "vetra_private.keys",
+        "sha256": "33b9dc090078e0f637c07e31753624c55436de20af4697eb6e1dcd01cc28f5e8"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra_private.keys",
+        "sha256": "f82c2cb7540c2461825b0a26011d3b6cb92d32cbe9b7c47f68068155767e2f59"
+      },
+      {
+        "kind": "index",
+        "object": "vetra_private.vt_keys_active",
+        "sha256": "62bbf2f0a73257092512df00a940d003f5bd382851f28de3584500a33641eef7"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "8cf4ea2ceaf40a86664680a5d4e2396d655e2e4ad723aa969f6bf91be7226845"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "076ec9d3ad049fd4b5159881fe2070107932e91e5bd1430aca631d3926a81853"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6ac7738cc7b2c8437578bddc20c8af63d513d077a1992cbf988fb4db381ae207"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_tenant()",
+        "sha256": "7950bdf1c6be1a755eb992d058392db1bf4b2a86cb84193e9070d52c4d07e465"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_tenant()",
+        "sha256": "b872e261f9ef033f1cb4651b595cb62a3f631fcf8faac9b6eae8680a87ab9d49"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a31039fb59c0c748f7d5c374b1e0ed1e70d8cdc1166b00419ade8966b2ae7866"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "f5bef7e7451690b3f112d2be32b426c991d794b7b3f3a7f9cec2405f2ec86afb"
+      },
+      {
+        "kind": "function",
+        "object": "vetra.current_actor()",
+        "sha256": "436cf1c028bd80ddfb993530223004fbc2c099b83e26498b1ecdcb9218105442"
+      },
+      {
+        "kind": "owner",
+        "object": "function vetra.current_actor()",
+        "sha256": "85e163a0975c9dfb046594183e7de3f83a76f66b0bf7e7061b773afb3ce917f5"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "96a7ab52cdc935b57546223f37aeff42c1305a6312bf155cb218bc296d4e08e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "a03de332c7c3bbdb609c9bdc33da6ecd481aaeb2667c5e26767ebc47b89c2059"
+      },
+      {
+        "kind": "table",
+        "object": "public.messages",
+        "sha256": "fff6e62b9c939994f18109332fe52fd3385a2aba35effb4730d653be840aef89"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_3b5480ce7197874d7a5bdb6436221573",
+        "sha256": "4c592ced12b3ffc5a6a65747db7cd8c40c5f6c8cb879250eb8c8d1a656a1ea5e"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_6c5a6962c5567e3136218a20ccd778bb",
+        "sha256": "9efd4538a7b48f915ae03bd2d5c385fc6d15ce1f5205ff6bcfd12b0b8f148c83"
+      },
+      {
+        "kind": "table",
+        "object": "public.room_memberships",
+        "sha256": "35cdfc5d710e07155a97d805beeb7b22ffbfb556e9d2d137c4bc213741e51767"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.room_memberships.vt_uq_63280809b6e0753d434cd9533e4818d6",
+        "sha256": "462ab587bdc87301e0c7a3b3d9da33a4fa21f813a70e6c0978ea2731158a1f46"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_59b6dee34acd95168591b33e06d42632",
+        "sha256": "dd22a0ee50de7201ad41fef82ccd7938c296052fa7a7969b24df6644104aa372"
+      },
+      {
+        "kind": "table",
+        "object": "public.rooms",
+        "sha256": "917b20182997c2edb069d810a31b873585e2d11573cfbe5ae579d813465cfc40"
+      },
+      {
+        "kind": "index",
+        "object": "public.vt_ix_837c5ade83a68764757de4ae044f9802",
+        "sha256": "06f0f41de76d8d749318e04f40d9f3afa0de8fb1c61aac352e64063c052b7cec"
+      },
+      {
+        "kind": "table",
+        "object": "public.users",
+        "sha256": "bc8d43f239dcbcdca967dd49f23b6d22973d77f68e1c9ed8f5c70d64fb8c0d5f"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.users.vt_uq_790bc8d38d2b0db83fe19d17b070d9fb",
+        "sha256": "ea38f94eb9a828c23b0d59d5ad002297e8bc50a86ab26d22bb709616a213badc"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.messages.vt_fk_64193792c688830b05f0bff5d5c518b3",
+        "sha256": "bd16137bbc027981a09b1530bf35c4a35031f1b9b47f406b177a48c524c23b10"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.messages.vt_fk_b238fbf3a0c884447c919c7309c73229",
+        "sha256": "60aa3fb84607947f8e1b39128d288e49c1a23b140b30f372ff789ca65a43d61a"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.room_memberships.vt_fk_0b495c1a0bbc85eda7648441551cc807",
+        "sha256": "0079ff87565c6a2f298decd82f78750baa393717bad3cee3c07d0e5401fabc3d"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.room_memberships.vt_fk_887e921b8d995136be84fdaab786f5a2",
+        "sha256": "8f11891b7d55ff5411b120c6ddad01981bd7158012802b99bb04b7d9747709ef"
+      },
+      {
+        "kind": "constraint",
+        "object": "public.rooms.vt_fk_d28ab3d2ad832571f34da936408718a9",
+        "sha256": "4995fa756c98c36d593521996e6b6be66a8e5f248bc28cb4d4a453e8d034b876"
+      },
+      {
+        "kind": "owner",
+        "object": "schema public",
+        "sha256": "e6392d9571474f921205e6b7e2a509bbc462c87f9334877422c293845d267ee3"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "bd4d8b5ab0d73f3ec207193bcaafc0b4fab3057edc1b7d58dab4fb66db474faa"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4e3183f74c6418040d47656687cf0c22f57585da72f57156848b9b42a7a5a5b9"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.messages",
+        "sha256": "d52cec3f75df8eae7101b8b31096c2c2a306116a6401056a5195bffa43e4ebcc"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2bdcf159e2be33665ccf9e28f4ac410732e4696c57d6f6452d247a5c2c23ff13"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "75de2e60f24be575037c4254c7b293398fc6e5a1b6fd58aa7ebed286d1a20f58"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.room_memberships",
+        "sha256": "dbbd2382006f7037b47f75830d57795370cfed1212db9dcad4cd61f710792499"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "06a44aa10698614de07b1d47997866665ca569abef9f63495b12e52885ad1293"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0d9aea1b0c8b75fec059c99a6fe9b015a94c11c11f7807c05e11468928009324"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.rooms",
+        "sha256": "fe106d905d2fceb8ac6d25f6269854607e9643318a64fbe77417df2de2b04059"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "de93b827673b98717fa8842e544cc8bc92e1d3c527991404ccfcc3e2b826a511"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "93e9a0c6a874d19f5cecb5e37b6caadcabbbec2956c89d23ee77f0b9a5222398"
+      },
+      {
+        "kind": "owner",
+        "object": "table public.users",
+        "sha256": "3eb5db7cd69277d9deb420176a36c7e390e98f910cd6d16f9f26da84f7f01281"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "531e6fe42d4c9156fac6306f8015cfbc6f6465cf466681bd7514fd37fd0d5d79"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "0abe449fe779b40cdabe7fe94d5325502ac170a113efa2ddddd6b34485fa3b82"
+      },
+      {
+        "kind": "guard",
+        "object": "vetra_relay_role",
+        "sha256": "e9ee19ddd1fad71c014244c7db3323ca1da457182a97f6fa933f476bc58bf6a7"
+      },
+      {
+        "kind": "table",
+        "object": "vetra.idempotency",
+        "sha256": "09ee7fb27667c4b95bed17f250a40236f2b4db70e045d949b9612719624bcd72"
+      },
+      {
+        "kind": "index",
+        "object": "vetra.vt_idempotency_purge",
+        "sha256": "26f6a30bca1f98c49b29eea0a3dedab708f50df7cf0d00c9be6f16cc5bd07626"
+      },
+      {
+        "kind": "owner",
+        "object": "table vetra.idempotency",
+        "sha256": "386442edafda85cb9d4e4c7165944ba79dcef488d477e2e4d2555a8cc2f41d55"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "4131918d2b691ad359790c99bfc7bf2016021801d3f8bf8b679f66a0aa1f6071"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.idempotency.enable",
+        "sha256": "02178e28f1b3de65f88e3c9143c305761e05579e23b90677229350cd526be84d"
+      },
+      {
+        "kind": "row_security",
+        "object": "vetra.idempotency.force",
+        "sha256": "a161c84b1bb1811e0b5f510941a8f171a5bab7588882922fb762408c6586487b"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.idempotency.vt_idempotency_app",
+        "sha256": "d6d3ce39202091222b728116984cfc8bd16bdc574f7a5991de0a2da2059fa540"
+      },
+      {
+        "kind": "policy",
+        "object": "vetra.idempotency.vt_idempotency_relay",
+        "sha256": "ffa015708c6f052a0398709634d7781641810082cda73a015ff748ce7a50aa70"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "2dba6b962b356321b0e3f587655dc9a096d49c9db7f24a913fa6d15cd7cee9c0"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "49b374c5a9da46ae1e53c23e1638e7d2ba18adae7e8d40c7b6f71d02cde80169"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "08d3e452f16391fec0e4c6ae3f67268375503ff12eb527be3256506d63731f08"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "89a198b8d6ae295c972bffc9a563d39f39e5d94e153490bedebab0a5374468e8"
+      },
+      {
+        "kind": "privilege",
+        "object": null,
+        "sha256": "6326f7d0e4596e16aa8ea78076cebf76d879c7e7255a2e782b3e7dbffda56d47"
+      }
+    ],
+    "tables": [
+      {
+        "assignments": {
+          "author_id": {
+            "default": {
+              "kind": "context",
+              "name": "current_actor"
+            }
+          },
+          "body": {},
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "room_id": {}
+        },
+        "checks": [
+          {
+            "expression": "pg_catalog.char_length(\"body\") <= 4000",
+            "name": "vt_ck_60c9617cf5e34dbbe2bea54e76d66b13"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "author_id",
+            "name": "author_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "body",
+            "name": "body",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "room_id",
+            "name": "room_id",
+            "nullable": false,
+            "type": "uuid"
+          }
+        ],
+        "entity": "chat.message",
+        "foreign_keys": [
+          {
+            "columns": [
+              "room_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_64193792c688830b05f0bff5d5c518b3",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "rooms"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "author_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_b238fbf3a0c884447c919c7309c73229",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "users"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "author_id"
+            ],
+            "name": "vt_ix_3b5480ce7197874d7a5bdb6436221573"
+          },
+          {
+            "columns": [
+              "room_id",
+              "created_at"
+            ],
+            "name": "vt_ix_6c5a6962c5567e3136218a20ccd778bb"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_29dd45144ead987a3c36b8eff5054f05"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "messages",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      },
+      {
+        "assignments": {
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "room_id": {},
+          "user_id": {}
+        },
+        "checks": [],
+        "columns": [
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "room_id",
+            "name": "room_id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "user_id",
+            "name": "user_id",
+            "nullable": false,
+            "type": "uuid"
+          }
+        ],
+        "entity": "chat.room_membership",
+        "foreign_keys": [
+          {
+            "columns": [
+              "room_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_0b495c1a0bbc85eda7648441551cc807",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "rooms"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          },
+          {
+            "columns": [
+              "user_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_887e921b8d995136be84fdaab786f5a2",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "users"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "user_id"
+            ],
+            "name": "vt_ix_59b6dee34acd95168591b33e06d42632"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_e79206a51d8dd23231c4cf4f49c11d55"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "room_memberships",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "room_id",
+              "user_id"
+            ],
+            "name": "vt_uq_63280809b6e0753d434cd9533e4818d6"
+          }
+        ]
+      },
+      {
+        "assignments": {
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "id": {},
+          "name": {},
+          "owner_id": {
+            "default": {
+              "kind": "context",
+              "name": "current_actor"
+            }
+          }
+        },
+        "checks": [
+          {
+            "expression": "pg_catalog.char_length(\"name\") <= 80",
+            "name": "vt_ck_edfbcde86f777997d3250f9e8ffd5a85"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": null,
+            "field": "owner_id",
+            "name": "owner_id",
+            "nullable": false,
+            "type": "uuid"
+          }
+        ],
+        "entity": "chat.room",
+        "foreign_keys": [
+          {
+            "columns": [
+              "owner_id"
+            ],
+            "deferrable": true,
+            "initially": "IMMEDIATE",
+            "match": "SIMPLE",
+            "name": "vt_fk_d28ab3d2ad832571f34da936408718a9",
+            "on_delete": "NO ACTION",
+            "on_update": "NO ACTION",
+            "target": [
+              "public",
+              "users"
+            ],
+            "target_columns": [
+              "id"
+            ]
+          }
+        ],
+        "indexes": [
+          {
+            "columns": [
+              "owner_id"
+            ],
+            "name": "vt_ix_837c5ade83a68764757de4ae044f9802"
+          }
+        ],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_6ea7e6e7e69a80a75e7b9121bc19b161"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "rooms",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": []
+      },
+      {
+        "assignments": {
+          "created_at": {
+            "generate": {
+              "kind": "timestamp",
+              "on": "create"
+            }
+          },
+          "email": {
+            "normalize": [
+              "downcase"
+            ]
+          },
+          "id": {},
+          "name": {}
+        },
+        "checks": [
+          {
+            "expression": "\"email\" = pg_catalog.lower(\"email\")",
+            "name": "vt_ck_d1b6d46a7070d1e01500f3308355ceba"
+          }
+        ],
+        "columns": [
+          {
+            "default": null,
+            "field": "created_at",
+            "name": "created_at",
+            "nullable": false,
+            "type": "timestamp(6) with time zone"
+          },
+          {
+            "default": null,
+            "field": "email",
+            "name": "email",
+            "nullable": false,
+            "type": "text"
+          },
+          {
+            "default": "pg_catalog.gen_random_uuid()",
+            "field": "id",
+            "name": "id",
+            "nullable": false,
+            "type": "uuid"
+          },
+          {
+            "default": null,
+            "field": "name",
+            "name": "name",
+            "nullable": false,
+            "type": "text"
+          }
+        ],
+        "entity": "chat.user",
+        "foreign_keys": [],
+        "indexes": [],
+        "primary_key": {
+          "columns": [
+            "id"
+          ],
+          "name": "vt_pk_344f37be5dc149cf8c9590e8719b61c5"
+        },
+        "schema": "public",
+        "scope": "global",
+        "table": "users",
+        "tenant_column": null,
+        "transitions": {
+          "enforce": "application"
+        },
+        "unique_keys": [
+          {
+            "columns": [
+              "email"
+            ],
+            "name": "vt_uq_790bc8d38d2b0db83fe19d17b070d9fb"
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

@@ -3,6 +3,7 @@
 - Status: aceito
 - Data: 2026-10-30
 - Relacionados: ADR-002 (as garantias transacionais assumem uma transação do PostgreSQL)
+- Implementação posterior: o registro de idempotência da operação (esquema, contexto global, retenção por origem e purga) está no [ADR-043](043-registro-de-idempotencia-da-operacao.md), implementado na K16; o texto abaixo não muda
 - Dependem deste ADR (na data do aceite): 004 (capacidades e Effect Boundary), 005 (RLS e contexto assinado),
   007 (comando e adaptadores), 008 (ordem e continuidade dos eventos), 009 (workflows), 011 (MCP), 012 (canário
   em modo sombra), 013 (privacidade, auditoria e histórico), 014 (outbox), 018 (camada de UI), 020 (entrega

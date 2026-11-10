@@ -1,6 +1,7 @@
 -- Retrato do esquema: resultado de aplicar db/plans/ num banco vazio (vetra db:plan --snapshot).
 -- Gerado a partir do pg_dump --schema-only normalizado, com donos; não edite à mão.
 -- vetra:base 0001_inicial sha256=336cf4db0ffa3c626ccbc42ed9310e0ef207b703475dd6ef95633dd2a81946f9
+-- vetra:base 0002_expand sha256=589225e2590a1bb9b1f546b8ba002fbde81b040120fff5c81ba4bb3285778449
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -206,6 +207,41 @@ CREATE TABLE public.users (
 
 ALTER TABLE public.users OWNER TO vetra_owner;
 
+CREATE TABLE vetra.idempotency (
+    id bigint NOT NULL,
+    tenant_id uuid,
+    command text NOT NULL,
+    key text NOT NULL,
+    origin text NOT NULL,
+    principal text,
+    input_hash bytea NOT NULL,
+    result jsonb,
+    handler text,
+    event_id uuid,
+    event_created_at timestamp(6) with time zone,
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT idempotency_command_check CHECK (((char_length(command) >= 1) AND (char_length(command) <= 255))),
+    CONSTRAINT idempotency_input_hash_check CHECK ((octet_length(input_hash) = 32)),
+    CONSTRAINT idempotency_key_check CHECK ((key ~ '^[!-~]{1,255}$'::text)),
+    CONSTRAINT idempotency_origin_check CHECK ((origin = 'adapter'::text)),
+    CONSTRAINT idempotency_principal_check CHECK (((principal IS NULL) OR ((char_length(principal) >= 1) AND (char_length(principal) <= 160)))),
+    CONSTRAINT idempotency_result_check CHECK (((result IS NULL) OR (octet_length((result)::text) <= 65536))),
+    CONSTRAINT vt_idempotency_origin CHECK ((((origin = 'event'::text) AND (handler IS NOT NULL) AND (event_id IS NOT NULL) AND (event_created_at IS NOT NULL)) OR ((origin = 'adapter'::text) AND (handler IS NULL) AND (event_id IS NULL) AND (event_created_at IS NULL))))
+);
+
+ALTER TABLE ONLY vetra.idempotency FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.idempotency OWNER TO vetra_owner;
+
+ALTER TABLE vetra.idempotency ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME vetra.idempotency_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 CREATE TABLE vetra_private.keys (
     kid text NOT NULL,
     secret bytea NOT NULL,
@@ -236,6 +272,12 @@ ALTER TABLE ONLY public.room_memberships
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT vt_uq_790bc8d38d2b0db83fe19d17b070d9fb UNIQUE (email);
 
+ALTER TABLE ONLY vetra.idempotency
+    ADD CONSTRAINT idempotency_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY vetra.idempotency
+    ADD CONSTRAINT vt_idempotency_key UNIQUE NULLS NOT DISTINCT (tenant_id, command, key);
+
 ALTER TABLE ONLY vetra_private.keys
     ADD CONSTRAINT keys_pkey PRIMARY KEY (kid);
 
@@ -246,6 +288,8 @@ CREATE INDEX vt_ix_59b6dee34acd95168591b33e06d42632 ON public.room_memberships U
 CREATE INDEX vt_ix_6c5a6962c5567e3136218a20ccd778bb ON public.messages USING btree (room_id, created_at);
 
 CREATE INDEX vt_ix_837c5ade83a68764757de4ae044f9802 ON public.rooms USING btree (owner_id);
+
+CREATE INDEX vt_idempotency_purge ON vetra.idempotency USING btree (origin, created_at);
 
 CREATE UNIQUE INDEX vt_keys_active ON vetra_private.keys USING btree (status) WHERE (status = 'active'::text);
 
@@ -264,10 +308,17 @@ ALTER TABLE ONLY public.messages
 ALTER TABLE ONLY public.rooms
     ADD CONSTRAINT vt_fk_d28ab3d2ad832571f34da936408718a9 FOREIGN KEY (owner_id) REFERENCES public.users(id) DEFERRABLE;
 
+ALTER TABLE vetra.idempotency ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY vt_idempotency_app ON vetra.idempotency TO vetra_app USING ((tenant_id IS NULL)) WITH CHECK ((tenant_id IS NULL));
+
+CREATE POLICY vt_idempotency_relay ON vetra.idempotency TO vetra_relay USING (true) WITH CHECK (true);
+
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO vetra_app;
 
 GRANT USAGE ON SCHEMA vetra TO vetra_app;
+GRANT USAGE ON SCHEMA vetra TO vetra_relay;
 
 REVOKE ALL ON FUNCTION vetra.current_actor() FROM PUBLIC;
 GRANT ALL ON FUNCTION vetra.current_actor() TO vetra_app;
@@ -282,3 +333,26 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.room_memberships TO vetra_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.rooms TO vetra_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO vetra_app;
+
+GRANT SELECT ON TABLE vetra.idempotency TO vetra_app;
+GRANT SELECT,DELETE ON TABLE vetra.idempotency TO vetra_relay;
+
+GRANT INSERT(tenant_id) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(command) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(key) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(origin) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(principal) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(input_hash) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT UPDATE(result) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(handler) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(event_id) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(event_created_at) ON TABLE vetra.idempotency TO vetra_app;

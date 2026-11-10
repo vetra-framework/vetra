@@ -5,6 +5,7 @@
 -- vetra:base 0003_expand sha256=e284e8d252520473d806135f8831fddc7e029a09e2cc3d3ffc4acceb175ec450
 -- vetra:base 0004_expand sha256=844868a4395f6c6f2406a255c4853f0d2fc4a5e979238d284f6da3afc9e08176
 -- vetra:base 0005_expand sha256=d88c5d14aba9976cf424f80a3fe95600251c028fb9b5a8f3ff198dd92579ba0f
+-- vetra:base 0006_expand sha256=eacde1fc964886a20bff87958628f350a165ab7f127872c7c55bfb89f157cca4
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -770,6 +771,41 @@ ALTER TABLE ONLY vetra.deliveries_default FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE vetra.deliveries_default OWNER TO vetra_owner;
 
+CREATE TABLE vetra.idempotency (
+    id bigint NOT NULL,
+    tenant_id uuid,
+    command text NOT NULL,
+    key text NOT NULL,
+    origin text NOT NULL,
+    principal text,
+    input_hash bytea NOT NULL,
+    result jsonb,
+    handler text,
+    event_id uuid,
+    event_created_at timestamp(6) with time zone,
+    created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT idempotency_command_check CHECK (((char_length(command) >= 1) AND (char_length(command) <= 255))),
+    CONSTRAINT idempotency_input_hash_check CHECK ((octet_length(input_hash) = 32)),
+    CONSTRAINT idempotency_key_check CHECK ((key ~ '^[!-~]{1,255}$'::text)),
+    CONSTRAINT idempotency_origin_check CHECK ((origin = ANY (ARRAY['adapter'::text, 'event'::text]))),
+    CONSTRAINT idempotency_principal_check CHECK (((principal IS NULL) OR ((char_length(principal) >= 1) AND (char_length(principal) <= 160)))),
+    CONSTRAINT idempotency_result_check CHECK (((result IS NULL) OR (octet_length((result)::text) <= 65536))),
+    CONSTRAINT vt_idempotency_origin CHECK ((((origin = 'event'::text) AND (handler IS NOT NULL) AND (event_id IS NOT NULL) AND (event_created_at IS NOT NULL)) OR ((origin = 'adapter'::text) AND (handler IS NULL) AND (event_id IS NULL) AND (event_created_at IS NULL))))
+);
+
+ALTER TABLE ONLY vetra.idempotency FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.idempotency OWNER TO vetra_owner;
+
+ALTER TABLE vetra.idempotency ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME vetra.idempotency_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 CREATE TABLE vetra.outbox (
     created_at timestamp(6) with time zone DEFAULT statement_timestamp() NOT NULL,
     xid8 xid8 DEFAULT pg_current_xact_id() NOT NULL,
@@ -893,6 +929,9 @@ ALTER TABLE ONLY vetra.deliveries
 ALTER TABLE ONLY vetra.deliveries_default
     ADD CONSTRAINT deliveries_default_pkey PRIMARY KEY (handler, event_id, event_created_at);
 
+ALTER TABLE ONLY vetra.idempotency
+    ADD CONSTRAINT idempotency_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY vetra.outbox
     ADD CONSTRAINT outbox_pkey PRIMARY KEY (created_at, xid8, seq);
 
@@ -901,6 +940,9 @@ ALTER TABLE ONLY vetra.outbox_default
 
 ALTER TABLE ONLY vetra.relay_checkpoints
     ADD CONSTRAINT relay_checkpoints_pkey PRIMARY KEY (name);
+
+ALTER TABLE ONLY vetra.idempotency
+    ADD CONSTRAINT vt_idempotency_key UNIQUE NULLS NOT DISTINCT (tenant_id, command, key);
 
 ALTER TABLE ONLY vetra_private.keys
     ADD CONSTRAINT keys_pkey PRIMARY KEY (kid);
@@ -920,6 +962,8 @@ CREATE INDEX deliveries_default_run_after_idx ON vetra.deliveries_default USING 
 CREATE INDEX vt_outbox_relay ON ONLY vetra.outbox USING btree (xid8, seq);
 
 CREATE INDEX outbox_default_xid8_seq_idx ON vetra.outbox_default USING btree (xid8, seq);
+
+CREATE INDEX vt_idempotency_purge ON vetra.idempotency USING btree (origin, created_at);
 
 CREATE UNIQUE INDEX vt_keys_active ON vetra_private.keys USING btree (status) WHERE (status = 'active'::text);
 
@@ -1077,6 +1121,8 @@ ALTER TABLE vetra.deliveries ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE vetra.deliveries_default ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE vetra.idempotency ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE vetra.outbox ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE vetra.outbox_default ENABLE ROW LEVEL SECURITY;
@@ -1090,6 +1136,10 @@ CREATE POLICY vt_deliveries_default_owner ON vetra.deliveries_default TO vetra_o
 CREATE POLICY vt_deliveries_owner ON vetra.deliveries TO vetra_owner USING (true) WITH CHECK (true);
 
 CREATE POLICY vt_deliveries_relay ON vetra.deliveries TO vetra_relay USING (true) WITH CHECK (true);
+
+CREATE POLICY vt_idempotency_app ON vetra.idempotency TO vetra_app USING ((tenant_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((tenant_id = ( SELECT vetra.current_tenant() AS current_tenant)));
+
+CREATE POLICY vt_idempotency_relay ON vetra.idempotency TO vetra_relay USING (true) WITH CHECK (true);
 
 CREATE POLICY vt_outbox_default_owner ON vetra.outbox_default TO vetra_owner USING (true) WITH CHECK (true);
 
@@ -1168,6 +1218,29 @@ GRANT SELECT ON TABLE vetra.authz_revisions TO vetra_app;
 GRANT SELECT,INSERT ON TABLE vetra.dead_deliveries TO vetra_relay;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE vetra.deliveries TO vetra_relay;
+
+GRANT SELECT ON TABLE vetra.idempotency TO vetra_app;
+GRANT SELECT,DELETE ON TABLE vetra.idempotency TO vetra_relay;
+
+GRANT INSERT(tenant_id) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(command) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(key) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(origin) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(principal) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(input_hash) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT UPDATE(result) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(handler) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(event_id) ON TABLE vetra.idempotency TO vetra_app;
+
+GRANT INSERT(event_created_at) ON TABLE vetra.idempotency TO vetra_app;
 
 GRANT SELECT ON TABLE vetra.outbox TO vetra_relay;
 

@@ -112,7 +112,7 @@ module Vetra
       rescue Sequel::DatabaseError => error
         # PG_DIAG_SQLSTATE = 'C'; não inclui nem retém o erro/SQL/valores do driver.
         wrapped = error.wrapped_exception
-        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field('C') : nil
+        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field(PG::PG_DIAG_SQLSTATE) : nil
         raise Conflict.new(:unique), cause: nil if state == '23505'
         raise Conflict.new(:foreign_key), cause: nil if state == '23503'
         raise Conflict.new(:deadlock), cause: nil if state == '40P01'
