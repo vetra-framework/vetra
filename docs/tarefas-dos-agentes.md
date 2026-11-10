@@ -70,7 +70,7 @@ tarefas seguem a ordem da tabela.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
-| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | a fazer | — | — |
+| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
