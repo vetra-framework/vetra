@@ -3,6 +3,9 @@
 O Vetra Data abre unidades de trabalho PostgreSQL pelo Sequel, como `vetra_app`, e emite o contexto assinado
 validado pelas funções dos planos atuais. O contrato está no [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md).
 Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O executor de operações ainda não existe.
+`Vetra::Execution` valida a entrada e avalia a autorização antes da unidade, conforme o
+[ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md); a aplicação dessas decisões ao despacho e aos
+acessos dos repositórios continua na K17/K18.
 
 ## Configurar o processo
 
@@ -175,11 +178,137 @@ seis casas; a saída é UTC. JSON é convertido para jsonb, e dinheiro para as d
 SQL nem valores do driver. Recusa SQL de acesso é `data_access_denied`, não conflito. Não há repetição automática.
 Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do rollback.
 
-Ainda não são avaliados `authorize`, papéis Ruby, permissões por campo nem a reautorização do estado final
-(etapa 6 do ADR-016). O isolamento disponível é o contexto da unidade e o RLS dos planos dos CRMs, nos limites
-do ADR-037; a aplicação continua responsável por autorizar as chamadas, inclusive administração de vínculos.
+Os repositórios ainda não aplicam `authorize`, papéis Ruby ou permissões por campo aos seus acessos, nem a
+reautorização do estado final (etapa 6 do ADR-016). O avaliador abaixo produz a decisão de admissão; a K18
+integra a autorização nos acessos. O isolamento disponível no repositório é o contexto da unidade e o RLS
+dos planos dos CRMs, nos limites do ADR-037; a aplicação continua responsável por autorizar as chamadas,
+inclusive administração de vínculos.
 A emissão para a outbox e o relay estão descritos abaixo; os handlers reais, o histórico, o executor das oito
 etapas e a execução dos descritores builtin são entregas posteriores.
+
+## Entrada e autorização antes da unidade
+
+```ruby
+require 'vetra/execution'
+
+authorization = Vetra::Execution::Authorization.new(document)
+context = Vetra::Data::Context.new(scope: :tenant, tenant_id: tenant_id,
+                                  actor_id: actor_id, op_id: operation_id, cmd: 'crm.win_lead')
+# Valores já resolvidos por uma borda confiável: não vêm da entrada do cliente.
+snapshot = authorization.snapshot(context: context, roles: ['crm.gerente'],
+                                  revision: resolved_revision, records: resolved_records)
+result = authorization.check('crm.win_lead', input: { lead_id: lead_id }, context: context,
+                             snapshot: snapshot, current_revision: revision_authority)
+if result.allowed?
+  # A K17 usa result.input (hash imutável com chaves String) para o despacho.
+  # A K18 autoriza cada acesso e reautoriza o estado final antes do commit.
+else
+  result.diagnostics # Diagnósticos de dados, sem identidade, SQL ou valores recebidos.
+end
+```
+
+`Authorization.new` copia/valida a IR pelo esquema existente, sem conexão. `validate_input(operation_id,
+attributes)` pode ser usado isoladamente: devolve entrada tipada e imutável ou levanta `Data::Error`.
+`check` reúne as etapas 2 e 3 e devolve `Result` com `allowed?`, `code`, `diagnostics`, `input` e
+`policy_ids`. Em recusa, `input` é nil e `policy_ids` é vazio. Não chama o `call` nem abre a unidade.
+
+A entrada é um Hash com chaves String ou Symbol, sem campos extras nem nomes duplicados entre as duas
+formas. Tipos e erros vêm de `Values`: UUID, texto e limites, nulidade, enum, decimal/money exatos, datas,
+UTC, JSON e downcase declarado. Não há conversão permissiva de strings em boolean/integer. Campos
+opcionais ausentes continuam ausentes; NULL explícito exige `nullable`. O contrato CRUD preserva a
+proteção de `set_by` e de valores `guarded`. `Execution::Input#validate(contract_id, value)` também
+valida `record`/`collection` recursivamente nos contratos existentes. A IR 0.6 só admite essas estruturas
+nas saídas de consultas: entrada aninhada de comando continua indisponível, sem alteração do formato.
+
+`resolved_records` tem o formato `{ 'crm.lead' => [hashes], 'crm.dealer' => [hashes],
+'crm.membership' => [hashes] }`. São registros persistidos tipados, lidos pela borda; chaves dos campos
+podem ser String/Symbol, e são copiadas/congeladas. Deve haver todos os campos e linhas necessários aos
+predicados, incluindo as relações percorridas. Lista vazia é uma ausência conhecida; entidade/campo
+omitido é informação insuficiente e recusa, inclusive sob NOT. O avaliador filtra tenant em cada salto.
+O registro de `authorize record:` vem desses fatos e é selecionado pelo ID da entrada validada.
+Criação CRUD monta o candidato com entrada, defaults da entidade e tenant do contexto. Comandos Ruby
+arbitrários sem `record:` não ganham um mapeamento inventado de parâmetros para campos; uma política
+que precise de fatos indisponíveis recusa. Consultas de coleção continuam dependendo da K18 para
+filtrar e autorizar cada acesso; uma política sem suporte não recebe admissão provisória.
+
+`revision_authority.call(context)` confirma o marcador atual; a confirmação acontece no começo e antes
+de permitir. Ela pertence à borda, não pode consultar o pool da operação e não pode devolver cegamente
+`snapshot.revision`. Nos CRMs o marcador inclui a revisão do ADR-020; mudanças externas de atribuição
+de papéis precisam acrescentar uma geração de identidade. Blog/chat usam uma autoridade global da
+borda, sem criar tenant ou revisão SQL. A borda deve reconciliar fatos e revisão, invalidar os antigos
+antes de admitir operações posteriores à mudança e recusar quando não pode provar atualidade. Um TTL
+ou um consumidor de NOTIFY eventualmente consistente, isoladamente, não cumpre isso. A C13 fornece a
+interface e as recusas, **não o provedor operacional**; sua integração pertence à K17. O contrato completo
+e a janela de revogação estão no ADR-044, §1.
+
+Papéis são IDs completos existentes na IR, atribuídos exclusivamente pela borda confiável. Um papel
+não anônimo exige `actor_id`; o nome `authenticated` não prova autenticação. Papéis não informados
+significam visitante, com as políticas `anonymous: true` da aplicação; elas também se somam às dos
+atores identificados. Os predicados ainda verificam os vínculos reais: declarar `crm.gerente` não
+concede uma revenda. O contexto deve pertencer ao comando e ao escopo da aplicação. `system_actor` é
+recusado: seu caminho por `calls` pertence à K18.
+
+O subconjunto suporta true, AND/OR/NOT, igualdade, IN literal, `actor.id`, campo escalar local e EXISTS
+por belongs_to/has_many, com lógica SQL de NULL. Um predicado candidato inteiro sem suporte provoca
+recusa. Literais de comparação recebem o tipo do outro operando (UUID, data, timestamp ou número). Famílias
+incompatíveis recusam em vez de transformar uma comparação inválida em concessão sob NOT. A recusa vale
+inclusive quando há OR com true. `many_to_many` das políticas do chat e comparação de money/JSON
+composto permanecem fora. Campos permitidos são a união das políticas aplicáveis à mesma linha.
+Create/update CRUD conferem os campos fornecidos pelo cliente, além de qualquer `fields:` explícito;
+leituras/comandos Ruby exigem todos os campos da entidade por padrão. A borda pode fornecer `fields:`
+para uma projeção/acesso efetivo na K18; nunca para esconder um campo fornecido no CRUD.
+
+Uma concessão limitada não autoriza execução enquanto não houver contadores: cobertura que dependa
+dela resulta em `data_authorization_rate_limit`. Cobertura completa por concessões sem limite continua
+permitindo sem consumir cota. No blog, o visitante não cria comentários, enquanto o administrador com
+concessão aplicável sem limite pode criá-los.
+
+`uses` não concede acesso de dados implícito. Ser dono da sala admite a ação principal de
+`chat.add_member_by_email`; o acesso adicional a `users_read` deverá ser recusado na K18 pelo grafo
+atual, que não concede leitura de `chat.user`. Esta entrega preserva esse modelo e não libera o acesso
+por inferência do corpo Ruby.
+
+| Código | Motivo |
+|---|---|
+| `data_value` | Tipo, nulidade, limite ou valor incompatível; ponteiro do contrato, sem o valor |
+| `data_input_fields` | Objeto inválido, campo extra ou chaves duplicadas; sem repetir a chave recebida |
+| `data_execution_operation` | Identificador não é comando/consulta da IR |
+| `data_authorization_context` | Contexto, escopo, comando ou papéis incompatíveis |
+| `data_authorization_snapshot` | Fatos incompletos, de outro catálogo/principal, obsoletos ou revisão indisponível |
+| `data_authorization_denied` | Sem concessão aplicável, registro ausente/invisível ou fora de escopo |
+| `data_authorization_fields` | As concessões não cobrem todos os campos solicitados |
+| `data_authorization_predicate` | Política candidata fora do subconjunto suportado |
+| `data_authorization_rate_limit` | Autorização depende de concessão limitada, sem contadores |
+| `data_authorization_system_actor` | Contexto de sistema exige o caminho por `calls` |
+
+### Sonda de entrada e autorização Ruby
+
+```sh
+DATABASE_URL=postgres://administrador@localhost/postgres \
+  bundle exec ruby script/sonda_autorizacao_ruby.rb
+```
+
+Exige bootstrap ADR-036 e, quando necessária, `VETRA_APP_PASSWORD`. Cria/remove um banco próprio,
+aplica a cadeia existente do CRM com revendas como `vetra_migrator` e abre login real `vetra_app`.
+Não altera papéis globais, planos, retratos ou exemplos. Sintaxe e caminhos Ruby/SQL foram conferidos
+sem banco; a execução PostgreSQL 17/18 e a inclusão na CI pertencem ao Claude. São **68 verificações
+esperadas**, com os seguintes resultados:
+
+| Verificações | Resultado esperado |
+|---|---|
+| Aplicação dos planos e login/contexto (2) | Cadeia aplica sem poder administrativo do migrador; current/session_user são vetra_app e contexto contém tenant/ator corretos |
+| Matriz de quatro atores × quatro ações × três revendas (48) | Gerente permite CRUD só na primeira; vendedor permite read/create/update só na primeira; misto permite CRUD na primeira e read/create/update na segunda; sem vínculos recusa tudo; terceira revenda de outro tenant sempre recusada |
+| Ator/tenant da terceira revenda × quatro ações × três revendas (12) | Só a terceira revenda permite, sem acesso às duas do primeiro tenant |
+| Papel incorreto da borda (1) | Ruby recusa delete para papel vendedor mesmo que haja vínculo gerente; o RBAC de papéis não é uma garantia do RLS |
+| Recusas e controle de contagem (2) | Recusas por papel, vínculo, revenda e entrada executam zero SQL no pool do runtime; abrir uma unidade executa BEGIN e COMMIT |
+| Revogação (2) | DELETE do vínculo incrementa revisão e snapshot antigo recusa; fatos atualizados e RLS recusam o gerente revogado |
+| Catálogo de papéis (1) | Idêntico antes/depois |
+
+As tentativas SQL permitidas e recusadas são executadas independentemente da decisão Ruby e revertidas
+para preservar os mesmos dados. Um erro SQL inesperado faz a verificação falhar; não vira acesso negado.
+A contagem é a do pool do runtime, o único caminho de uma operação até o banco: o logger do Sequel não pode ver SQL
+algum durante as recusas, e o controle positivo vê o BEGIN e o COMMIT da unidade. A preparação/resolução dos
+fatos ocorre antes da medição. Não se confunde zero transações da admissão com zero custo da borda.
 
 ## Emissão de eventos
 

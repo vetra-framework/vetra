@@ -48,7 +48,7 @@ efetivamente integrado, não a ordem desta tabela.
 | C12 — colisão de nomes no compilador — feita | Codex | — | `graph:build` e `graph:check` recusam campos e predicados de grupos de enum que colidem com métodos reservados do registro `Data`, com `field_name_collides_with_record`, ponteiro e sugestão de renomear. Compilador e `Repositories.new` compartilham a reserva: públicos e protegidos, privados cujo dono não é `Kernel` e ganchos privados do `Kernel` chamados pelo Ruby/Data no registro; as demais funções privadas do `Kernel` são aceitas. Ancestrais, visibilidade e dono são consultados a cada checagem; o runtime mantém `data_record_type` como defesa. IR 0.6, quatro grafos e planos preservados |
 | K15 — ator de sistema | Claude | K14 | Implementa o [ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4, **só nas aplicações com tenant**: a claim `system_actor` no contexto assinado, `vetra.is_system_actor()` e a condição permissiva nas políticas de escopo, com o isolamento de tenant ainda `RESTRICTIVE`; um visitante não é ator de sistema. Inclui o que a C9 não entrega: a **tradução incremental** das rotinas de contexto (o `Differ` hoje recusa função nova ou alterada, e a exceção do ADR-036 reconhece só as funções atuais, de retorno `uuid`), a atualização estrita das guardas, o `Context` e a `UnitOfWork` aceitando `system_actor` sem `actor_id` num contexto de tenant, a convergência dos quatro exemplos (blog e chat não mudam) e testes de adulteração |
 | K16 — idempotência da operação | Claude | K15 | ADR-043 proposto. `vetra.idempotency` nos quatro exemplos, com chave única por `(tenant, comando, chave)`, hash da entrada e resultado serializado. O ADR escolhe uma representação que valha para o **contexto global**, em que o tenant é nulo (blog e chat), sem inventar um tenant sentinela: por exemplo `UNIQUE NULLS NOT DISTINCT`. Decide privilégios e RLS, o limite do resultado guardado, a **retenção por origem** (as chaves de adaptador, 24 horas; as derivadas de um evento, enquanto a entrega existir, inclusive as `dead`) e **quem purga** nas aplicações sem outbox, como o chat. Testes de concorrência e de rollback; o `Differ` ganha a tradução da tabela e da rotina de purga |
-| C13 — entrada e autorização em Ruby | Codex | C10 | ADR-044 proposto, sobre o ADR-016 etapa 3 e os ADRs 003, 005 e 037. Etapas 2 e 3: validação pelo contrato de entrada, com os tipos e os erros do `Values`, e avaliação das políticas `authorize` (papel, escopo por vínculo, registro referenciado, permissões por campo). O ADR decide **três coisas**: (1) como ler as concessões, porque `UnitOfWork#read` abre transação e o ADR-016 promete nenhuma transação para o ator sem permissão, então ou uma borda confiável entrega as concessões já resolvidas, com contrato de atualização, ou o ADR autoriza uma transação curta somente leitura que termina antes da recusa; (2) o que um `uses` de leitura concede, caso do `chat.add_member_by_email`, que lê `users_read` sem que o grafo conceda leitura de `chat.user`; (3) a origem confiável dos papéis. O executor **recusa**, com código próprio, a operação cuja autorização dependa só de concessões com `rate_limit:` (o blog limita os comentários), enquanto não houver contadores; uma concessão aplicável sem limite continua permitindo a execução sem consumir cota (ADR-034) |
+| C13 — entrada e autorização em Ruby | Codex | C10 | [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md). `Vetra::Execution` valida a entrada com `Values` e avalia papel, escopo, registro referenciado e campos antes da unidade. Recebe fatos imutáveis da borda confiável, vinculados a catálogo/ator/tenant e revisão corrente, com recusa de fatos obsoletos ou incompletos. `uses` não concede leitura implícita; papéis vêm exclusivamente da borda. Concessões dependentes de `rate_limit:` e contextos de sistema são recusados com códigos próprios. Testes usam os quatro grafos; sonda de concordância Ruby/RLS do CRM com revendas e contagem de transações escrita, com execução 17/18 e inclusão na CI pelo Claude. Banco, modelos, retratos e IR 0.6 preservados |
 | P5 — replanejamento da fase B | Claude | C13, K16 e o resto da fase A | Marco, não código: o Claude entrega o plano revisado da fase B com o que as decisões e as auditorias da fase A mudaram, o Codex o audita em modo somente leitura, o Claude decide os achados e o integra, e só então a K17 começa. O parecer atual não vale antecipadamente para o conteúdo replanejado, e o [AGENTS.md](../AGENTS.md) segue valendo: entrega, árvore congelada, auditoria cruzada e decisão |
 | **Fase B** (replanejada ao fim da fase A) | | | |
 | K17 — executor I: despacho e primitivas | Claude | P5 | A borda interna confiável que o chamador usa: resolve o comando, o ator, os papéis e a chave. Vincula as capacidades do `call` e executa as primitivas CRUD e de vínculo, que o linker ainda marca como `executor: pending`. A `UnitOfWork` ganha `statement_timeout` e `lock_timeout` por operação (hoje fixa `READ COMMITTED` e não recebe nenhum) e os dois limites que protegem o `xmin` do relay, `transaction_timeout` e `idle_in_transaction_session_timeout` (ADR-008, §5, com 30 s e 10 s como valores propostos): a K17 os provisiona e os verifica, com uma sonda em que a transação que passa do limite é encerrada e o `xmin` volta a avançar. Documenta o limite da composição: o `cmd` externo é mantido nos savepoints, e um comando composto não empresta a autoridade de transição de outro (ADR-039) |
@@ -73,8 +73,12 @@ anteriores. Nenhuma muda o formato da IR.
   orçamento absoluto é proposta, sem alterar silenciosamente o critério. A C11 não muda banco, planos nem IR.
 - **ADR-043 (K16), idempotência da operação.** O ADR-016 descreve o contrato, mas não o esquema, o contexto global, a
   retenção por origem nem quem purga onde não há outbox.
-- **ADR-044 (C13), autorização em Ruby.** A leitura das concessões diante da promessa de nenhuma transação, o que um `uses` de
-  leitura concede e a origem dos papéis.
+- **ADR-044 proposto (C13), autorização em Ruby.** Implementado o avaliador com fatos resolvidos antes da operação e
+  confirmação autoritativa da revisão, `uses` sem concessão implícita de dados e papéis atribuídos pela borda. O
+  aceite é do mantenedor. A K17 integra o provedor de fatos/revisão; a K18 aplica a autorização aos acessos e ao
+  estado final. O acesso adicional a `chat.users_read` permanece sem concessão no grafo atual e deverá recusar na
+  K18; políticas de `many_to_many` também recusam por estarem fora do subconjunto do avaliador. A IR 0.6 só admite
+  contratos estruturados em saídas de consultas; a C13 os valida recursivamente sem estendê-los à entrada de comandos.
 - **O teste 6 do ADR-023 (K20).** Fica pendente; só o mantenedor pode alterar o seu contrato.
 
 ### Riscos e verificações
@@ -82,8 +86,10 @@ anteriores. Nenhuma muda o formato da IR.
 - **Duas tarefas mudam as políticas de escopo (K14 e K15).** A K15 depende da K14, e cada uma entra numa integração
   própria: o gate recusa mais de um plano novo por aplicação por integração.
 - **Autorização em Ruby contra o RLS.** Avaliar a política em Ruby pode divergir do RLS do banco; a sonda confere os
-  dois lados nos mesmos casos, inclusive o escopo de revenda e o ator de sistema. No blog e no chat, que não têm RLS,
-  a autorização do executor é a única barreira; a K18 as cobre com sondas próprias.
+  dois lados nos mesmos casos de CRUD, por tenant, ator e revenda. A C13 recusa o contexto de sistema; seu caminho
+  por `calls` é da K18. No blog e no chat, que não têm RLS, a autorização do executor é a única barreira; a K18
+  as cobre com sondas próprias. A autenticidade e a invalidação dos fatos são obrigações operacionais da borda:
+  um TTL ou NOTIFY eventualmente consistente não confirma revisão corrente (ADR-044).
 - **O executor é o primeiro uso do contexto assinado fora de sondas.** A K20 mede o custo por instrução dos comandos
   reais, e uma regressão acima do limiar da K13 volta como achado, não como ajuste silencioso.
 - **Repetição de operação.** Só é segura sem efeito externo; as duas condições (`retry_safe` e `unsafe_effect`) são
@@ -211,9 +217,10 @@ pois o plano existente só concede leitura em `dealers`; os corpos operam como `
 São 72 verificações, todas passando no PostgreSQL 18.6 e no job de planos da CI, com a
 [lista de resultados](vetra-data.md#sonda-dos-repositórios).
 
-A avaliação de `authorize` em Ruby, permissões por campo, reautorização do estado final, eventos, histórico
-e o executor das oito etapas continuam na rodada 5, parcial (o histórico, na rodada 6). Blog e chat usam contexto global e autorização da
-aplicação, conforme ADR-037/039. O contrato do ADR-039 foi preservado; nenhum modelo, plano, retrato,
+A avaliação de `authorize` em Ruby e de permissões por campo antes da unidade está implementada na C13
+(ADR-044 proposto). A integração no despacho/acessos e a reautorização do estado final são da K17/K18;
+o fechamento de eventos/idempotência, da K19, e histórico/auditoria continuam na rodada 6. Blog e chat usam
+contexto global e autorização da aplicação, conforme ADR-037/039. O contrato do ADR-039 foi preservado; nenhum modelo, plano, retrato,
 espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência foi acrescentada.
 
 ### Riscos e verificações

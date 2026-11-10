@@ -48,6 +48,11 @@ a tabela `vetra.idempotency` com chave única `NULLS NOT DISTINCT` (que vale tam
 chave, o teto de 64 KiB do resultado, a retenção por origem (24 horas para o adaptador, enquanto a entrega existir para o evento)
 e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executor é da K19.
 
+O [ADR-044](044-entrada-e-autorizacao-em-ruby.md), proposto, define entrada e autorização em Ruby antes da
+transação: fatos resolvidos pela borda confiável e ligados à revisão atual, `uses` sem concessão implícita de
+dados e papéis atribuídos pela borda. O avaliador está implementado, com recusa de concessões dependentes de
+`rate_limit:` e de ator de sistema. Despacho e autorização dos acessos continuam na K17/K18.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -95,6 +100,7 @@ e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executo
 | [041](041-forma-da-politica-de-escopo.md) | Forma da política de escopo por vínculo | aceito |
 | [042](042-construcao-dos-registros.md) | Construção dos registros | proposto |
 | [043](043-registro-de-idempotencia-da-operacao.md) | Registro de idempotência da operação | aceito |
+| [044](044-entrada-e-autorizacao-em-ruby.md) | Entrada e autorização em Ruby | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

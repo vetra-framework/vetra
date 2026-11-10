@@ -4,7 +4,11 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-10: a operação tem o registro de idempotência (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito):
+- **Atualizado em:** 2026-11-10: entrada e autorização em Ruby estão implementadas na C13
+  ([ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)): contratos estritos com `Values`, papéis,
+  escopo por vínculo, registro referenciado e campos, sem abrir unidade, com fatos e revisão resolvidos pela
+  borda confiável. `uses` não concede leitura implícita; limite de taxa sem contadores e contexto de sistema
+  recebem recusa explícita. Sonda de concordância Ruby/RLS executada no PostgreSQL 17 e 18 (68/68). A integração no despacho e nos acessos é da K17/K18. A operação tem o registro de idempotência (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito):
   tabela `vetra.idempotency`, API e purga, ainda sem o executor. O contexto assinado tem o ator de sistema de um handler (K15, ADR-024, §4), com custo que pede decisão
   do mantenedor. O compilador recusa campos e predicados de grupos de enum que colidem com
   métodos do registro `Data` (C12), com diagnóstico próprio e reserva compartilhada com os repositórios.
@@ -28,8 +32,9 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 42 aceitos (001 a 041 e 043) e o 042 proposto, com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
-| Testes do compilador, dados e exemplos | 662 testes e 14.840 asserções, sem falhas; 224/224 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 42 aceitos (001 a 041 e 043) e dois propostos (042 e 044), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
+| Testes do compilador, dados e exemplos | 689 testes e 15.606 asserções, sem falhas; 238/238 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Entrada e autorização Ruby (C13) | 27 testes/760 asserções novos sem banco, com os quatro grafos e os caminhos da sonda por mock. Contratos estritos, lógica SQL de NULL, papéis, vínculo/revenda/tenant, campos, revisão e recusas específicas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças e gate sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (68/68) e na CI; a contagem de zero transações é a do pool do runtime. Integrada no commit da C13, CI pendente |
 | Colisões de nomes no compilador (C12) | Dez testes/970 asserções na execução isolada: campos e predicados de enum, diagnóstico com ponteiro e origem, ganchos privados recusados, funções privadas do `Kernel` aceitas com construção, leitura e `with`, preservação do artefato e concordância com os repositórios, inclusive com métodos e mudanças de visibilidade após o carregamento. Quatro exemplos em check, validação com fontes e link, quatro planos sem mudanças e gate sem diferenças; IR 0.6 preservada |
 | Construção dos registros (C11) | Nove testes/1.735 asserções novos sem banco, incluindo a medição da sonda com Sequel.mock. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças; gate contra origin/main sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (5/5); construção de 40% a 56% da consulta, gate aberto e decisão do orçamento pendente |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
@@ -40,8 +45,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
 | Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42282609424](https://github.com/vetra-framework/vetra/actions/runs/42282609424)), modo 100755; integrada em `5c15ebf`; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 22 em `script/`, mais o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Unidade de trabalho, emissor HMAC e repositórios gerados da IR implementados, com dependências Sequel/pg de runtime e carregamento explícito. A emissão grava na outbox, e o relay entrega a consumidores simulados; autorização Ruby, reautorização final, executor de operações e handlers reais seguem pendentes |
+| Sondas | 25 em `script/`, incluindo a sonda de autorização Ruby (68 verificações, no 17 e no 18), mais o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Runtime | Unidade de trabalho, emissor HMAC, repositórios gerados da IR e avaliador Ruby das etapas 2/3 implementados, com carregamento explícito. A emissão grava na outbox, e o relay entrega a consumidores simulados; provedor de fatos/revisão, despacho, aplicação da autorização aos acessos, reautorização final e handlers reais seguem pendentes |
 
 ## Como manter este arquivo
 
@@ -63,6 +68,16 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Entrada e autorização em Ruby (C13, [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)) em
+  `Vetra::Execution`: valida contratos com os tipos/erros de `Values`, avalia `authorize` por papel, tenant,
+  vínculo, registro referenciado e campos e conserva a semântica SQL de NULL. Recebe fatos imutáveis e
+  confirmação autoritativa da revisão da borda; fatos incompletos/obsoletos, predicados fora do subconjunto,
+  dependência de `rate_limit:` e contexto de sistema recusam com diagnóstico próprio. `uses` não concede dados
+  implicitamente. Modelos, planos, retratos e IR 0.6 preservados. A sonda de concordância com o RLS está em modo 100755, com 68 verificações, executada no 17 e no 18 e na CI; a
+  contagem de "zero transações" é a do pool do runtime (o `pg_stat_database` foi descartado, por publicar com atraso). Provedor da borda e despacho são da K17; acessos, NEW e `calls` de sistema são da K18.
+  Contratos aninhados existentes são validados nas saídas de consultas; a IR continua recusando entrada
+  aninhada de comando. O aceite do ADR é do mantenedor.
 
 - [x] Registro de idempotência da operação (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito por delegação do
   mantenedor), em **toda** aplicação: a tabela `vetra.idempotency` tem chave única `UNIQUE NULLS NOT DISTINCT (tenant, comando, chave)`, que
@@ -160,8 +175,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   comando e o estado relido no banco. Cada entidade tem um `Data` congelado em profundidade, compartilhável
   entre Ractors, com predicados de grupos de enum. São 35 testes/865 asserções sem banco, incluindo os
   dez corpos Ruby de comandos e consultas dos quatro exemplos. A sonda passa 72/72 no
-  PostgreSQL 18.6 e roda no job de planos da CI. Autorização Ruby,
-  reautorização final, eventos, histórico e executor de operações continuam pendentes.
+  PostgreSQL 18.6 e roda no job de planos da CI. O avaliador Ruby anterior à unidade está implementado;
+  autorização nos acessos, reautorização final e despacho continuam pendentes na K17/K18.
 
 - [x] Infraestrutura do [Vetra Data](vetra-data.md): `transaction`, `read`, `compose` e `rollback!`, com
   `pg_auto_parameterize`, concorrência por fibra, sem statements nomeados e contexto instalado uma vez na

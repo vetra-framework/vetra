@@ -74,7 +74,7 @@ tarefas seguem a ordem da tabela.
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
-| C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | integrada, CI pendente | — | Auditada pelo Claude; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
 | K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
@@ -162,6 +162,26 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria C13
+
+Implementado pelo Codex sobre `b866baa`; auditado pelo Claude (leitura do ADR-044 e do núcleo do avaliador, suíte, gate, `db:plan` e a
+sonda, que o sandbox do Codex não executa). O ADR-044 **continua proposto**: o aceite é do mantenedor (veja abaixo).
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| A sonda contava "zero transações" pelo `pg_stat_database`; no PostgreSQL real as duas verificações falharam (66/68), porque as estatísticas são publicadas com atraso e não resolvem uma transação isolada | sim | Ajustar (pelo Claude, por exigir o banco): a contagem passa a ser a do pool do runtime, pelo logger do Sequel (zero SQL nas recusas; o controle positivo vê `BEGIN` e `COMMIT`); ADR-044 e guia alinhados; 68/68 no 17 e no 18 |
+
+Não achei defeito no código do avaliador: lógica de três valores inclusive sob `NOT` e `IN`, filtro de tenant em cada salto do `exists`, validação da árvore
+inteira antes de avaliar, visitante sem ator nunca casando `campo = actor.id`, recusa fechada de predicado sem suporte, de `rate_limit:` e de ator
+de sistema. A matriz CRUD (4 atores × 4 ações × 3 revendas) e o segundo tenant concordaram com o RLS nos dois servidores.
+
+**Verificações.** Suíte 689 testes, 0 falhas, 238/238 diagnósticos; gate sem diferenças; `db:plan` sem mudanças; sonda de autorização Ruby 68/68 no 17 e no 18.
+
+**Por que o aceite fica com o mantenedor.** O ADR-044 faz duas coisas que mudam o alcance de uma promessa aceita. (1) Redefine o que o teste de aceitação 1 do
+ADR-016 mede: a operação recusada abre zero transações **da operação**, mas quem resolve os fatos no banco por chamada paga essa transação antes da admissão.
+(2) Transfere à borda uma obrigação ainda sem dono: confirmar a revisão de autorização de forma autoritativa, que só passa a existir na K17. A alternativa
+descartada, uma transação curta somente leitura, cumpriria o ADR-016 ao pé da letra e seria mais simples. O marco P5 deve levar isso em conta.
 
 ## Auditoria K16
 
