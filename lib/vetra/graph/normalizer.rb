@@ -196,6 +196,20 @@ module Vetra
         { 'name' => name, 'type' => { 'name' => 'id', 'entity' => Data.reference('entity', target) }, 'required' => required, 'nullable' => false, 'privacy' => { 'personal' => false } }
       end
 
+      def check_record_names(entry, fields)
+        fields.each_with_index do |value, index|
+          pointer = "/fields/#{index}"
+          if Vetra::Data::Record.reserved_method?(value['name'])
+            raise Error.single('field_name_collides_with_record', "O campo #{value['name']} colide com um método do registro Data; renomeie o campo.", pointer: "#{pointer}/name", source: entry['source'])
+          end
+          value.dig('type', 'groups')&.each_key do |name|
+            next unless Vetra::Data::Record.reserved_method?("#{name}?")
+            key = name.gsub('~', '~0').gsub('/', '~1')
+            raise Error.single('field_name_collides_with_record', "O grupo de enum #{name} gera o predicado #{name}?, que colide com um método do registro Data; renomeie o grupo.", pointer: "#{pointer}/type/groups/#{key}", source: entry['source'])
+          end
+        end
+      end
+
       def entity(entry)
         options = entry['options']
         tenant = if entry['id'] == @application_tenant&.dig('entity', 'id') || entry['tenant'] == false
@@ -222,6 +236,7 @@ module Vetra
                       'generate' => { 'kind' => 'timestamp', 'on' => 'create' } }
         end
         fields << id_field(tenant['field'], tenant.dig('entity', 'id')) if tenant && !fields.any? { |value| value['name'] == tenant['field'] }
+        check_record_names(entry, fields)
         indexes = entry['indexes'].map.with_index do |index, i|
           index.merge('name' => "#{plural(entry['id'].split('.').last)}_idx_#{i + 1}")
         end

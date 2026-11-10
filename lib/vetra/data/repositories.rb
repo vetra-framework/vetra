@@ -6,8 +6,6 @@ module Vetra
   module Data
     # Fábrica da borda confiável; o call recebe somente o resultado de bind.
     class Repositories
-      RECORD_METHODS = ::Data.define { include Record }.instance_methods.freeze
-
       attr_reader :entity_ids
 
       def initialize(document)
@@ -18,7 +16,7 @@ module Vetra
           .to_h { |node| [node['id'], node['config']] }.freeze
         @tables = schema.tables.to_h { |table| [table['entity'], table] }.freeze
         @entities.each_value do |entity|
-          if entity['fields'].any? { |field| RECORD_METHODS.include?(field['name'].to_sym) }
+          if entity['fields'].any? { |field| Record.reserved_method?(field['name']) }
             raise Error.single('data_record_type', 'Nome do campo colide com método do registro.')
           end
         end
@@ -35,7 +33,7 @@ module Vetra
           type.const_set(:ENUM_GROUPS, Values.immutable(groups))
           groups.each_key do |name|
             # Nomes de grupo vêm do schema fechado da IR, mas também são conferidos como métodos Ruby.
-            unless name.match?(/\A[a-z][a-z0-9_]*\z/) && !type.method_defined?("#{name}?")
+            unless name.match?(/\A[a-z][a-z0-9_]*\z/) && !Record.reserved_method?("#{name}?")
               raise Error.single('data_record_type', 'Grupo de enum colide com método do registro ou tem nome inválido.')
             end
             type.class_eval("def #{name}?; enum_group?(#{name.dump}); end", __FILE__, __LINE__)

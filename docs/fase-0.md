@@ -126,6 +126,36 @@ Gravações literais reconhecidas exigem um comando e um repositório com `acces
 comando recebe `write_boundary` se tentar gravar por uma capacidade explícita de leitura, como `users_read`.
 
 
+## Nomes de campo e grupos de enum
+
+Campos de entidade usam letras ASCII minúsculas, dígitos e `_`, começando por uma letra. `id` e
+`created_at` são gerados pelo núcleo e sua redeclaração falha com `reserved_field`.
+
+Um campo também não pode ter o nome de um método reservado do registro `Data`: `hash`, `class`, `with`, `to_h`,
+`inspect`, `send`, `public_send`, `members`, `freeze`, `object_id` e `method` são exemplos recusados.
+`hashed`, `klass` e `with_value` são legais. A reserva é calculada de um `Data.define` vazio com
+`Vetra::Data::Record`: todos os métodos públicos e protegidos, mais os privados cujo dono não é `Kernel`.
+Dos privados do `Kernel`, só são reservados os ganchos que o Ruby/Data chama no registro: `initialize`,
+`initialize_copy`, `initialize_clone`, `initialize_dup`, `method_missing`, `respond_to_missing?`,
+`singleton_method_added`, `singleton_method_removed`, `singleton_method_undefined` e
+`instance_variables_to_inspect`. Um leitor com esses nomes quebraria o funcionamento do registro.
+Funções privadas do `Kernel` como `format`, `open`, `select`, `test`, `system` e `load` podem ser campos.
+A mesma fonte é usada pelo compilador e pela defesa de `Repositories.new`, sem carregar Sequel/pg no
+compilador. Os ancestrais, a visibilidade e o dono são consultados a cada checagem, incluindo métodos
+acrescentados depois do carregamento.
+
+Um grupo de enum gera um predicado: `groups: { closed: %w[won lost] }` gera `closed?`. O predicado não
+pode colidir com um método reservado do registro; grupos `frozen`, `eql` e `enum_group` são recusados por gerarem
+`frozen?`, `eql?` e o método privado `enum_group?`. Vale a mesma regra de reserva dos campos: um grupo
+`hash` é legal porque gera `hash?`, e `autoload` é legal porque `autoload?` é uma função privada do
+`Kernel` que não é um gancho do registro.
+
+`graph:build` e `graph:check` recusam essas colisões durante a normalização, com
+`field_name_collides_with_record`, mensagem em português e sugestão de renomear o campo ou o grupo.
+O diagnóstico traz a origem da entidade e o ponteiro relativo à declaração: `/fields/N/name` para
+campo ou `/fields/N/type/groups/GRUPO` para grupo, com `N` na ordem anterior à ordenação da IR.
+A regra também cobre campos de relações e o tenant implícito. A IR permanece 0.6.
+
 ## Coleções e contratos compostos de consultas
 
 `returns :room` continua representando um registro. `returns :room, collection: true` gera o contrato

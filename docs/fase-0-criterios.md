@@ -57,6 +57,15 @@ num ramo nunca executado não aparece no catálogo; se emitido sem literal recon
 alimentam o rastreio do processo principal. Algumas regras só são alcançáveis por uma IR montada à mão, e esse
 continua sendo o caminho de teste para elas.
 
+O diagnóstico `field_name_collides_with_record` é declarado na normalização e documentado nos
+[nomes de campo do DSL](fase-0.md#nomes-de-campo-e-grupos-de-enum) e no
+[catálogo do Vetra Data](vetra-data.md#diagnósticos-e-sigilo). `record_names_test.rb` exercita a recusa de
+campos e predicados de enum, ponteiro, mensagem, origem, nomes legais e concordância com a defesa dos
+repositórios. A reserva cobre métodos públicos e protegidos, privados cujo dono não é `Kernel` e os ganchos
+privados do `Kernel` chamados pelo Ruby/Data; as demais funções privadas do `Kernel` são aceitas como campos
+ou predicados de enum. Os testes cobrem construção, leitura e `with`, além de métodos e mudanças de
+visibilidade após o carregamento. Sua emissão integra o mesmo gate automático do catálogo.
+
 ## Matriz dos 11 critérios
 
 | # | Critério (resumo) | Situação | Evidência ou lacuna |

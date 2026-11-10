@@ -4,7 +4,9 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-10: a construção dos registros tem conversão imediata de leitura (C11,
+- **Atualizado em:** 2026-11-10: o compilador recusa campos e predicados de grupos de enum que colidem com
+  métodos do registro `Data` (C12), com diagnóstico próprio e reserva compartilhada com os repositórios.
+  A construção dos registros tem conversão imediata de leitura (C11,
   [ADR-042 proposto](adr/042-construcao-dos-registros.md)), com entrada estrita preservada; o gate de 10% continua
   aberto: a construção caiu de 136%-167% para 40%-56% da consulta no PostgreSQL 17 e 18, e a decisão do orçamento é do mantenedor. A política de escopo
   por vínculo usa a forma lista (K14, ADR-041). O [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
@@ -25,7 +27,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 41 aceitos (001 a 041) e o 042 proposto, com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
-| Testes do compilador, dados e exemplos | 620 testes e 12.960 asserções, sem falhas; 223/223 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador, dados e exemplos | 630 testes e 13.936 asserções, sem falhas; 224/224 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Colisões de nomes no compilador (C12) | Dez testes/970 asserções na execução isolada: campos e predicados de enum, diagnóstico com ponteiro e origem, ganchos privados recusados, funções privadas do `Kernel` aceitas com construção, leitura e `with`, preservação do artefato e concordância com os repositórios, inclusive com métodos e mudanças de visibilidade após o carregamento. Quatro exemplos em check, validação com fontes e link, quatro planos sem mudanças e gate sem diferenças; IR 0.6 preservada |
 | Construção dos registros (C11) | Nove testes/1.735 asserções novos sem banco, incluindo a medição da sonda com Sequel.mock. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças; gate contra origin/main sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (5/5); construção de 40% a 56% da consulta, gate aberto e decisão do orçamento pendente |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
@@ -58,6 +61,16 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Recusa de colisões de nomes no compilador (C12, ADR-022, §3): `graph:build` e `graph:check` emitem
+  `field_name_collides_with_record` durante a normalização, com origem, ponteiro do campo ou grupo de enum
+  e sugestão de renomear. A reserva de um `Data` vazio com `Record` cobre os métodos públicos e protegidos,
+  os privados cujo dono não é `Kernel` e os ganchos privados do `Kernel` chamados pelo Ruby/Data no registro.
+  As demais funções privadas do `Kernel`, como `format`, `open`, `select`, `test`, `system` e `load`, são
+  aceitas como campos; a mesma regra vale para os predicados de enum. A reserva é compartilhada com a defesa
+  `data_record_type` dos repositórios e consultada a cada checagem. Testes conferem as duas bordas,
+  construção, leitura, `with` e mudanças de visibilidade após o carregamento. IR 0.6, modelos, grafos e
+  planos dos quatro exemplos preservados.
 
 - [x] Conversão imediata de leitura dos registros (C11, [ADR-042 proposto](adr/042-construcao-dos-registros.md)),
   separada da validação estrita da entrada: monta `Money`, JSON e UTC, mantém a faixa de datas e o congelamento
@@ -566,8 +579,6 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   as exposições e a exigência de idempotência já são compiladas e validadas
 - [ ] Executor de operações do Vetra Data, com `authorize` em Ruby, permissões por campo e reautorização do
   estado final; repositórios, unidade de trabalho e emissor Ruby já implementados
-- [ ] Recusa no compilador dos nomes de campo que colidem com métodos do registro `Data` (`hash`, `class`,
-  `with`, `public_send` e outros); hoje só `Vetra::Data::Repositories` os recusa, com `data_record_type`
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
@@ -701,8 +712,7 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
      live; a consulta sem `returns` e sem `authorize` **já foi decidida como recusada** (seção 3, 2026-11-03), e só um
      novo aceite do mantenedor a reabre; o escopo por vínculo sem o inverso ainda não tem desenho e **pode ser
      antecipado**, porque não depende do executor.
-   - **Outras pendências, que não pertencem ao critério 7:** a recusa, no compilador, de nomes de campo que colidem com
-     métodos do registro `Data`, que **entra na rodada 5** (C12); `subject` e `retention`, cujo desenho declarativo
+   - **Outras pendências, que não pertencem ao critério 7:** `subject` e `retention`, cujo desenho declarativo
      **pode ser antecipado**, porque só a execução depende da cifra do ADR-013, como foi com `rate_limit:` (exige IR
      0.7 e um ADR); e as famílias da seção 5 sem destino ainda, como a moeda por tenant e as políticas por atributo
      do ator além de `id`, que esperam um ADR.
@@ -712,7 +722,8 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    escala por moeda de `money`, as exposições do ADR-007, os comandos explícitos de membros do chat, o `created_at`
    implícito (IR 0.2), as consultas do chat com coleções e contratos compostos (IR 0.3) e o live de `room_page`, a
    geração automática dos comandos de vínculo (C1, ADR-032), `rounding:` em `currency` (C3, ADR-033, IR 0.5) e
-   `rate_limit:` em `can` (C4, ADR-034, IR 0.6)
+   `rate_limit:` em `can` (C4, ADR-034, IR 0.6) e a recusa no compilador de campos e predicados de enum que colidem
+   com métodos do registro `Data` (C12).
 3. [ ] Persistência, rodada 6: os adaptadores HTTP, CLI, job e webhook; a cifra dos campos pessoais, o histórico e a
    auditoria, com o que a conformidade integral com o ADR-016 pede; o distribuidor do live; a fase contract
    (`vetra.instances` e `vetra.schema_state`); os contadores de `rate_limit:`; e o modo hospedado em Rails. Entra

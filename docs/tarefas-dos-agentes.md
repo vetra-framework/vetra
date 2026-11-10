@@ -71,7 +71,7 @@ tarefas seguem a ordem da tabela.
 |---|---|---|---|---|---|
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
-| C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | em andamento | — | Auditoria pelo Claude |
+| C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | integrada, CI pendente | — | Rodada 1 devolvida pelo Claude; rodada 2 aprovada ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
@@ -162,6 +162,23 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria C12
+
+Implementado pelo Codex sobre `e221477`; auditado pelo Claude (leitura do diff completo, medição dos nomes reservados, suíte, gate e
+`db:plan`). A tarefa não toca o banco, então não há sonda.
+
+**Rodada 1 — devolvida pelo Claude.**
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| `reserved_method?` reservava todos os métodos privados do registro, inclusive 55 funções privadas do `Kernel` (`format`, `open`, `select`, `test`, `system`, `load`, `print`, `exec`, `warn`...). Um campo `format` ou `open` funciona num `Data` (construção, leitura e `with` conferidos), então a regra proibia nomes plausíveis sem motivo | sim | Ajustar: reservar os métodos públicos e protegidos, os privados que não são do `Kernel` e só os ganchos que o Ruby chama sozinho (`initialize*`, `method_missing`, `respond_to_missing?`, `singleton_method_*`, `instance_variables_to_inspect`); testes de aceitação de `format`, `open`, `select`, `test`, `system` e `load` e de recusa dos ganchos; docs ajustadas |
+
+**Rodada 2 — aprovada pelo Claude.** O ajuste fecha o achado: a lista final de privados reservados é a dos ganchos mais `enum_group?`
+(e `DelegateClass` e `Digest`, de dono `Object`, fora da sintaxe do DSL). O diagnóstico `field_name_collides_with_record` recusa campos e
+predicados de grupo de `enum` no `graph:build` e no `graph:check`, com ponteiro e sugestão; `Repositories` mantém `data_record_type`
+como defesa em profundidade, sobre a mesma fonte da lista. Os quatro exemplos não mudam, a IR continua 0.6 e o `.vetra/graph.json`
+fica igual.
 
 ## Auditoria C11
 

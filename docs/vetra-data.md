@@ -137,10 +137,17 @@ C10, a conversão escolhida, a construção sob demanda com acesso completo e o 
 não declara cumprido o gate de 10% do ADR-022. A sonda PostgreSQL abaixo mantém esse limiar; seu resultado e
 qualquer proposta de orçamento absoluto dependem, respectivamente, da auditoria e da decisão do mantenedor.
 
-`Repositories.new` recusa no runtime campos cujos nomes coincidam com métodos públicos ou protegidos do
-registro, inclusive os herdados de Object/Kernel, como `hash`, `class`, `with` e `public_send`. A recusa usa
-`data_record_type` e acontece antes de gerar qualquer tipo de entidade. A antecipação dessa checagem no
-compilador permanece pendente.
+`graph:build` e `graph:check` recusam na normalização campos cujos nomes coincidam com métodos reservados do
+registro, como `hash`, `class`, `with` e `public_send`. Grupos de enum também são recusados se o predicado
+gerado colidir, como `frozen?` ou o método privado `enum_group?`.
+O diagnóstico `field_name_collides_with_record` aponta o campo ou grupo e sugere renomeá-lo, conforme o
+[DSL](fase-0.md#nomes-de-campo-e-grupos-de-enum). Compilador e runtime compartilham a reserva calculada dos
+métodos de um `Data.define` vazio com `Record`: todos os públicos e protegidos, os privados cujo dono
+não é `Kernel` e os ganchos privados do `Kernel` chamados pelo Ruby/Data no registro, listados no DSL.
+Funções privadas do `Kernel` como `format`, `open`, `select`, `test`, `system` e `load` são aceitas como
+campos; a mesma regra vale para os predicados de enum. A consulta aos ancestrais, à visibilidade e ao dono
+ocorre a cada checagem. `Repositories.new` mantém a defesa `data_record_type` para IR recebida diretamente;
+campos são conferidos antes de gerar os tipos.
 
 Decimais são `BigDecimal`; `Vetra::Data::Money` é um `Data` imutável com `amount` BigDecimal e `currency` ISO 4217.
 Entrada monetária recebe `{ amount: '123.45', currency: 'BRL' }` ou `Money`; moeda omitida usa a da aplicação.
@@ -257,6 +264,7 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_transaction_required` | Operação sem unidade e transação ativas na fibra |
 | `data_context_install` | Falha ao instalar contexto; causa do driver omitida por sigilo |
 | `data_repository` | Entidade/capacidade não encontrada na IR |
+| `field_name_collides_with_record` | Normalização do DSL: campo ou predicado de grupo de enum colide com método do registro; aponta o campo/grupo e sugere renomear |
 | `data_record_type` | Campo ou predicado de enum em colisão com método do registro |
 | `data_relation` | Junção inelegível ou colisão de métodos gerados de vínculo |
 | `data_field` | Campo desconhecido ou expressão usada como nome de campo |
