@@ -69,7 +69,7 @@ tarefas seguem a ordem da tabela.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | integrada, CI pendente | — | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
+| K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | a fazer | — | — |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
@@ -184,6 +184,9 @@ diagnósticos; gate sem diferenças nos quatro exemplos; `db:plan --check` nos q
 (plano incremental 18, Vetra Data 23, plano aditivo 99, contexto assinado 58, RLS 103, `db:migrate` 21, `db:migrate` incremental 16,
 repositórios 72, outbox 36, relay 38, custo do contexto 4/4, escopo 4/4). O `db:migrate`, a outbox e a contagem de tentativas do
 lock_timeout passaram a esperar os quatro planos do CRM com revendas.
+
+**CI.** A [execução 42751564660](https://github.com/vetra-framework/vetra/actions/runs/42751564660) do commit `4456826` passou nos cinco
+jobs: suíte, `db:plan` no 17 e no 18 (`--check` nos quatro exemplos) e sondas no 17 e no 18, com a de escopo em 4/4.
 
 **Decisão do ADR-041.** Aceito pelo Claude, por delegação do mantenedor: a política de escopo por vínculo passa à forma
 lista, com as concessões da ação fundidas; o `0004_expand` do `mini_crm_revendas` faz a troca atômica das políticas.

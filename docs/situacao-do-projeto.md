@@ -64,7 +64,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   anterior em todas as células, mas fica acima de 1 ms em quase todo `UPDATE` e `DELETE` por chave; o piso vem das
   referências ao contexto (ADR-024, §4). A sonda `sonda_escopo.rb` confere por conjunto de IDs, nas quatro ações e
   na mudança de unidade, que a política real e as seis formas concedem o mesmo, e roda na CI com medição curta. Não
-  cumpre o teste 6 do ADR-023. Integrada no commit da K14, CI pendente.
+  cumpre o teste 6 do ADR-023. Integrada em `4456826`, com a CI verde
+  ([execução 42751564660](https://github.com/vetra-framework/vetra/actions/runs/42751564660)).
 
 - [x] Medição preliminar e informativa do custo do contexto assinado e dos registros (K13), pela sonda
   `sonda_custo_contexto.rb`, no PostgreSQL 17 e 18, com 16 clientes, 3 rodadas alternadas e os papéis de produção
