@@ -70,7 +70,7 @@ tarefas seguem a ordem da tabela.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
-| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | integrada, CI pendente | — | Auditada pelo Claude; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
+| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
@@ -175,6 +175,9 @@ o aceite depende da decisão do mantenedor sobre o orçamento do gate.
 | O orçamento absoluto de 10 µs por registro, proposto antes da medição, seria atendido no limite (7,2 a 10,1 µs) | não | Ajustar: o ADR registra a ressalva; a decisão continua do mantenedor, e o limiar vigente segue 10% |
 | A primeira medição de custo rodou com os dois servidores ao mesmo tempo | não | Ajustar: repetida em sequência, duas execuções por versão |
 | O leitor captura `NoMethodError` e o converte em `data_read_value`, o que poderia esconder um defeito do próprio leitor | não | Não ajustar: o contrato é que toda linha incompatível vira o erro de leitura, e a equivalência com a C10 é testada em todos os campos dos quatro exemplos |
+
+**CI.** A [execução 42759473001](https://github.com/vetra-framework/vetra/actions/runs/42759473001) do commit `c204ae1` passou nos cinco jobs,
+  com a sonda de custo em 5/5 no 17 e no 18.
 
 **Verificações.** Suíte, 223/223 diagnósticos, gate sem diferenças e `db:plan` sem mudanças; sondas no 17 e no 18: Vetra Data 23,
 repositórios 72, outbox 36 e custo do contexto 5/5. Construção dos registros: de 136%-167% (K13) para 40%-56% da consulta; o gate

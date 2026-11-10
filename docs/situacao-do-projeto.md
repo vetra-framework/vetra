@@ -67,7 +67,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   construção sobre as linhas da consulta e mantém o limiar vigente de 10%. O gate não está cumprido: no
   PostgreSQL 17.11 e 18.6 a construção custa de 7 a 10 µs por registro, de 40% a 56% da consulta (antes, de 136% a 167%).
   Aceite e decisão do orçamento pelo mantenedor pendentes. Banco, planos, modelos,
-  retratos e IR 0.6 preservados.
+  retratos e IR 0.6 preservados. Integrada em `c204ae1`, com a CI verde
+  ([execução 42759473001](https://github.com/vetra-framework/vetra/actions/runs/42759473001)).
 
 - [x] Forma da política de escopo por vínculo (K14, [ADR-041](adr/041-forma-da-politica-de-escopo.md), aceito por
   delegação do mantenedor): a política gerada passa a testar a unidade da linha contra a lista de unidades do ator,
