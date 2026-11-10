@@ -4,7 +4,9 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-10: entrada e autorização em Ruby estão implementadas na C13
+- **Atualizado em:** 2026-11-10: os limites da unidade estão implementados na C15 (`statement_timeout`, `lock_timeout` e
+  isolamento por operação, verificador dos limites de sessão que protegem o `xmin` e erros retentáveis próprios; o
+  `vetra_app` passa a exigir `transaction_timeout` e `idle_in_transaction_session_timeout` no bootstrap). Entrada e autorização em Ruby estão implementadas na C13
   ([ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)): contratos estritos com `Values`, papéis,
   escopo por vínculo, registro referenciado e campos, sem abrir unidade, com fatos e revisão resolvidos pela
   borda confiável. `uses` não concede leitura implícita; limite de taxa sem contadores e contexto de sistema
@@ -33,8 +35,9 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Item | Situação |
 |---|---|
 | ADRs | 42 aceitos (001 a 041 e 043) e dois propostos (042 e 044), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
-| Testes do compilador, dados e exemplos | 689 testes e 15.600 asserções, sem falhas; 238/238 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Testes do compilador, dados e exemplos | 702 testes e 16.498 asserções, sem falhas; 244/244 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Entrada e autorização Ruby (C13) | 27 testes/760 asserções novos sem banco, com os quatro grafos e os caminhos da sonda por mock. Contratos estritos, lógica SQL de NULL, papéis, vínculo/revenda/tenant, campos, revisão e recusas específicas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças e gate sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (68/68) e na CI; a contagem de zero transações é a do pool do runtime. Integrada em `8a224a1`, com a CI verde ([execução 42859941056](https://github.com/vetra-framework/vetra/actions/runs/42859941056)). |
+| Limites da unidade (C15) | 13 testes novos sem banco e a sonda `sonda_limites_unidade.rb`, em modo 100755, com 15 verificações no 17.11 e no 18.6 (verificador recusa 5 combinações e aceita o login real, estouros de `lock_timeout` e `statement_timeout` com rollback total e sem evento, `SERIALIZABLE`/40001, morte do backend por `transaction_timeout` e por transação ociosa com o `xmin` avançando e o relay entregando, restauração dos parâmetros por banco). As sondas `vetra_data` (23), `repositorios` (72), `outbox` (36), `relay` (38), `idempotencia` (83) e `autorizacao_ruby` (68) passam nos dois servidores com o novo bootstrap. Custo medido do verificador: 0,18 ms/op no 17 e 0,11 ms/op no 18 (mediana de 300 leituras), e não os 57 µs do mock. Quatro exemplos em check, validação com fontes e link, `db:plan` sem mudanças e gate sem diferenças. Integrada no commit da C15, CI pendente |
 | Colisões de nomes no compilador (C12) | Dez testes/970 asserções na execução isolada: campos e predicados de enum, diagnóstico com ponteiro e origem, ganchos privados recusados, funções privadas do `Kernel` aceitas com construção, leitura e `with`, preservação do artefato e concordância com os repositórios, inclusive com métodos e mudanças de visibilidade após o carregamento. Quatro exemplos em check, validação com fontes e link, quatro planos sem mudanças e gate sem diferenças; IR 0.6 preservada |
 | Construção dos registros (C11) | Nove testes/1.735 asserções novos sem banco, incluindo a medição da sonda com Sequel.mock. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças; gate contra origin/main sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (5/5); construção de 40% a 56% da consulta, gate aberto e decisão do orçamento pendente |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
@@ -69,6 +72,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Limites da unidade (C15, fase B da rodada 5): `UnitOfWork#transaction(statement_timeout:, lock_timeout:,
+  isolation:)` com `set_config(..., true)` na transação externa (nunca em savepoint), tetos de 30 s e 10 s e máximo de
+  120.000 ms, verificador `Limits` dos parâmetros de sessão do papel (`transaction_timeout`,
+  `idle_in_transaction_session_timeout`, bootstrap operacional fora dos planos) e tradução única dos erros do banco
+  (`Conflict(:lock_timeout)`, `StatementTimeout`, `SerializationFailure`, deadlock), que condenam a unidade e são
+  retentáveis; sem repetição automática (K19). Sonda de 15 verificações no 17 e no 18 e na CI.
 - [x] Entrada e autorização em Ruby (C13, [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)) em
   `Vetra::Execution`: valida contratos com os tipos/erros de `Values`, avalia `authorize` por papel, tenant,
   vínculo, registro referenciado e campos e conserva a semântica SQL de NULL. Recebe fatos imutáveis e
@@ -747,7 +756,7 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    idempotência (K16, implementada) e a autorização em Ruby (C13, ADR-044 proposto); a fase B, o executor (despacho,
    autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, foi
    **replanejada na P5** (parecer do Codex em duas rodadas, aprovada): C15 (limites da unidade), K17 (borda e despacho), C16
-   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a K17 não começou. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
+   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15 está integrada e a K17 não começou. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
    pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
 2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:

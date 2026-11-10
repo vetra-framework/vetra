@@ -12,7 +12,7 @@ class RepositoryProbeTest < GraphTest
     db = Sequel.mock(host: :postgres)
     tenant = example.start_with?('mini_crm')
     options = tenant ? { issuer: Vetra::Data::ContextIssuer.new(kid: 'test', secret: SecureRandom.random_bytes(32)) } : { scope: :global }
-    work = Vetra::Data::UnitOfWork.new(db, **options, clock: -> { @time })
+    work = Vetra::Data::UnitOfWork.new(db, limits: false, **options, clock: -> { @time })
     linked = Vetra::Graph::Compiler.new(root: File.join(PROJECT, 'examples', example)).link
     { example: example, actor: @actor, tenants: [@tenant], actors: [@actor], work: work,
       runtime: db, catalog: Vetra::Data::Repositories.new(linked.document), linked: linked, executed: [] }.each do |name, value|

@@ -17,8 +17,27 @@ module Vetra
 
       def initialize(kind)
         @kind = kind
-        super(Error.single('data_conflict', 'Conflito ao persistir o registro.').diagnostics)
+        diagnostic = case kind
+        when :lock_timeout then Error.single('data_lock_timeout', 'O tempo de espera por lock foi excedido.')
+        when :serialization then Error.single('data_serialization', 'A operação sofreu conflito de serialização.')
+        else Error.single('data_conflict', 'Conflito ao persistir o registro.')
+        end
+        super(diagnostic.diagnostics)
       end
+
+      def retryable? = %i[lock_timeout serialization deadlock].include?(kind)
+    end
+
+    class SerializationFailure < Conflict
+      def initialize = super(:serialization)
+    end
+
+    class StatementTimeout < Error
+      def initialize
+        super(Error.single('data_statement_timeout', 'O tempo de execução da instrução foi excedido.').diagnostics)
+      end
+
+      def retryable? = true
     end
 
     # Só valores atravessam a fronteira; nunca expressões do Sequel ou objetos do driver.

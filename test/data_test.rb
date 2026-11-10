@@ -13,7 +13,7 @@ class DataTest < GraphTest
                 op_id: SecureRandom.uuid, cmd: 'crm.create_lead' }
     @issuer = issuer
     @db = Sequel.mock(host: :postgres)
-    @work = Vetra::Data::UnitOfWork.new(@db, issuer: @issuer)
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: @issuer)
   end
 
   def issuer(**options)
@@ -164,7 +164,7 @@ class DataTest < GraphTest
   end
 
   def test_nested_entry_and_other_unit_cannot_replace_context
-    other = Vetra::Data::UnitOfWork.new(@db, issuer: @issuer)
+    other = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: @issuer)
     @work.transaction(**@claims) do
       assert_graph_error('data_transaction_nested') { @work.read(**@claims.merge(tenant_id: SecureRandom.uuid)) {} }
       assert_graph_error('data_transaction_nested') { other.transaction(**@claims) {} }
@@ -193,7 +193,7 @@ class DataTest < GraphTest
   end
 
   def test_global_authenticated_and_visitor_have_only_ruby_identity
-    work = Vetra::Data::UnitOfWork.new(@db, scope: :global)
+    work = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global)
     [nil, @claims[:actor_id]].each do |actor|
       work.read(op_id: @claims[:op_id], cmd: 'blog.find_post', actor_id: actor) do
         assert_nil work.context.tenant_id
@@ -206,7 +206,7 @@ class DataTest < GraphTest
     refute @db.sqls.any? { |s| s.include?('set_config') }
     assert_graph_error('data_scope') { work.transaction(**@claims) {} }
     assert_graph_error('data_scope') { Vetra::Data::UnitOfWork.new(@db) }
-    assert_graph_error('data_scope') { Vetra::Data::UnitOfWork.new(@db, scope: :invalid) }
+    assert_graph_error('data_scope') { Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :invalid) }
     assert_graph_error('data_context') { work.transaction(op_id: 'bad', cmd: 'blog.find_post') {} }
   end
 
@@ -238,7 +238,7 @@ class DataTest < GraphTest
     assert_graph_error('data_named_statement') { @db[:leads].prepare(:select, :leads) }
     assert_graph_error('data_named_statement') { @db[:leads].call(:select) }
     assert_graph_error('data_connection') { Vetra::Data.configure(Sequel.mock) }
-    assert_graph_error('data_connection') { Vetra::Data::UnitOfWork.new(Sequel.mock, scope: :global) }
+    assert_graph_error('data_connection') { Vetra::Data::UnitOfWork.new(Sequel.mock, limits: false, scope: :global) }
     assert_graph_error('data_connection') { Vetra::Data.connect('mock://unused') }
   end
 

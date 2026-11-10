@@ -76,6 +76,35 @@ existia, e o plano de uma aplicação com eventos repete a conferência antes de
 `CONNECT` são operacionais; não entram em artefatos. O plano confere esses atributos antes do DDL e revoga
 `CREATE`/`TEMPORARY` no banco de `PUBLIC` e da aplicação. Não use banco pertencente a `vetra_app`.
 
+Antes de liberar o runtime, o operador configura também os limites que protegem o `xmin` (ADR-008, §5).
+São parâmetros operacionais do papel de aplicação, **fora de qualquer plano, modelo, retrato ou SQL versionado
+dos exemplos**. Execute como administrador no PostgreSQL 17 ou 18, após criar/conferir os papéis:
+
+```sh
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+  -c "ALTER ROLE vetra_app SET transaction_timeout = '30s'" \
+  -c "ALTER ROLE vetra_app SET idle_in_transaction_session_timeout = '10s'"
+```
+
+`roles_sql` cria e confere atributos/vínculos; estes dois comandos complementam seu bootstrap operacional.
+Podem ser reaplicados e não mudam privilégios. Não pertencem ao migrador nem ao `db:plan`.
+Os padrões de 30 s/10 s são as hipóteses operacionais do ADR-008, não uma medição de capacidade.
+`transaction_timeout` encerra a sessão que mantém a transação longa, inclusive enquanto executa uma consulta;
+`idle_in_transaction_session_timeout` encerra a que fica parada numa transação. O rollback do servidor libera
+locks e o `xmin` que prendia a leitura dos eventos de todos os tenants pelo relay.
+[Referência do PostgreSQL 17](https://www.postgresql.org/docs/17/runtime-config-client.html#RUNTIME-CONFIG-CLIENT-STATEMENT).
+
+Esses defaults passam a valer em **novos logins**; recicle o pool após alterar o papel. `SET ROLE` não carrega os
+defaults de login. Configuração por banco, opções do cliente ou SET de sessão podem sobrepor o papel: confira o
+valor efetivo. Por padrão o [Vetra Data](vetra-data.md#limites-e-isolamento-da-unidade) lê ambos na transação e
+recusa abrir a unidade se algum faltar, for zero ou exceder os tetos de 30 s/10 s. Um teto diferente exige
+configuração explícita de `Vetra::Data::Limits` na borda. Os limites de instrução e lock são SET LOCAL por operação;
+não substituem os limites de sessão, pois uma aplicação pode ficar ociosa entre instruções.
+
+A CI e as instalações existentes precisam destes dois comandos no bootstrap **antes das sondas antigas ou do
+runtime**, além da nova linha `bundle exec ruby script/sonda_limites_unidade.rb` na matriz PostgreSQL 17/18.
+Não se deve gravar os comandos em `db/plans/` para contornar um ambiente sem bootstrap.
+
 Depois, o operador cria o banco vazio com o migrador como dono, sem lhe dar CREATEDB:
 
 ```sh

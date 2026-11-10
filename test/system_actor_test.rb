@@ -45,7 +45,7 @@ class SystemActorTest < GraphTest
 
   def test_unit_of_work_installs_the_system_context_and_exposes_no_actor
     db = Sequel.mock(host: :postgres)
-    work = Vetra::Data::UnitOfWork.new(db, issuer: @issuer)
+    work = Vetra::Data::UnitOfWork.new(db, limits: false, issuer: @issuer)
     seen = nil
     work.transaction(**@claims, system_actor: 'crm.on_lead_won') { |unit| seen = unit.context }
     assert seen.system_actor?

@@ -137,10 +137,16 @@ jobs:
       - name: Senhas de login do vetra_migrator, do vetra_app e do vetra_relay neste servidor descartável
         run: |
           bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_migrator PASSWORD #{c.escape_literal(ENV.fetch("VETRA_MIGRATOR_PASSWORD"))}"); c.exec("ALTER ROLE vetra_app PASSWORD #{c.escape_literal(ENV.fetch("VETRA_APP_PASSWORD"))}"); c.exec("ALTER ROLE vetra_relay PASSWORD #{c.escape_literal(ENV.fetch("VETRA_RELAY_PASSWORD"))}") }'
+      # Bootstrap operacional do vetra_app (nunca em plano): a unidade recusa abrir sem estes tetos (ADR-016, C15).
+      - name: Limites de transação do vetra_app neste servidor descartável
+        run: |
+          bundle exec ruby -rpg -e 'PG.connect(ENV.fetch("DATABASE_URL")) { |c| c.exec("ALTER ROLE vetra_app SET transaction_timeout = '"'"'30s'"'"'"); c.exec("ALTER ROLE vetra_app SET idle_in_transaction_session_timeout = '"'"'10s'"'"'") }'
       - name: Fundação do plano incremental como vetra_migrator
         run: bundle exec ruby script/sonda_plano_incremental.rb
       - name: Vetra Data, unidade de trabalho e contexto emitido em Ruby
         run: bundle exec ruby script/sonda_vetra_data.rb
+      - name: Limites da unidade, estouros, SERIALIZABLE e proteção do xmin (ADR-016)
+        run: bundle exec ruby script/sonda_limites_unidade.rb
       - name: Diferenças aditivas do plano incremental, com dados e escrita concorrente
         run: bundle exec ruby script/sonda_plano_aditivo.rb
       - name: Contexto assinado e privilégios do plano gerado

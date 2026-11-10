@@ -42,7 +42,8 @@ O runtime confiável resolve identidades e autorização antes da abertura:
 
 ```ruby
 work.transaction(tenant_id: tenant.id, actor_id: actor.id,
-                 op_id: operation_id, cmd: 'crm.create_lead') do |unit|
+                 op_id: operation_id, cmd: 'crm.create_lead',
+                 statement_timeout: 5000, lock_timeout: 500, isolation: :read_committed) do |unit|
   leads = repositories.bind('crm.leads', unit: unit)
   lead = leads.create!(name: 'Cliente novo')
   unit.compose do
@@ -79,7 +80,8 @@ no rollback; não é renovado em savepoints. O relógio do emissor deve estar si
 
 `transaction`/`read` não adotam BEGIN externo nem outra unidade já aberta: use `compose`. `rollback!` levanta
 `Sequel::Rollback`, que propaga depois da reversão. Outras exceções também propagam. Resgatar fora de `compose`
-permite continuar o bloco externo depois do rollback do savepoint; sem resgate, toda a operação é desfeita.
+permite continuar o bloco externo depois do rollback do savepoint, salvo timeout, serialização ou deadlock, que
+condenam a unidade inteira; sem resgate, toda a operação é desfeita.
 Não há repetição automática, hooks de evento ou executor das oito etapas nesta camada.
 
 O comando assinado é o externo, inclusive durante composição. Compor outro comando não concede a autoridade
@@ -95,6 +97,62 @@ mesmo que exista um BEGIN externo.
 convertido para UTC com microssegundos e compartilhado por `unit.now`, pelas criações e pelos savepoints.
 Esse relógio é separado do relógio de validade do emissor. O runtime pode fornecer a mesma fonte determinística
 às capacidades de relógio; os comandos do blog usam `now` para `published_at`.
+
+### Limites e isolamento da unidade
+
+`transaction` e `read` aceitam `statement_timeout:` e `lock_timeout:` como **inteiros em milissegundos de 0 a
+120.000**, inclusive. Omitir preserva o valor efetivo da conexão; zero desliga somente aquele limite por operação.
+`nil`, negativos, números fracionários, strings e valores acima do teto são `data_timeout`, antes de BEGIN e sem
+repetir o valor no erro. O teto de dois minutos mantém esta API voltada a comandos curtos (ADR-016); não alonga os
+limites operacionais de 30 s/10 s. Para importações e relatórios longos, divida o trabalho.
+
+`isolation:` aceita exclusivamente `:read_committed` (padrão) e `:serializable`. Outro valor é `data_isolation`,
+antes de BEGIN. O isolamento pertence à transação externa. Os timeouts são `set_config(nome, valor, true)` com
+parâmetros do protocolo, equivalentes a **SET LOCAL**, instalados uma vez antes do corpo, junto do contexto.
+Nunca são instalados dentro de `compose`, que não aceita opções de limites ou isolamento. Commit/rollback
+restauram os valores anteriores, e rollback de savepoint preserva os limites externos.
+
+`UnitOfWork.new` liga por padrão `limits: Vetra::Data::Limits.new`. O verificador exige os limites efetivos
+`transaction_timeout > 0` e `idle_in_transaction_session_timeout > 0`, com tetos padrão de **30.000 ms e 10.000 ms**.
+Ausência, zero, valor malformado ou acima do teto recusam a abertura com `data_limits`: o corpo não roda e a
+transação é desfeita antes de instalar o contexto. Não configura esses parâmetros; eles vêm do
+[bootstrap operacional](db-plan.md#bootstrap-e-contexto-assinado) do papel `vetra_app`, inclusive em aplicações globais.
+
+Uma política operacional explícita pode mudar os tetos, sempre inteiros positivos até 120.000 ms:
+
+```ruby
+limits = Vetra::Data::Limits.new(transaction_timeout: 20_000, idle_in_transaction_session_timeout: 5000)
+work = Vetra::Data::UnitOfWork.new(db, issuer: issuer, limits: limits)
+```
+
+Somente `limits: false` desliga a conferência; é opção da borda confiável para testes/ambientes controlados.
+`nil`, `true` ou outra configuração são recusados. Desligar a conferência não instala proteção no servidor.
+Os testes antigos que isolam contexto/repositório usam `false`; `test/data_limits_test.rb` exercita o padrão
+ligado com `Sequel.mock`, incluindo valores ausentes/zero/excessivos, outra transação na mesma conexão e SQL parametrizado.
+
+**Custo.** Uma única instrução `SELECT current_setting(..., true), current_setting(..., true)` lê os dois valores
+na própria conexão de **cada transação externa**, antes do contexto; não há leitura por acesso, por registro nem
+por savepoint. Não guardamos o resultado entre operações: um SET de sessão, outra conexão do pool ou um pooler
+pode mudar o efetivo. A leitura comprova o valor efetivo, não a origem no catálogo do papel. Na medição local com
+Sequel mock/Ruby 4.0.9, mediana de sete séries alternadas de 5.000 unidades vazias: 75,80 µs/op com verificação e
+18,45 µs/op sem (diferença 57,35 µs/op). Isso inclui geração/registro de SQL do mock e **não mede rede nem PostgreSQL**.
+A sonda de limites relata a mediana com/sem verificação no banco (três séries de 100 operações com leitura e
+savepoint) e confere exatamente 300 leituras para 300 unidades verificadas. A latência real no 17/18 fica para
+essa execução pelo Claude; não há cache que esconda configuração insegura.
+
+**Erros retentáveis.** `55P03` produz `Conflict(:lock_timeout)` com `data_lock_timeout`: reaproveita a classificação
+pública já usada pela idempotência e esperada pela K19, com um diagnóstico específico. `57014` produz
+`StatementTimeout` com `data_statement_timeout` (o PostgreSQL também usa esse SQLSTATE para cancelamento externo;
+a mensagem do driver não é inspecionada para distinguir). `40001` produz `SerializationFailure < Conflict`, com
+`kind: :serialization` e `data_serialization`; deadlock permanece `Conflict(:deadlock)`/`data_conflict`.
+Todos respondem `retryable? == true`, sem SQL, valores, mensagem nem causa do driver. Unicidade e FK continuam
+`Conflict` sem indicação de repetição segura.
+
+A classificação é comum aos repositórios, à emissão de eventos, à idempotência e às falhas no commit. Timeout,
+serialização e deadlock **condenam a unidade inteira**, mesmo quando o corpo resgata o erro após `compose`:
+novos acessos são recusados e o encerramento desfaz tudo, inclusive em saídas por `return`/`throw`.
+A camada não repete operações. A repetição, o mapeamento para 409 e a resposta do executor pertencem à K19.
+As demais exceções de SQL direto por `access` continuam propagando como antes; os repositórios as saneiam.
 
 ## Repositórios e registros
 
@@ -173,8 +231,9 @@ Float, NaN, excesso de escala e estouro de precisão são recusados, sem arredon
 Aritmética, rateio e formatação monetária continuam pendentes. Timestamp exige Time ou ISO 8601 com fuso e até
 seis casas; a saída é UTC. JSON é convertido para jsonb, e dinheiro para as duas colunas físicas.
 
-`RecordNotFound#code` é `data_record_not_found`. `Conflict#code` é `data_conflict`, e `kind` classifica
-`:unique`, `:foreign_key`, `:serialization` ou `:deadlock`. Mensagem, `cause` e inspeção não carregam o erro,
+`RecordNotFound#code` é `data_record_not_found`. `Conflict#code` é `data_conflict` para `:unique`, `:foreign_key`
+e `:deadlock`, `data_lock_timeout` para `:lock_timeout` e `data_serialization` para `:serialization`.
+`StatementTimeout#code` é `data_statement_timeout`. Mensagem, `cause` e inspeção não carregam o erro,
 SQL nem valores do driver. Recusa SQL de acesso é `data_access_denied`, não conflito. Não há repetição automática.
 Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do rollback.
 
@@ -424,7 +483,7 @@ end
 Blog e chat usam `UnitOfWork.new(db, scope: :global)`, sem emissor. A transação recebe `op_id`, `cmd` e
 `actor_id` UUID para autenticado ou `nil` para visitante; `tenant_id` e `system_actor` devem ser `nil` (não há ator de
 sistema sem tenant). As identidades ficam em
-Ruby: não há emissão nem `set_config`, e as duas funções SQL retornam NULL. Isso corresponde ao plano atual,
+Ruby: não há emissão nem instalação de contexto SQL, e as duas funções SQL retornam NULL. Isso corresponde ao plano atual,
 sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da aplicação. A unidade global recusa
 `access(multi_tenant: true)`. Escolher esse modo depende da IR, nunca de parâmetro do usuário.
 
@@ -454,7 +513,13 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_transition` | Alteração de transição fora do comando dono |
 | `data_required_link` | Remoção de vínculo obrigatório de `include_on_create` |
 | `data_record_not_found` | Registro ausente ou invisível |
-| `data_conflict` | Unicidade, FK, serialização ou deadlock |
+| `data_conflict` | Unicidade, FK ou deadlock (`Conflict#kind`) |
+| `data_lock_timeout` | Espera por lock excedida (55P03), `Conflict(:lock_timeout)`, retentável |
+| `data_statement_timeout` | Instrução cancelada (57014), `StatementTimeout`, retentável |
+| `data_serialization` | Conflito de serialização (40001), `SerializationFailure`, retentável |
+| `data_timeout` | Timeout por operação ou teto do verificador fora do intervalo/tipo aceito |
+| `data_isolation` | Isolamento diferente de `:read_committed`/`:serializable` |
+| `data_limits` | Verificador inválido ou parâmetros efetivos ausentes, zero, malformados ou excessivos |
 | `data_access_denied` | Banco recusou o acesso (42501) |
 | `data_database` | Outra falha do banco, sem detalhes do driver |
 | `data_event` | Emissão sem evento declarado pelo comando, registro de outra IR ou projeção inconsistente |
@@ -506,6 +571,37 @@ identidade/poderes da sonda de contexto. Provisiona chave aleatória por parâme
 A numeração da saída é a ordem dos rótulos, sem IDs fixos; a tabela agrupa os resultados por assunto. A auditoria
 executa a sonda no 17/18 e a inclui na CI. Até essa execução, só sintaxe e testes sem banco estão conferidos.
 O custo com RLS/concorrência/pooler e a construção dos registros continuam sujeitos aos gates dos ADRs 022 e 023.
+
+## Sonda dos limites da unidade
+
+```sh
+DATABASE_URL=... VETRA_APP_PASSWORD=... VETRA_RELAY_PASSWORD=... bundle exec ruby script/sonda_limites_unidade.rb
+```
+
+Exige cluster PostgreSQL 17/18 descartável e bootstrap ADR-036/040. Aplica os planos integrados do blog e mini CRM
+como `vetra_migrator`, operações com login real `vetra_app` e relay/consumo como `vetra_relay`.
+São esperadas **15 verificações**:
+
+- Dois conjuntos de planos aplicados pelo migrador, sem poderes administrativos.
+- Cinco recusas de abertura (dois parâmetros zero; cada um zero isoladamente; cada um acima do teto) e uma
+  aceitação com os parâmetros corretos, sempre reabrindo o login após ALTER ROLE.
+- Dois estouros reais em `Repository#lock!`: espera por lock com `lock_timeout` mais curto, e a mesma espera com
+  `statement_timeout` mais curto. Confere tipo, diagnóstico, sigilo e rollback total, inclusive da linha e do evento
+  anteriores ao savepoint, mesmo com resgate do erro, e restauração dos limites locais.
+- READ COMMITTED padrão e SERIALIZABLE por opção: outra conexão confirma a alteração depois da leitura; a escrita
+  obsoleta gera `SerializationFailure`, sem repetir e sem deixar a linha da unidade abortada.
+- Uma medição com/sem o verificador, contando uma leitura conjunta por unidade e nenhuma adicional nos savepoints.
+- Dois encerramentos pelo **servidor** no mini CRM: escritor em outro tenant mantém `xid` aberto, e um evento
+  posterior confirmado fica atrás dele. Com `transaction_timeout` curto, o backend executa `pg_sleep`; com
+  `idle_in_transaction_session_timeout` curto, fica sem consultas. A sonda observa o desaparecimento do backend
+  antes de qualquer limpeza, o avanço do `xmin`, a ausência da linha abortada e o relay materializando e consumindo
+  o evento por todos os handlers declarados, uma única vez.
+- Restauração dos parâmetros e igualdade dos catálogos de papéis, vínculos e configurações.
+
+Os limites de teste (3 s) são `ALTER ROLE vetra_app IN DATABASE <banco efêmero> SET ...`, isolados dos demais bancos;
+o `ensure` os remove, encerra conexões e apaga os bancos próprios. Nunca altera configuração global preexistente.
+O descarte forçado de backend só ocorre na limpeza de um teste que falhou e não conta como prova de timeout.
+Sintaxe e mocks foram conferidos no sandbox; **a execução real, a medição e a inclusão na CI cabem ao Claude**.
 
 ## Sonda do relay
 

@@ -7,7 +7,7 @@ class RecordReadingTest < GraphTest
 
   def setup
     @db = Sequel.mock(host: :postgres)
-    @work = Vetra::Data::UnitOfWork.new(@db, scope: :global)
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global)
     @claims = { actor_id: UUID, op_id: UUID, cmd: 'blog.create_post' }
   end
 

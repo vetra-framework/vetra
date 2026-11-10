@@ -105,22 +105,8 @@ module Vetra
           dataset = dataset.where(column.to_sym => @unit.context.tenant_id) if column
           yield dataset
         end
-      rescue Sequel::UniqueConstraintViolation
-        raise Conflict.new(:unique), cause: nil
-      rescue Sequel::ForeignKeyConstraintViolation
-        raise Conflict.new(:foreign_key), cause: nil
       rescue Sequel::DatabaseError => error
-        # PG_DIAG_SQLSTATE = 'C'; não inclui nem retém o erro/SQL/valores do driver.
-        wrapped = error.wrapped_exception
-        state = wrapped.respond_to?(:result) ? wrapped.result&.error_field(PG::PG_DIAG_SQLSTATE) : nil
-        raise Conflict.new(:unique), cause: nil if state == '23505'
-        raise Conflict.new(:foreign_key), cause: nil if state == '23503'
-        raise Conflict.new(:deadlock), cause: nil if state == '40P01'
-        raise Conflict.new(:serialization), cause: nil if error.is_a?(Sequel::SerializationFailure) || state == '40001'
-        if state == '42501'
-          raise Error.single('data_access_denied', 'Acesso aos dados recusado.'), cause: nil
-        end
-        raise Error.single('data_database', 'Falha ao acessar os dados.'), cause: nil
+        @unit.database_error!(error)
       end
 
       def coerce(name, value)

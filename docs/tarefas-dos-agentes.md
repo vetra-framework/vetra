@@ -76,7 +76,7 @@ tarefas seguem a ordem da tabela.
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | concluída | `8a224a1` | Auditada pelo Claude; CI verde; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
-| C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | em andamento | — | Implementação pelo Codex sobre `991a6a9`; auditoria pelo Claude, com sonda |
+| C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18 e CI; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | a fazer | — | — |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | a fazer | — | — |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
@@ -184,6 +184,23 @@ Sete achados, três bloqueantes; a decisão de cada um é do Claude.
 
 **Segunda rodada — aprovada pelo Codex.** Os sete ajustes fecham os achados, sem afirmação falsa nem contradição nova. O plano foi integrado;
 a C15 é a próxima tarefa, e o aceite do ADR-044, a saída da `vt_system` e o aceite do ADR-042 seguem com o mantenedor, sem bloquear tarefa.
+
+## Auditoria C15
+
+Implementado pelo Codex sobre `cdcf4f2`; auditado pelo Claude (leitura de todo o código, dos testes, da sonda e dos guias; suíte, gate,
+`db:plan` e as sondas no PostgreSQL 17.11 e 18.6, que o sandbox do Codex não executa).
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| `DatabaseErrors.sqlstate` chamava `error_field('C')`; o `pg` só aceita o inteiro `PG::PG_DIAG_SQLSTATE` e lança `TypeError` num `PG::Result` real. O mock do teste exigia o literal `'C'`, e por isso os 13 testes e a suíte passavam enquanto 3 verificações da sonda `limites_unidade` e dezenas das sondas `repositorios`, `outbox`, `relay`, `idempotencia`, `vetra_data` e `autorizacao_ruby` falhavam | sim | Ajustar (pelo Claude, por exigir o banco): `sqlstate` usa `PG::PG_DIAG_SQLSTATE`, como o resto da base, e o mock agora recusa qualquer outro campo; todas as sondas passam nos dois servidores |
+| O verificador vem ligado por padrão; sem os dois `ALTER ROLE` no bootstrap toda sonda antiga e a CI recusam abrir a unidade (`data_limits`) | sim | Ajustar (pelo Claude; o Codex não edita `.github/`): passo de bootstrap na CI com `transaction_timeout = '30s'` e `idle_in_transaction_session_timeout = '10s'` antes das sondas, e o passo da `sonda_limites_unidade.rb` |
+
+Custo real do verificador, medido contra o banco (uma leitura de `current_setting` por transação externa, 300 operações): mediana 0,71 ms/op
+com e 0,54 sem no 17 (diferença 0,18 ms), 0,68 com e 0,58 sem no 18 (0,11 ms), contra os 57 µs do mock. É um `SELECT` por transação externa, não
+por acesso; a K20 mede o total no fluxo completo e a decisão de manter o verificador ligado por padrão vai com ela.
+
+**Verificações.** Suíte 702 testes, 16.498 asserções, 0 falhas, 244/244 diagnósticos; gate sem diferenças; `db:plan` sem mudanças nos quatro
+exemplos; sonda `limites_unidade` 15/15 e as seis sondas afetadas 100% no 17 e no 18.
 
 ## Auditoria C13
 
@@ -1021,3 +1038,53 @@ nomes e literais escapados, recusa papéis privilegiados e não gera SQL parcial
    posterior`) que a convenção não previa. Não mudam decisões; a K3 as formaliza como referências permitidas.
 3. A linha "PRs e commits locais" do resumo parava no PR #36; a K3 a atualiza.
 4. A versão 0.1.0.pre.alpha.5 está commitada e não publicada; a alpha.4 publicada não tem os metadados novos.
+
+## Entrega da C15 pelo Codex
+
+Base efetiva: `cdcf4f208a843da6f0f2ef7a79dd71893e4f9dce`, árvore inicialmente limpa na `main`.
+É filho direto da base solicitada `991a6a9`; o único acréscimo é o registro de início da C15 no quadro.
+Implementação sem commit, branch ou push; árvore entregue para auditoria pelo Claude.
+
+- **Código:** `lib/vetra/data/unit_of_work.rb`, `limits.rb`, `database_errors.rb`, `values.rb`, `repository.rb`,
+  `repositories.rb`, `idempotency.rb` e carregamento em `lib/vetra/data.rb`. Timeouts e isolamento externos,
+  verificador efetivo padrão e tradução comum, inclusive no commit; condenação total após timeout/serialização/deadlock.
+- **Testes:** `test/data_limits_test.rb` (13 testes, 898 asserções) e adaptação dos mocks antigos de contexto,
+  repositórios, leitura, outbox, idempotência, sistema, autorização e sondas. Os testes novos exercitam os seis códigos
+  `data_timeout`, `data_isolation`, `data_limits`, `data_lock_timeout`, `data_statement_timeout`, `data_serialization`.
+- **Sonda:** `script/sonda_limites_unidade.rb`, modo 100755, 15 verificações esperadas. Planos integrados de blog e mini
+  CRM pelo migrador; logins reais de aplicação e relay, estouros, serialização, morte de backend ativo/ocioso,
+  avanço do xmin e materialização/consumo por handlers. Configuração de teste somente IN DATABASE nos bancos próprios;
+  restauração no ensure e comparação dos catálogos de papéis, vínculos e configurações ao final.
+- **Documentação:** API, erros, opções, custo e sonda em `docs/vetra-data.md`; comandos operacionais em `docs/db-plan.md`.
+  Nenhuma afirmação de status em `docs/situacao-do-projeto.md` precisou mudar; não se anunciou conclusão.
+
+**Decisões.** Timeout da operação é inteiro em ms de 0 a 120.000; zero desliga o limite específico e omissão preserva
+sua configuração anterior (nil explícito é inválido). Isolamento somente `:read_committed`/`:serializable`.
+O verificador é `limits: Limits.new` por padrão, com tetos 30.000/10.000 ms configuráveis até 120.000 ms;
+`limits: false` é a única desativação. Uma instrução parametrizada lê os dois GUCs por transação externa,
+antes do contexto; sem cache entre operações nem consultas adicionais por acesso/savepoint, para perceber mudanças
+de sessão/pooler. Mediana local com Sequel mock/Ruby 4.0.9, sete séries alternadas de 5.000 unidades vazias:
+75,80 µs/op com e 18,45 µs/op sem (diferença 57,35 µs/op); não mede rede/PostgreSQL. A sonda mede o custo real e a contagem.
+`Conflict(:lock_timeout)` foi mantido porque já é o contrato da idempotência/K19, agora com código específico;
+`StatementTimeout` é distinto, e `SerializationFailure < Conflict` preserva kind `:serialization`. Todos são retentáveis,
+sem SQL/mensagem/cause do driver e sem repetição aqui. `57014` também cobre cancelamento externo: não se interpreta
+a mensagem para distinguir. Não foi necessário ADR novo: são detalhes de execução previstos nos ADRs 008, 016 e 039
+e na P5; os padrões operacionais continuam hipóteses, sem mudar seu aceite.
+
+**Verificação final:** `bundle exec rake test:diagnostics`: 702 testes, 16.498 asserções, sem falhas/erros/skips; Diagnósticos 244/244. `graph:check`, `graph:validate --sources`, `graph:link` e `db:plan` passaram nos
+quatro exemplos, sem alterar artefatos (só os avisos já conhecidos de entidade sem política no chat).
+`check_graph_compatibility.rb --base origin/main` passou contra `991a6a9`, sem diferenças nos quatro exemplos e sem
+aviso de árvore suja. `ruby -c` da sonda e `git diff --check` passaram; modo 755 conferido. Sem falha de temporários.
+Os exemplos não têm Rakefile próprio; a suíte é a da raiz. `db:plan --check` depende de PostgreSQL, então não rodou.
+
+**Pendente/risco:** execução real da sonda e das sondas afetadas no PostgreSQL 17/18 e medição real, pelo Claude;
+estouro/rollback/xmin/RLS não estão provados por mocks. O padrão ligado recusa ambientes sem os dois parâmetros:
+a CI e instalações existentes precisam atualizar o bootstrap antes das sondas antigas/runtime. K19 continua responsável
+por repetição e resposta/409. Nenhuma edição em `.github/`, `.claude/`, IR, planos, modelos ou retratos dos exemplos.
+
+**CI (Claude):** no job de planos da matriz 17/18, acrescentar
+`run: bundle exec ruby script/sonda_limites_unidade.rb`. No bootstrap operacional que precede as sondas, executar
+`ALTER ROLE vetra_app SET transaction_timeout = '30s';` e
+`ALTER ROLE vetra_app SET idle_in_transaction_session_timeout = '10s';` como administrador, conforme `docs/db-plan.md`.
+
+Auditoria, achados, decisões e CI: pendentes do Claude; sem commit da entrega ainda.

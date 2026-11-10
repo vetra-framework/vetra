@@ -159,7 +159,7 @@ class IdempotencyTest < GraphTest
       end
     end
     db.numrows = 1
-    work = Vetra::Data::UnitOfWork.new(db, issuer: @issuer)
+    work = Vetra::Data::UnitOfWork.new(db, limits: false, issuer: @issuer)
     [db, work]
   end
 
@@ -212,7 +212,7 @@ class IdempotencyTest < GraphTest
     attempts = 0
     db = Sequel.mock(host: :postgres)
     db.fetch = ->(sql) { sql.include?('ON CONFLICT') ? ((attempts += 1) == 1 ? [] : [{ id: 8 }]) : [] }
-    result = Vetra::Data::UnitOfWork.new(db, issuer: @issuer).transaction(**@claims) do |unit|
+    result = Vetra::Data::UnitOfWork.new(db, limits: false, issuer: @issuer).transaction(**@claims) do |unit|
       Vetra::Data::Idempotency.new(unit).claim!(command: 'c', key: 'k-5', input: {})
     end
     refute result.replay
@@ -354,11 +354,11 @@ class IdempotencyTest < GraphTest
       def result = self
       def error_field(_) = state
     end
-    work = Vetra::Data::UnitOfWork.new(Sequel.mock(host: :postgres), issuer: @issuer)
+    work = Vetra::Data::UnitOfWork.new(Sequel.mock(host: :postgres), limits: false, issuer: @issuer)
     translate = lambda do |state, klass = Sequel::DatabaseError|
       error = klass.new('ERRO com segredo do driver')
       error.wrapped_exception = fake.new(state)
-      work.transaction(**@claims) { |unit| Vetra::Data::Idempotency.new(unit).send(:translate, error) }
+      work.transaction(**@claims) { Vetra::Data::DatabaseErrors.translate(error) }
     end
     assert_equal :lock_timeout, translate.call('55P03').kind
     assert_equal :deadlock, translate.call('40P01').kind

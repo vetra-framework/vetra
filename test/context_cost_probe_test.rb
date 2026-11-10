@@ -10,7 +10,13 @@ class ContextCostProbeTest < GraphTest
     # O banco usa microssegundos; Time.now pode ter precisão maior.
     row[:created_at] = Time.at(row[:created_at].to_i, row[:created_at].usec, :microsecond).getutc
     db = Sequel.mock(host: :postgres)
-    db.fetch = ->(sql) { sql.include?('set_config') ? [] : Array.new(10_000) { row.dup } }
+    db.fetch = lambda do |sql|
+      if sql.include?('current_setting')
+        [{ transaction_timeout: '30s', idle_in_transaction_session_timeout: '10s' }]
+      else
+        sql.include?('set_config') ? [] : Array.new(10_000) { row.dup }
+      end
+    end
     document = JSON.parse(File.read(File.join(PROJECT, 'examples/mini_crm_revendas/.vetra/graph.json')))
     probe = ContextCostProbe.allocate
     { runtime: db, linked: Struct.new(:document).new(document), admin: Struct.new(:server_version).new('mock'),

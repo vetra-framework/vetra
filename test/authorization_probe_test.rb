@@ -8,7 +8,7 @@ class AuthorizationProbeTest < GraphTest
     @document = Vetra::Graph::Compiler.new(root: File.join(PROJECT, 'examples/mini_crm_revendas')).read_artifact.document
     @db = Sequel.mock(host: :postgres)
     issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: 'x' * 32)
-    @work = Vetra::Data::UnitOfWork.new(@db, issuer: issuer)
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: issuer)
     { tenant: @tenant, actors: { manager: @actor }, dealers: [@dealer], leads: [@lead], work: @work,
       catalog: Vetra::Data::Repositories.new(@document), engine: Vetra::Execution::Authorization.new(@document),
       revisions: { @tenant => 3 }, facts: {

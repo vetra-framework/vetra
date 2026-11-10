@@ -176,7 +176,7 @@ class OutboxEmissionTest < GraphTest
     @time = Time.iso8601('2026-11-06T12:34:56.123456Z')
     @actor, @tenant, @id = Array.new(3) { SecureRandom.uuid }
     @claims = { op_id: SecureRandom.uuid, actor_id: @actor, cmd: 'blog.publish_post' }
-    @work = Vetra::Data::UnitOfWork.new(@db, scope: :global, clock: -> { @time })
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global, clock: -> { @time })
     @catalog = Vetra::Data::Repositories.new(document('blog'))
   end
 
@@ -211,14 +211,14 @@ class OutboxEmissionTest < GraphTest
   def test_tenant_emission_carries_the_context_tenant_and_requires_a_tenant_unit
     catalog = Vetra::Data::Repositories.new(document('mini_crm'))
     issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: SecureRandom.random_bytes(32))
-    work = Vetra::Data::UnitOfWork.new(@db, issuer: issuer, clock: -> { @time })
+    work = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: issuer, clock: -> { @time })
     lead = catalog.record_type('crm.lead').new(id: @id, company_id: @tenant, name: 'Lead', status: 'won', email: nil,
                                                valor: nil, created_at: @time)
     work.transaction(**@claims.merge(tenant_id: @tenant, cmd: 'crm.win_lead')) { catalog.emit!(work, lead) }
     sqls = @db.sqls
     assert sqls.any? { |sql| sql.start_with?('INSERT INTO "vetra"."outbox"') && sql.include?(%("crm.lead.won", 1, "#{@tenant}", "#{@actor}")) }
     assert sqls.any? { |sql| sql.start_with?('SELECT pg_notify($1, $2)') && sql.include?(%(["vetra_outbox", "#{@tenant}"])) }
-    global = Vetra::Data::UnitOfWork.new(@db, scope: :global, clock: -> { @time })
+    global = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global, clock: -> { @time })
     assert_graph_error('data_scope') do
       global.transaction(**@claims.merge(cmd: 'crm.win_lead')) { catalog.emit!(global, lead) }
     end
@@ -248,7 +248,7 @@ class OutboxEmissionTest < GraphTest
     doc['digest'] = Vetra::Graph::Canonical.digest(doc)
     catalog = Vetra::Data::Repositories.new(doc)
     issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: SecureRandom.random_bytes(32))
-    work = Vetra::Data::UnitOfWork.new(@db, issuer: issuer, clock: -> { @time })
+    work = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: issuer, clock: -> { @time })
     lead = catalog.record_type('crm.lead').new(id: @id, company_id: @tenant, name: 'Lead', status: 'won',
                                                email: 'lead@example.invalid', valor: nil, created_at: @time)
     [false, true].each do |composed|

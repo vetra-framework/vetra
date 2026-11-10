@@ -426,7 +426,7 @@ class ExecutionAuthorizationTest < GraphTest
     engine = evaluator
     db = Sequel.mock(host: :postgres)
     issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: 'x' * 32)
-    work = Vetra::Data::UnitOfWork.new(db, issuer: issuer)
+    work = Vetra::Data::UnitOfWork.new(db, limits: false, issuer: issuer)
     db.sqls
     [check(engine, 'crm.delete_lead', { id: id(10) }),
      check(engine, 'crm.create_lead', { name: 'x', dealer_id: id(20) }, roles: ['crm.gerente']),

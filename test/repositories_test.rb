@@ -15,7 +15,7 @@ class RepositoriesTest < GraphTest
     @time = Time.iso8601('2026-11-06T12:34:56.123456Z')
     @actor, @tenant, @id = Array.new(3) { SecureRandom.uuid }
     @claims = { op_id: SecureRandom.uuid, actor_id: @actor, cmd: 'blog.create_post' }
-    @work = Vetra::Data::UnitOfWork.new(@db, scope: :global, clock: -> { @time })
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global, clock: -> { @time })
     @catalog = Vetra::Data::Repositories.new(document)
     @posts = @catalog.bind('blog.posts', unit: @work)
   end
@@ -31,7 +31,7 @@ class RepositoriesTest < GraphTest
   def crm
     @catalog = Vetra::Data::Repositories.new(document('mini_crm'))
     issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: SecureRandom.random_bytes(32))
-    @work = Vetra::Data::UnitOfWork.new(@db, issuer: issuer, clock: -> { @time })
+    @work = Vetra::Data::UnitOfWork.new(@db, limits: false, issuer: issuer, clock: -> { @time })
     @claims.merge!(tenant_id: @tenant, cmd: 'crm.update_lead')
     @leads = @catalog.bind('crm.leads', unit: @work)
   end
@@ -83,7 +83,7 @@ class RepositoriesTest < GraphTest
       doc = document(example)
       catalog = Vetra::Data::Repositories.new(doc)
       issuer = Vetra::Data::ContextIssuer.new(kid: 'test', secret: SecureRandom.random_bytes(32))
-      work = Vetra::Data::UnitOfWork.new(@db, scope: doc['app']['tenant'] ? :tenant : :global, issuer: issuer)
+      work = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: doc['app']['tenant'] ? :tenant : :global, issuer: issuer)
       claims = @claims.merge(tenant_id: doc['app']['tenant'] ? @tenant : nil)
       doc['nodes'].select { |entry| entry['kind'] == 'entity' }.each do |entity|
         row = entity['fields'].each_with_object({}) do |field, values|
@@ -227,7 +227,7 @@ class RepositoriesTest < GraphTest
     sql.grep(/^(SELECT|UPDATE|DELETE).*"leads"/).each { |statement| assert_match(/"company_id" = \$\d/, statement) }
     assert sql.grep(/^INSERT/).any? { |statement| statement.include?(@tenant) }
     assert sql.any? { |statement| statement.match?(/FROM "public"\."companies" WHERE.*"id" = \$1/) }
-    global = Vetra::Data::UnitOfWork.new(@db, scope: :global)
+    global = Vetra::Data::UnitOfWork.new(@db, limits: false, scope: :global)
     global.read(**@claims.except(:tenant_id)) do
       repository = @catalog.bind('crm.companies_read', unit: global)
       assert_graph_error('data_scope') { repository.all }
@@ -569,7 +569,7 @@ class RepositoriesTest < GraphTest
       failure = driver_error(klass, state)
       @db.fetch = ->(_sql) { raise failure }
       error = assert_raises(Vetra::Data::Conflict) { transaction { @posts.create!(title: 'Post') } }
-      assert_equal 'data_conflict', error.code
+      assert_equal(kind == :serialization ? 'data_serialization' : 'data_conflict', error.code)
       assert_equal kind, error.kind
       assert_nil error.cause
       refute_includes error.full_message, 'SECRET'

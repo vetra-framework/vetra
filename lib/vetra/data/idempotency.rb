@@ -56,7 +56,7 @@ module Vetra
         end
         raise Error.single('data_idempotency_state', 'A chave de idempotência não tem resultado confirmado.'), cause: nil
       rescue Sequel::DatabaseError => error
-        raise translate(error), cause: nil
+        @unit.database_error!(error)
       end
 
       # Guarda o resultado da operação na mesma transação: só existe se a operação confirmar. O claim tem de ser desta unidade
@@ -80,7 +80,8 @@ module Vetra
         end
         nil
       rescue Sequel::DatabaseError => error
-        raise(sqlstate(error) == '23514' ? result_error : translate(error), cause: nil)
+        raise result_error, cause: nil if DatabaseErrors.sqlstate(error) == '23514'
+        @unit.database_error!(error)
       end
 
       private
@@ -110,19 +111,6 @@ module Vetra
       # Mesmo mapeamento do repositório: não inclui nem retém o erro, o SQL ou os valores do driver.
       def result_error
         Error.single('data_idempotency_result', 'O resultado guardado deve ser JSON válido de até 64 KiB.')
-      end
-
-      def sqlstate(error)
-        error.wrapped_exception.respond_to?(:result) ? error.wrapped_exception.result&.error_field(PG::PG_DIAG_SQLSTATE) : nil
-      end
-
-      def translate(error)
-        state = sqlstate(error)
-        return Conflict.new(:lock_timeout) if state == '55P03'
-        return Conflict.new(:deadlock) if state == '40P01'
-        return Conflict.new(:serialization) if error.is_a?(Sequel::SerializationFailure) || state == '40001'
-        return Error.single('data_access_denied', 'Acesso aos dados recusado.') if state == '42501'
-        Error.single('data_database', 'Falha ao acessar os dados.')
       end
 
       def table(db)
