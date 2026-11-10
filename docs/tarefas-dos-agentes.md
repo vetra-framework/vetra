@@ -73,7 +73,7 @@ tarefas seguem a ordem da tabela.
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
-| K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | integrada, CI pendente | — | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
+| K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
 | K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
@@ -197,6 +197,9 @@ compactação. Três observações não bloqueantes foram ajustadas pelo Claude:
 | O limite de 1 MiB estava descrito como "absurdo em qualquer representação", mas recusa também um JSON que normalizaria para menos | Ajustar: descrito como limite adicional do payload serializado (código, teste e ADR) |
 | O ADR dizia lotes "por `id`", e o SQL ordena por `created_at` | Ajustar: ADR alinhado, e `id` entra como desempate |
 | `--batch` e `--retention-hours` eram recusados depois dos retornos de `db:plan` e `outbox:maintain`, que os ignoravam | Ajustar: a exclusividade é validada antes dos retornos, com teste para `db:plan`, `outbox:maintain` e `db:migrate` |
+
+**CI.** A [execução 42849596612](https://github.com/vetra-framework/vetra/actions/runs/42849596612) do commit `146128a` passou nos cinco jobs, com a sonda da
+idempotência em 83/83 no 17 e no 18 e o `db:plan --check` dos quatro exemplos.
 
 **Correção colateral.** A sonda expôs que `error_field('C')` levanta `TypeError` neste `pg`; o mapeamento de deadlock, serialização, lock e acesso
 negado do repositório e do catálogo estava quebrado em silêncio. Os três usos passaram a `PG::PG_DIAG_SQLSTATE`.

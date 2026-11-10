@@ -74,7 +74,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   reivindica na etapa 4 e conclui na 7, com o claim ligado à transação que o emitiu. O `Differ` cria a seção inteira num passo, e cada exemplo
   ganhou um plano (blog `0004`, chat `0002`, mini CRM `0005`, CRM com revendas `0006`). A sonda `sonda_idempotencia.rb` cobre repetição,
   rollback, concorrência real, `lock_timeout`, RLS, privilégios, limites e purga (83 verificações no 17 e no 18). O uso pelo executor é da K19
-  e o custo da escrita no caminho quente, da K20. Integrada no commit da K16, CI pendente.
+  e o custo da escrita no caminho quente, da K20. Integrada em `146128a`, com a CI verde
+      ([execução 42849596612](https://github.com/vetra-framework/vetra/actions/runs/42849596612)).
 
 - [x] Ator de sistema (K15, [ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4, decisões 2 e 3), só em aplicação com tenant: o
   contexto assinado leva `system_actor` (o identificador do handler) no lugar de `actor_id`, e o banco exige exatamente um dos dois.
