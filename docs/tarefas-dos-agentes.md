@@ -74,7 +74,7 @@ tarefas seguem a ordem da tabela.
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
-| C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | integrada, CI pendente | — | Auditada pelo Claude; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
+| C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | concluída | `8a224a1` | Auditada pelo Claude; CI verde; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
 | K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
@@ -177,6 +177,9 @@ inteira antes de avaliar, visitante sem ator nunca casando `campo = actor.id`, r
 de sistema. A matriz CRUD (4 atores × 4 ações × 3 revendas) e o segundo tenant concordaram com o RLS nos dois servidores.
 
 **Verificações.** Suíte 689 testes, 0 falhas, 238/238 diagnósticos; gate sem diferenças; `db:plan` sem mudanças; sonda de autorização Ruby 68/68 no 17 e no 18.
+
+**CI.** A [execução 42859941056](https://github.com/vetra-framework/vetra/actions/runs/42859941056) do commit `8a224a1` passou nos cinco jobs, com a sonda
+de autorização Ruby em 68/68 no 17 e no 18 e o `db:plan --check` dos quatro exemplos.
 
 **Por que o aceite fica com o mantenedor.** O ADR-044 faz duas coisas que mudam o alcance de uma promessa aceita. (1) Redefine o que o teste de aceitação 1 do
 ADR-016 mede: a operação recusada abre zero transações **da operação**, mas quem resolve os fatos no banco por chamada paga essa transação antes da admissão.
