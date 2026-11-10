@@ -296,7 +296,12 @@ class DBPlanAdditiveTest < GraphTest
       doc['state']['statements'].find { |item| item['object'] == 'vetra.current_tenant()' && item['kind'] == 'function' }['sha256'] = '0' * 64
       changed = Vetra::SQL::Model.new(file: model.file, text: Vetra::SQL::Model.render(doc))
       schema = Vetra::SQL::Schema.new(compiler.read_artifact.document).generate
-      assert_graph_error('db_plan_statement') { Vetra::SQL::Differ.call(base: changed, schema: schema, number: '0002') }
+      # A rotina de contexto vem do gerador (ADR-024, §4): um estado anterior diferente é traduzido por CREATE OR REPLACE
+      # com o texto atual, e nunca com o do modelo.
+      replaced = Vetra::SQL::Differ.call(base: changed, schema: schema, number: '0002')
+      step = replaced.steps.find { |item| item.sql.include?('CREATE OR REPLACE FUNCTION "vetra"."current_tenant"()') }
+      refute_nil step
+      assert_includes step.sql, Vetra::SQL::Context.body('tenant_id')
       %w[vetra_private.vt_keys_active public.posts].each do |object|
         doc = Vetra::Graph::Data.copy(model.document)
         doc['state']['statements'].find { |item| item['object'] == object }['sha256'] = '0' * 64

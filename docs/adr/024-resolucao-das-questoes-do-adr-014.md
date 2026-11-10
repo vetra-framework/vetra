@@ -2,6 +2,7 @@
 
 - Status: aceito
 - Data: 2026-10-31
+- Implementação posterior: a decisão 2 e a 3 do §4 (o claim `system_actor`, `vetra.is_system_actor()` e a permissiva `vt_system`, só em aplicação com tenant) estão implementadas na K15, com o [relatório de custo](../sondas/ator-de-sistema.md); o texto abaixo não muda
 - Resolve: ADR-014 (as seis questões em aberto)
 - Depende de: ADR-014 (outbox), ADR-005 (contexto assinado), ADR-008 (ordem dos eventos), ADR-015 (expand/contract)
 - Relacionados: ADR-004 (capacidades), ADR-009 (workflows), ADR-013 (privacidade), ADR-016 (ciclo de vida),

@@ -22,6 +22,12 @@ No mini CRM, `companies` e `leads` têm tenant restritivo e permissiva `true`. N
 vendedor lê/cria/atualiza, e um ator com vários vínculos alcança várias revendas do mesmo tenant.
 Todas as tabelas, inclusive a raiz por `id`, têm ENABLE/FORCE e USING/WITH CHECK de tenant.
 
+As tabelas com escopo por vínculo (`dealers` e `leads`, no CRM com revendas) têm ainda a permissiva `vt_system`, do ator de
+sistema de um handler ([ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4): `FOR ALL`, com `vetra.is_system_actor()` em
+`USING` e `WITH CHECK`. Um token com `system_actor` e sem `actor_id` alcança todas as revendas do tenant do evento, e só ele,
+porque a restritiva de tenant continua valendo; um ator comum, um visitante e um token com os dois claims não satisfazem a política.
+O limite fino, quais comandos o handler chama, é o `calls` do grafo. O mini CRM não tem escopo SQL e não ganha a política.
+
 A permissão SQL das tabelas sem escopo não implementa o RBAC inteiro. Em particular, administrar
 `memberships` exige autorização da aplicação; SQL arbitrário como vetra_app pode modificar esses
 vínculos dentro do tenant. Campos, papéis sem vínculo materializado e limites de taxa também ficam no

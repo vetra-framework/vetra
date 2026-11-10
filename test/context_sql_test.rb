@@ -8,8 +8,11 @@ class ContextSQLTest < GraphTest
         plan = Vetra::SQL::Plan.initial(schema)
         sql = plan.render
         assert_equal sql, Vetra::SQL::Plan.parse(sql, file: plan.file_name).render
+        # A aplicação com tenant ganha o ator de sistema (ADR-024, §4): is_system_actor() além das duas rotinas originais.
+        tenant_app = %w[mini_crm mini_crm_revendas].include?(example)
         assert_equal 2, sql.scan(/CREATE FUNCTION "vetra"\."current_/).size
-        assert_equal 2, sql.scan('SECURITY DEFINER PARALLEL UNSAFE').size
+        assert_equal(tenant_app ? 1 : 0, sql.scan('CREATE FUNCTION "vetra"."is_system_actor"').size)
+        assert_equal(tenant_app ? 3 : 2, sql.scan('SECURITY DEFINER PARALLEL UNSAFE').size)
         assert_includes sql, Vetra::SQL::Context.role_guard
         refute_includes sql, '$vetra_context_installer$'
         assert_includes sql, 'CREATE EXTENSION "pgcrypto" WITH SCHEMA "vetra_private"'
@@ -92,7 +95,9 @@ class ContextSQLTest < GraphTest
   def test_authorization_uses_the_same_exact_exception_in_both_guards
     with_app('mini_crm_revendas') do |_root, compiler|
       sql = Vetra::SQL::Authorization.new(compiler.build.document).generate.sql
-      assert_equal 3, sql.scan(Vetra::SQL::Context.trusted_routine_sql).size
+      # A revisão só existe em aplicação com tenant, que tem o ator de sistema: a exceção das guardas o reconhece.
+      assert_equal 3, sql.scan(Vetra::SQL::Context.trusted_routine_sql(system_actor: true)).size
+      assert_equal 0, sql.scan(Vetra::SQL::Context.trusted_routine_sql).size
       assert_includes sql, "Schema vetra existente deve pertencer a vetra_owner"
       assert_includes sql, 'CREATE TABLE "vetra"."authz_revisions"'
       refute_includes sql, 'CREATE TABLE IF NOT EXISTS'

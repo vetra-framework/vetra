@@ -17,11 +17,11 @@ module Vetra
         @clock = clock
       end
 
-      def transaction(tenant_id: nil, actor_id: nil, op_id:, cmd:, operator_id: nil, read_only: false)
+      def transaction(tenant_id: nil, actor_id: nil, system_actor: nil, op_id:, cmd:, operator_id: nil, read_only: false)
         if @db.in_transaction?
           raise Error.single('data_transaction_nested', 'A unidade abre a transação mais externa; use compose dentro dela.')
         end
-        context = Context.new(scope: @scope, tenant_id: tenant_id, actor_id: actor_id,
+        context = Context.new(scope: @scope, tenant_id: tenant_id, actor_id: actor_id, system_actor: system_actor,
                               op_id: op_id, cmd: cmd, operator_id: operator_id, read_only: read_only)
         @db.transaction(read_only: read_only, isolation: :committed, rollback: :reraise) do
           install_context(@issuer.issue(**context.claims)) if @scope == :tenant

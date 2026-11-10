@@ -113,7 +113,9 @@ module Vetra
 
       # Primeiro plano de uma aplicação, a partir do resultado de Vetra::SQL::Schema.
       def self.initial(schema)
-        statements = Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Context.suffix(schema.tables)
+        # Só a aplicação com tenant tem ator de sistema (ADR-024, §4): a global conserva as rotinas de contexto originais.
+        system_actor = schema.respond_to?(:document) && !schema.document.nil? && !schema.document.dig('app', 'tenant').nil?
+        statements = Context.prefix(system_actor: system_actor) + schema.blocks.flat_map { |block| block['statements'] } + Context.suffix(schema.tables)
         if schema.respond_to?(:document) && schema.document
           # Antes da segurança: o Differ trata a revisão como a última seção do plano (ADR-040, §5).
           statements.concat(Outbox.new(schema).statements)

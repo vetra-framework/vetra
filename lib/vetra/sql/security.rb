@@ -96,6 +96,9 @@ module Vetra
           clauses << "WITH CHECK (#{condition})" if %w[create update].include?(action)
           statements << "CREATE POLICY #{quote("vt_scope_#{action}")} ON #{path} AS PERMISSIVE FOR #{command} TO #{quote('vetra_app')} #{clauses.join(' ')};"
         end
+        # Ator de sistema (ADR-024, §4): alcança o tenant do evento inteiro, sempre sob a restritiva de tenant. Um
+        # visitante ou um ator comum não satisfaz is_system_actor(); o limite fino, quais comandos, é o `calls` do grafo.
+        statements << "CREATE POLICY #{quote('vt_system')} ON #{path} AS PERMISSIVE FOR ALL TO #{quote('vetra_app')} USING ((SELECT vetra.is_system_actor())) WITH CHECK ((SELECT vetra.is_system_actor()));"
         statements
       end
 

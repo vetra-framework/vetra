@@ -72,7 +72,7 @@ tarefas seguem a ordem da tabela.
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | concluída | `c204ae1` | Auditada pelo Claude; CI verde; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | concluída | `35d4a99` | Rodada 1 devolvida pelo Claude; rodada 2 aprovada; CI verde ([auditoria](#auditoria-c12)) |
-| K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
+| K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | integrada, CI pendente | — | Rodada 1 aprovada pelo Codex; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18 ([auditoria](#auditoria-k15)) |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | a fazer | — | — |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
@@ -162,6 +162,33 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K15
+
+Implementado pelo Claude sobre `e963008`; auditado pelo Codex em modo somente leitura, com a árvore conferida por hash antes e depois da
+rodada. O Claude rodou a suíte, o gate, `db:plan --check` e as sondas no PostgreSQL 18.6 e num 17.11 local, que o sandbox do Codex não
+alcança (nele a suíte completa só falha por impossibilidade de criar temporários).
+
+**Rodada 1 — aprovada pelo Codex, sem achado bloqueante.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O teste de "cópia exata do corpo em outro schema" da sonda de contexto usava `body('tenant_id')`, o corpo legado, e não o corpo da aplicação com tenant que a guarda confia | não | Ajustar: as duas verificações usam `system_actor: true` |
+| O `db-plan.md` ainda dizia "apenas as duas definições" na guarda de autorização, contra o parágrafo novo e a guarda nova | não | Ajustar: duas definições, e três na aplicação com tenant |
+
+O Codex confirmou o MAC antes das claims, a exclusividade das identidades (os dois claims ou nenhum retornam NULL e falso), o retorno
+falso de `is_system_actor()` em todos os caminhos de falha, a regex ancorada contra quebra de linha final, a preservação das guardas e da
+restritiva de tenant, e que os corpos e hashes das aplicações globais ficam idênticos aos da base.
+
+**Verificações do Claude.** Suíte 636 testes, 0 falhas, 224/224 diagnósticos; `db:plan --check` nos quatro exemplos no 17 e no 18; gate
+sem diferenças; sondas no 17 e no 18: contexto assinado 78, RLS e integridade 112, plano incremental 18, Vetra Data 23, plano aditivo 99,
+`db:migrate` 21, `db:migrate` incremental 16, repositórios 72, outbox 36, relay 38 e escopo 4/4. Os testes de outbox, relay, plano inicial
+e plano aditivo, e as sondas de `db:migrate` e relay, passaram a esperar os planos novos dos CRMs.
+
+**Decisão pendente do mantenedor.** A medição de custo ([relatório](sondas/ator-de-sistema.md)) mostra que a permissiva `vt_system` encarece o
+ator comum (de +0,03 a +0,45 ms na leitura por chave e de +0,83 a +1,84 ms nas varreduras). A K15 implementa o que o ADR-024, §4 decidiu;
+as saídas são uma função única de contexto (prevista no ADR-024) ou um papel de banco próprio para o ator de sistema, que muda a decisão 2
+e pede um ADR novo. Nada disso foi implementado, e o gatilho é a medição por comando da K20.
 
 ## Auditoria C12
 

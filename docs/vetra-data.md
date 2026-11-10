@@ -54,6 +54,21 @@ work.read(tenant_id: tenant.id, actor_id: actor.id,
 end
 ```
 
+O handler de um evento age como ator de sistema ([ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4), no tenant do
+evento: o contexto leva `system_actor` (o identificador do handler, até 128 caracteres ASCII) no lugar de `actor_id`, e
+exatamente um dos dois é obrigatório.
+
+```ruby
+work.transaction(tenant_id: event.tenant_id, system_actor: 'crm.on_lead_won',
+                 op_id: operation_id, cmd: 'crm.create_followup') do |unit|
+  # unit.context.system_actor? é verdadeiro e unit.context.actor_id é nil
+end
+```
+
+Sem `actor_id`, `vetra.current_actor()` é NULL e as políticas de escopo por vínculo não casam; a permissiva `vt_system`
+dá o alcance do tenant do evento. Eventos gravados por esse ator levam `actor_id` nulo. A autorização do comando pelo
+`calls` do handler (etapas 3 e 6 do ADR-016) é do executor, nas tarefas seguintes da rodada 5.
+
 UUIDs são canônicos minúsculos. `operator_id:` opcional também é UUID. A transação externa recebe
 `set_config('vetra.ctx', token, true)` parametrizado uma única vez, antes do corpo. O contexto some no commit e
 no rollback; não é renovado em savepoints. O relógio do emissor deve estar sincronizado com o banco. A validade
@@ -245,7 +260,8 @@ relay.work('crm.notify_sales') { |delivery| mailer.deliver(delivery.payload, key
 ## Aplicações globais
 
 Blog e chat usam `UnitOfWork.new(db, scope: :global)`, sem emissor. A transação recebe `op_id`, `cmd` e
-`actor_id` UUID para autenticado ou `nil` para visitante; `tenant_id` deve ser `nil`. As identidades ficam em
+`actor_id` UUID para autenticado ou `nil` para visitante; `tenant_id` e `system_actor` devem ser `nil` (não há ator de
+sistema sem tenant). As identidades ficam em
 Ruby: não há emissão nem `set_config`, e as duas funções SQL retornam NULL. Isso corresponde ao plano atual,
 sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da aplicação. A unidade global recusa
 `access(multi_tenant: true)`. Escolher esse modo depende da IR, nunca de parâmetro do usuário.

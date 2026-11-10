@@ -90,7 +90,8 @@ papel pelo vínculo SET. `pgcrypto` é extensão confiável, instalável por que
 
 O dono dos schemas de aplicação, tabelas, `vetra`, `vetra_private`, `keys` e funções de contexto é
 `vetra_owner`. O migrador herda seus poderes. A aplicação recebe `USAGE` nos schemas de aplicação e em
-`vetra`, DML nas tabelas de aplicação e `EXECUTE` somente em `vetra.current_tenant()`/`current_actor()`;
+`vetra`, DML nas tabelas de aplicação e `EXECUTE` somente em `vetra.current_tenant()`/`current_actor()` e, na aplicação com
+tenant, `vetra.is_system_actor()`;
 não recebe DDL, TRUNCATE, TRIGGER, REFERENCES, acesso a `vetra_private` ou funções de revisão. `pgcrypto`
 fica em `vetra_private`; seus membros conservam os donos e privilégios de EXECUTE atribuídos pelo
 PostgreSQL. São SECURITY INVOKER, sem acesso próprio a segredos; a falta de USAGE no schema impede que
@@ -133,7 +134,20 @@ tempo constante de máquina no PL/pgSQL. Políticas devem usar `(SELECT vetra.cu
 `(SELECT vetra.current_actor())` para executar uma vez por função/instrução. Usar as duas faz dois HMACs.
 O gate de custo do ADR-023 ainda precisa da medição com RLS, concorrência e pooler no 17/18.
 
-A guarda de autorização da C2 reconhece apenas as duas definições exatas, incluindo schema, dono,
+**Ator de sistema ([ADR-024](adr/024-resolucao-das-questoes-do-adr-014.md), §4).** Só numa aplicação com tenant, o
+contexto assinado pode levar `system_actor` (o identificador do handler) **no lugar** de `actor_id`; o banco exige
+exatamente um dos dois e recusa os dois juntos, nenhum dos dois ou um identificador fora de `^[A-Za-z][A-Za-z0-9_.:-]{0,127}$`.
+`vetra.current_actor()` devolve NULL para o ator de sistema, e a rotina nova `vetra.is_system_actor()` (boolean, falso em
+qualquer falha, nunca NULL) diz qual dos dois é. As tabelas com escopo ganham a permissiva `vt_system` (`FOR ALL`, com
+`is_system_actor()` em `USING` e `WITH CHECK`) ao lado das políticas de escopo; o isolamento de tenant continua `RESTRICTIVE`,
+então o ator de sistema alcança o tenant do evento inteiro, e não mais. As aplicações globais conservam as duas rotinas
+originais, byte a byte, e não têm ator de sistema. O `Differ` traduz a troca das rotinas de contexto por `CREATE OR REPLACE`
+com o texto do gerador atual (o corpo novo de `current_tenant()` e `current_actor()`, e a rotina nova), e a guarda de rotinas
+reconhece as três definições exatas com o tipo de retorno de cada uma. Cada referência a uma rotina de contexto revalida o
+token: a política de sistema acrescenta uma referência por instrução (duas no `UPDATE`).
+
+A guarda de autorização da C2 reconhece apenas as definições exatas (duas, e três na aplicação com tenant, que tem
+`is_system_actor()`), incluindo schema, dono,
 assinatura, retorno, linguagem, atributos, `search_path` e SHA-256 do corpo. Reutiliza `vetra` somente
 quando pertence a `vetra_owner`; o bootstrap inicial exige infraestrutura nova. A diferença incremental conserva
 as tabelas e substitui apenas funções e triggers gerados com identidade preservada, conforme a tabela abaixo. Uma cópia em

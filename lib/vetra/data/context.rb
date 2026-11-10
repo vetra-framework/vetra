@@ -5,14 +5,27 @@ module Vetra
     # Identidades resolvidas pela borda confiável; nunca contém chave ou token.
     class Context
       UUID = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
-      attr_reader :scope, :tenant_id, :actor_id, :op_id, :cmd, :operator_id
+      # Identificador do handler no claim system_actor (ADR-024, §4); o mesmo padrão que o banco confere.
+      SYSTEM_ACTOR = /\A[A-Za-z][A-Za-z0-9_.:-]{0,127}\z/
+      attr_reader :scope, :tenant_id, :actor_id, :system_actor, :op_id, :cmd, :operator_id
 
-      def initialize(scope:, tenant_id:, actor_id:, op_id:, cmd:, operator_id: nil, read_only: false)
+      def initialize(scope:, tenant_id:, actor_id: nil, system_actor: nil, op_id:, cmd:, operator_id: nil, read_only: false)
         unless %i[tenant global].include?(scope) && (scope != :global || tenant_id.nil?)
           raise Error.single('data_scope', 'Escopo deve ser tenant ou global; contexto global não recebe tenant.')
         end
+        # Um ator de sistema só existe com tenant: o contexto de tenant leva exatamente um entre actor_id e system_actor.
+        if scope == :tenant && (actor_id.nil? == system_actor.nil?)
+          raise Error.single('data_context', 'Contexto de tenant exige actor_id ou system_actor, e nunca os dois.')
+        end
+        if scope == :global && !system_actor.nil?
+          raise Error.single('data_context', 'Contexto global não tem ator de sistema.')
+        end
+        if !system_actor.nil? && !(system_actor.is_a?(String) && system_actor.encoding.ascii_compatible? && system_actor.ascii_only? && SYSTEM_ACTOR.match?(system_actor))
+          raise Error.single('data_context', 'system_actor deve ser um identificador de handler ASCII de até 128 caracteres.')
+        end
         identities = [op_id]
-        identities << tenant_id << actor_id if scope == :tenant
+        identities << tenant_id << actor_id if scope == :tenant && !actor_id.nil?
+        identities << tenant_id if scope == :tenant && actor_id.nil?
         identities << actor_id if scope == :global && !actor_id.nil?
         identities << operator_id unless operator_id.nil?
         unless [true, false].include?(read_only) &&
@@ -23,13 +36,17 @@ module Vetra
         end
         @scope = scope
         @read_only = read_only
-        @tenant_id, @actor_id, @op_id, @cmd, @operator_id =
-          [tenant_id, actor_id, op_id, cmd, operator_id].map { |value| value&.dup&.freeze }
+        @tenant_id, @actor_id, @system_actor, @op_id, @cmd, @operator_id =
+          [tenant_id, actor_id, system_actor, op_id, cmd, operator_id].map { |value| value&.dup&.freeze }
         freeze
       end
 
       def claims
-        { tenant_id: tenant_id, actor_id: actor_id, op_id: op_id, cmd: cmd, operator_id: operator_id }
+        { tenant_id: tenant_id, actor_id: actor_id, system_actor: system_actor, op_id: op_id, cmd: cmd, operator_id: operator_id }
+      end
+
+      def system_actor?
+        !system_actor.nil?
       end
 
       def read_only?

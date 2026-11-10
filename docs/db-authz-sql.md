@@ -199,7 +199,8 @@ O [ADR-031](adr/031-geracao-de-sql-de-revisao-de-autorizacao.md) registra as dec
 O plano inicial cria `vetra` para as funções de contexto. O gerador de revisão reutiliza esse schema
 quando o dono é `vetra_owner`; schemas customizados continuam exigindo criação nova. A tabela de
 revisões e suas funções nunca são substituídas. A guarda conservadora de rotinas usa a exceção do
-[ADR-036](adr/036-papeis-e-contexto-assinado.md): apenas `current_tenant()` e `current_actor()`
+[ADR-036](adr/036-papeis-e-contexto-assinado.md): apenas `current_tenant()`, `current_actor()` e, na aplicação com tenant,
+`is_system_actor()`
 com assinatura, dono, linguagem, atributos, configuração e SHA-256 do corpo exatos ficam fora do
 fecho de escalada. Uma função parecida ou uma cópia em outro schema continua sujeita à recusa.
 As guardas de execução de funções de revisão e de poderes dos donos usam a mesma identidade exata.

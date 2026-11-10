@@ -24,6 +24,8 @@ CREATE POLICY "vt_tenant" ON "public"."dealers" AS RESTRICTIVE FOR ALL TO "vetra
 
 CREATE POLICY "vt_scope_read" ON "public"."dealers" AS PERMISSIVE FOR SELECT TO "vetra_app" USING (("dealers"."id" = ANY (ARRAY(SELECT "vt_scope_1"."dealer_id" FROM "public"."memberships" AS "vt_scope_1" WHERE ("vt_scope_1"."company_id" = (SELECT vetra.current_tenant())) AND (("vt_scope_1"."role" IN (E'gerente', E'vendedor')) AND ("vt_scope_1"."user_id" = (SELECT vetra.current_actor())))))));
 
+CREATE POLICY "vt_system" ON "public"."dealers" AS PERMISSIVE FOR ALL TO "vetra_app" USING ((SELECT vetra.is_system_actor())) WITH CHECK ((SELECT vetra.is_system_actor()));
+
 ALTER TABLE "public"."leads" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "public"."leads" FORCE ROW LEVEL SECURITY;
@@ -37,6 +39,8 @@ CREATE POLICY "vt_scope_create" ON "public"."leads" AS PERMISSIVE FOR INSERT TO 
 CREATE POLICY "vt_scope_update" ON "public"."leads" AS PERMISSIVE FOR UPDATE TO "vetra_app" USING (("leads"."dealer_id" = ANY (ARRAY(SELECT "vt_scope_4"."dealer_id" FROM "public"."memberships" AS "vt_scope_4" WHERE ("vt_scope_4"."company_id" = (SELECT vetra.current_tenant())) AND (("vt_scope_4"."role" IN (E'gerente', E'vendedor')) AND ("vt_scope_4"."user_id" = (SELECT vetra.current_actor()))))))) WITH CHECK (("leads"."dealer_id" = ANY (ARRAY(SELECT "vt_scope_4"."dealer_id" FROM "public"."memberships" AS "vt_scope_4" WHERE ("vt_scope_4"."company_id" = (SELECT vetra.current_tenant())) AND (("vt_scope_4"."role" IN (E'gerente', E'vendedor')) AND ("vt_scope_4"."user_id" = (SELECT vetra.current_actor())))))));
 
 CREATE POLICY "vt_scope_delete" ON "public"."leads" AS PERMISSIVE FOR DELETE TO "vetra_app" USING (("leads"."dealer_id" = ANY (ARRAY(SELECT "vt_scope_5"."dealer_id" FROM "public"."memberships" AS "vt_scope_5" WHERE ("vt_scope_5"."company_id" = (SELECT vetra.current_tenant())) AND (("vt_scope_5"."role" = E'gerente') AND ("vt_scope_5"."user_id" = (SELECT vetra.current_actor())))))));
+
+CREATE POLICY "vt_system" ON "public"."leads" AS PERMISSIVE FOR ALL TO "vetra_app" USING ((SELECT vetra.is_system_actor())) WITH CHECK ((SELECT vetra.is_system_actor()));
 
 ALTER TABLE "public"."memberships" ENABLE ROW LEVEL SECURITY;
 

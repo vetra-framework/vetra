@@ -128,9 +128,12 @@ class RelayProbe < OutboxProbe
   end
 
   def migrate_checks
-    check_case('db:migrate aplica os três planos como vetra_migrator, com a guarda do vetra_relay') do
+    check_case('db:migrate aplica os planos como vetra_migrator, com a guarda do vetra_relay') do
       result = migrate
-      result.status == :applied && result.applied.map(&:file_name) == %w[0001_inicial.sql 0002_expand.sql 0003_expand.sql]
+      # Os três primeiros são a base, a outbox e o relay; os CRMs têm ainda planos posteriores (ator de sistema, escopo).
+      names = result.applied.map(&:file_name)
+      result.status == :applied && names.first(3) == %w[0001_inicial.sql 0002_expand.sql 0003_expand.sql] &&
+        names.drop(3).all? { |name| name.match?(/\A\d{4}_expand\.sql\z/) }
     end
   end
 

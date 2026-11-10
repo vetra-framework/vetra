@@ -4,6 +4,7 @@
 -- vetra:base 0002_expand sha256=61c3c42273fbd3777f8cca9d35b7a5002eb9934a17b1dfed28645e77e9f10929
 -- vetra:base 0003_expand sha256=e284e8d252520473d806135f8831fddc7e029a09e2cc3d3ffc4acceb175ec450
 -- vetra:base 0004_expand sha256=844868a4395f6c6f2406a255c4853f0d2fc4a5e979238d284f6da3afc9e08176
+-- vetra:base 0005_expand sha256=d88c5d14aba9976cf424f80a3fe95600251c028fb9b5a8f3ff198dd92579ba0f
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -67,9 +68,8 @@ BEGIN
   payload := pg_catalog.convert_from(payload_bytes, 'UTF8')::jsonb;
   IF pg_catalog.jsonb_typeof(payload) IS DISTINCT FROM 'object'
      OR pg_catalog.jsonb_typeof(payload->'tenant_id') IS DISTINCT FROM 'string'
-     OR pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
      OR pg_catalog.jsonb_typeof(payload->'op_id') IS DISTINCT FROM 'string'
-     OR (payload->>'tenant_id') !~ uuid_pattern OR (payload->>'actor_id') !~ uuid_pattern
+     OR (payload->>'tenant_id') !~ uuid_pattern
      OR (payload->>'op_id') !~ uuid_pattern
      OR pg_catalog.jsonb_typeof(payload->'cmd') IS DISTINCT FROM 'string'
      OR pg_catalog.char_length(payload->>'cmd') NOT BETWEEN 1 AND 255
@@ -80,6 +80,11 @@ BEGIN
   END IF;
   IF payload ? 'operator_id' AND (pg_catalog.jsonb_typeof(payload->'operator_id') IS DISTINCT FROM 'string'
      OR (payload->>'operator_id') !~ uuid_pattern) THEN RETURN NULL; END IF;
+  IF (payload ? 'actor_id') = (payload ? 'system_actor') THEN RETURN NULL; END IF;
+  IF payload ? 'actor_id' AND (pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
+     OR (payload->>'actor_id') !~ uuid_pattern) THEN RETURN NULL; END IF;
+  IF payload ? 'system_actor' AND (pg_catalog.jsonb_typeof(payload->'system_actor') IS DISTINCT FROM 'string'
+     OR (payload->>'system_actor') !~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$') THEN RETURN NULL; END IF;
   issued := (payload->>'iat')::bigint;
   expires := (payload->>'exp')::bigint;
   IF expires < issued OR expires > issued + 120 OR now_epoch < issued - 5 OR now_epoch > expires
@@ -142,9 +147,8 @@ BEGIN
   payload := pg_catalog.convert_from(payload_bytes, 'UTF8')::jsonb;
   IF pg_catalog.jsonb_typeof(payload) IS DISTINCT FROM 'object'
      OR pg_catalog.jsonb_typeof(payload->'tenant_id') IS DISTINCT FROM 'string'
-     OR pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
      OR pg_catalog.jsonb_typeof(payload->'op_id') IS DISTINCT FROM 'string'
-     OR (payload->>'tenant_id') !~ uuid_pattern OR (payload->>'actor_id') !~ uuid_pattern
+     OR (payload->>'tenant_id') !~ uuid_pattern
      OR (payload->>'op_id') !~ uuid_pattern
      OR pg_catalog.jsonb_typeof(payload->'cmd') IS DISTINCT FROM 'string'
      OR pg_catalog.char_length(payload->>'cmd') NOT BETWEEN 1 AND 255
@@ -155,6 +159,11 @@ BEGIN
   END IF;
   IF payload ? 'operator_id' AND (pg_catalog.jsonb_typeof(payload->'operator_id') IS DISTINCT FROM 'string'
      OR (payload->>'operator_id') !~ uuid_pattern) THEN RETURN NULL; END IF;
+  IF (payload ? 'actor_id') = (payload ? 'system_actor') THEN RETURN NULL; END IF;
+  IF payload ? 'actor_id' AND (pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
+     OR (payload->>'actor_id') !~ uuid_pattern) THEN RETURN NULL; END IF;
+  IF payload ? 'system_actor' AND (pg_catalog.jsonb_typeof(payload->'system_actor') IS DISTINCT FROM 'string'
+     OR (payload->>'system_actor') !~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$') THEN RETURN NULL; END IF;
   issued := (payload->>'iat')::bigint;
   expires := (payload->>'exp')::bigint;
   IF expires < issued OR expires > issued + 120 OR now_epoch < issued - 5 OR now_epoch > expires
@@ -168,6 +177,85 @@ END
 $_$;
 
 ALTER FUNCTION vetra.current_tenant() OWNER TO vetra_owner;
+
+CREATE FUNCTION vetra.is_system_actor() RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $_$
+DECLARE
+  token text := pg_catalog.current_setting('vetra.ctx', true);
+  parts text[];
+  payload_bytes bytea;
+  payload jsonb;
+  key_secret bytea;
+  key_not_before timestamp with time zone;
+  supplied bytea;
+  expected bytea;
+  issued bigint;
+  expires bigint;
+  now_epoch numeric := EXTRACT(EPOCH FROM pg_catalog.transaction_timestamp());
+  difference integer := 0;
+  uuid_pattern text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+BEGIN
+  IF token IS NULL OR pg_catalog.octet_length(token) = 0 OR pg_catalog.octet_length(token) > 8192 THEN
+    RETURN false;
+  END IF;
+  parts := pg_catalog.string_to_array(token, '.');
+  IF pg_catalog.cardinality(parts) <> 4 OR parts[1] <> 'v1'
+     OR parts[2] !~ '^[A-Za-z0-9_-]{1,64}$' OR parts[3] !~ '^[A-Za-z0-9_-]+$'
+     OR parts[4] !~ '^[A-Za-z0-9_-]{43}$' THEN
+    RETURN false;
+  END IF;
+  SELECT k.secret, k.not_before INTO key_secret, key_not_before FROM "vetra_private"."keys" k
+    WHERE k.kid = parts[2] AND k.status IN ('active', 'verify_only')
+      AND k.not_before <= pg_catalog.transaction_timestamp();
+  IF key_secret IS NULL THEN RETURN false; END IF;
+  supplied := pg_catalog.decode(pg_catalog.translate(parts[4], '-_', '+/') || '=', 'base64');
+  expected := "vetra_private"."hmac"(pg_catalog.convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'), key_secret, 'sha256');
+  IF pg_catalog.octet_length(supplied) <> 32 THEN RETURN false; END IF;
+  FOR i IN 0..31 LOOP
+    difference := difference | (pg_catalog.get_byte(supplied, i) # pg_catalog.get_byte(expected, i));
+  END LOOP;
+  IF difference <> 0 OR pg_catalog.rtrim(pg_catalog.translate(pg_catalog.encode(supplied, 'base64'), '+/', '-_'), '=') <> parts[4] THEN
+    RETURN false;
+  END IF;
+  payload_bytes := pg_catalog.decode(pg_catalog.translate(parts[3], '-_', '+/') || pg_catalog.repeat('=', (4 - pg_catalog.length(parts[3]) % 4) % 4), 'base64');
+  IF pg_catalog.rtrim(pg_catalog.translate(pg_catalog.replace(pg_catalog.encode(payload_bytes, 'base64'), E'\n', ''), '+/', '-_'), '=') <> parts[3] THEN
+    RETURN false;
+  END IF;
+  payload := pg_catalog.convert_from(payload_bytes, 'UTF8')::jsonb;
+  IF pg_catalog.jsonb_typeof(payload) IS DISTINCT FROM 'object'
+     OR pg_catalog.jsonb_typeof(payload->'tenant_id') IS DISTINCT FROM 'string'
+     OR pg_catalog.jsonb_typeof(payload->'op_id') IS DISTINCT FROM 'string'
+     OR (payload->>'tenant_id') !~ uuid_pattern
+     OR (payload->>'op_id') !~ uuid_pattern
+     OR pg_catalog.jsonb_typeof(payload->'cmd') IS DISTINCT FROM 'string'
+     OR pg_catalog.char_length(payload->>'cmd') NOT BETWEEN 1 AND 255
+     OR pg_catalog.jsonb_typeof(payload->'iat') IS DISTINCT FROM 'number'
+     OR pg_catalog.jsonb_typeof(payload->'exp') IS DISTINCT FROM 'number'
+     OR (payload->>'iat') !~ '^[0-9]{1,12}$' OR (payload->>'exp') !~ '^[0-9]{1,12}$' THEN
+    RETURN false;
+  END IF;
+  IF payload ? 'operator_id' AND (pg_catalog.jsonb_typeof(payload->'operator_id') IS DISTINCT FROM 'string'
+     OR (payload->>'operator_id') !~ uuid_pattern) THEN RETURN false; END IF;
+  IF (payload ? 'actor_id') = (payload ? 'system_actor') THEN RETURN false; END IF;
+  IF payload ? 'actor_id' AND (pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
+     OR (payload->>'actor_id') !~ uuid_pattern) THEN RETURN false; END IF;
+  IF payload ? 'system_actor' AND (pg_catalog.jsonb_typeof(payload->'system_actor') IS DISTINCT FROM 'string'
+     OR (payload->>'system_actor') !~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$') THEN RETURN false; END IF;
+  issued := (payload->>'iat')::bigint;
+  expires := (payload->>'exp')::bigint;
+  IF expires < issued OR expires > issued + 120 OR now_epoch < issued - 5 OR now_epoch > expires
+     OR key_not_before > pg_catalog.to_timestamp(issued::double precision) THEN
+    RETURN false;
+  END IF;
+  RETURN payload ? 'system_actor';
+EXCEPTION WHEN OTHERS THEN
+  RETURN false;
+END
+$_$;
+
+ALTER FUNCTION vetra.is_system_actor() OWNER TO vetra_owner;
 
 CREATE FUNCTION vetra.outbox_maintain(ahead integer, retention integer) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -969,6 +1057,10 @@ CREATE POLICY vt_scope_update ON public.leads FOR UPDATE TO vetra_app USING ((de
    FROM public.memberships vt_scope_4
   WHERE ((vt_scope_4.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_4.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_4.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
 
+CREATE POLICY vt_system ON public.dealers TO vetra_app USING (( SELECT vetra.is_system_actor() AS is_system_actor)) WITH CHECK (( SELECT vetra.is_system_actor() AS is_system_actor));
+
+CREATE POLICY vt_system ON public.leads TO vetra_app USING (( SELECT vetra.is_system_actor() AS is_system_actor)) WITH CHECK (( SELECT vetra.is_system_actor() AS is_system_actor));
+
 CREATE POLICY vt_tenant ON public.companies AS RESTRICTIVE TO vetra_app USING ((id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((id = ( SELECT vetra.current_tenant() AS current_tenant)));
 
 CREATE POLICY vt_tenant ON public.dealers AS RESTRICTIVE TO vetra_app USING ((company_id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((company_id = ( SELECT vetra.current_tenant() AS current_tenant)));
@@ -1022,6 +1114,9 @@ GRANT ALL ON FUNCTION vetra.current_actor() TO vetra_app;
 
 REVOKE ALL ON FUNCTION vetra.current_tenant() FROM PUBLIC;
 GRANT ALL ON FUNCTION vetra.current_tenant() TO vetra_app;
+
+REVOKE ALL ON FUNCTION vetra.is_system_actor() FROM PUBLIC;
+GRANT ALL ON FUNCTION vetra.is_system_actor() TO vetra_app;
 
 REVOKE ALL ON FUNCTION vetra.outbox_maintain(ahead integer, retention integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION vetra.outbox_maintain(ahead integer, retention integer) TO vetra_relay;

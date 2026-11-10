@@ -6,7 +6,18 @@ module Vetra
   module SQL
     # Infraestrutura do ADR-036. Gera estrutura, nunca chaves, tokens ou dados de contexto.
     class Context
-      FUNCTIONS = { 'current_tenant' => 'tenant_id', 'current_actor' => 'actor_id' }.freeze
+      # Rotinas de contexto: nome, claim e tipo de retorno. Uma aplicação global conserva as duas primeiras, como foram
+      # instaladas; uma aplicação com tenant ganha o ator de sistema (ADR-024, §4): current_actor() passa a devolver NULL
+      # quando o token traz system_actor em vez de actor_id, e is_system_actor() diz qual dos dois é.
+      ROUTINES = [%w[current_tenant tenant_id uuid], %w[current_actor actor_id uuid]].freeze
+      SYSTEM_ROUTINES = (ROUTINES + [%w[is_system_actor system_actor boolean]]).freeze
+      FUNCTIONS = ROUTINES.to_h { |name, claim, _| [name, claim] }.freeze
+      # Identificador do handler no claim system_actor: começa por letra, até 128 caracteres.
+      SYSTEM_ACTOR_PATTERN = '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'
+
+      def self.routines(system_actor)
+        system_actor ? SYSTEM_ROUTINES : ROUTINES
+      end
 
       def self.quote(name)
         unless name.is_a?(String) && name.match?(/\A[a-z][a-z0-9_]*\z/) && name.bytesize <= 63
@@ -92,8 +103,13 @@ module Vetra
         SQL
       end
 
-      def self.body(claim)
-        raise ArgumentError, 'Claim de identidade desconhecida' unless FUNCTIONS.value?(claim)
+      def self.body(claim, system_actor: false)
+        raise ArgumentError, 'Claim de identidade desconhecida' unless routines(system_actor).any? { |_, known, _| known == claim }
+        base = legacy_body(claim)
+        system_actor ? system_body(base, claim) : base
+      end
+
+      def self.legacy_body(claim)
         # A quebra inicial também pertence a prosrc e ao hash usado pela guarda de rotinas.
         "\n" + <<~SQL
           DECLARE
@@ -166,19 +182,47 @@ module Vetra
         SQL
       end
 
+      # O corpo da aplicação com tenant deriva do corpo original por substituições conferidas, para que o corpo de uma
+      # aplicação global (e o hash da guarda de rotinas) continue idêntico ao dos planos já aplicados.
+      def self.system_body(base, claim)
+        failure = claim == 'system_actor' ? 'false' : 'NULL'
+        text = base.gsub('RETURN NULL;', "RETURN #{failure};")
+        replace = lambda do |pattern, replacement|
+          found = pattern.is_a?(Regexp) ? text.match?(pattern) : text.include?(pattern)
+          raise ArgumentError, "Corpo de contexto sem #{pattern.inspect}" unless found
+          text = text.sub(pattern) { replacement }
+        end
+        replace.call(/^\s*OR pg_catalog\.jsonb_typeof\(payload->'actor_id'\) IS DISTINCT FROM 'string'\n/, '')
+        replace.call(" OR (payload->>'actor_id') !~ uuid_pattern\n", "\n")
+        identity = <<~SQL.gsub(/^/, '  ')
+          IF (payload ? 'actor_id') = (payload ? 'system_actor') THEN RETURN #{failure}; END IF;
+          IF payload ? 'actor_id' AND (pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
+             OR (payload->>'actor_id') !~ uuid_pattern) THEN RETURN #{failure}; END IF;
+          IF payload ? 'system_actor' AND (pg_catalog.jsonb_typeof(payload->'system_actor') IS DISTINCT FROM 'string'
+             OR (payload->>'system_actor') !~ '#{SYSTEM_ACTOR_PATTERN}') THEN RETURN #{failure}; END IF;
+        SQL
+        replace.call("  issued := (payload->>'iat')::bigint;\n", identity + "  issued := (payload->>'iat')::bigint;\n")
+        result = claim == 'system_actor' ? "RETURN payload ? 'system_actor';" : "RETURN (payload->>'#{claim}')::uuid;"
+        replace.call("RETURN (payload->>'#{claim}')::uuid;", result)
+        text
+      end
+
       # Predicado total (nunca NULL) sobre pg_proc. Apenas estas duas definições são terminais seguros no fecho C2.
-      def self.trusted_routine_sql
-        bodies = FUNCTIONS.map do |name, claim|
-          "(p.proname = '#{name}' AND pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p.prosrc, 'UTF8')), 'hex') = '#{Digest::SHA256.hexdigest(body(claim))}')"
+      def self.trusted_routine_sql(system_actor: false)
+        bodies = routines(system_actor).map do |name, claim, returns|
+          # O tipo de retorno é conferido por rotina só na aplicação com tenant; a global mantém o texto original da guarda.
+          catalog_type = returns == 'boolean' ? 'bool' : returns
+          kind = system_actor ? " AND p.prorettype = 'pg_catalog.#{catalog_type}'::pg_catalog.regtype" : ''
+          "(p.proname = '#{name}'#{kind} AND pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p.prosrc, 'UTF8')), 'hex') = '#{Digest::SHA256.hexdigest(body(claim, system_actor: system_actor))}')"
         end.join(' OR ')
+        returns = system_actor ? '' : "\n  AND p.prorettype = 'pg_catalog.uuid'::pg_catalog.regtype"
         <<~SQL.strip
           COALESCE((p.pronamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'vetra' AND nspowner = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'vetra_owner'))
             AND p.proowner = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = 'vetra_owner')
             AND p.prolang = (SELECT oid FROM pg_catalog.pg_language WHERE lanname = 'plpgsql')
             AND p.prokind = 'f' AND p.prosecdef AND p.provolatile = 's' AND p.proparallel = 'u'
             AND NOT p.proleakproof AND NOT p.proisstrict AND NOT p.proretset
-            AND p.pronargs = 0 AND p.pronargdefaults = 0 AND p.provariadic = 0 AND p.prosupport = 0
-            AND p.prorettype = 'pg_catalog.uuid'::pg_catalog.regtype
+            AND p.pronargs = 0 AND p.pronargdefaults = 0 AND p.provariadic = 0 AND p.prosupport = 0#{returns}
             AND p.proallargtypes IS NULL AND p.proargmodes IS NULL AND p.proargnames IS NULL
             AND p.proargdefaults IS NULL AND p.prosqlbody IS NULL AND p.probin IS NULL
             AND p.proconfig = ARRAY['search_path=pg_catalog, pg_temp']::text[]
@@ -186,7 +230,7 @@ module Vetra
         SQL
       end
 
-      def self.prefix
+      def self.prefix(system_actor: false)
         [role_guard, <<~SQL.chomp,
           DO $vetra_database_privileges$
           BEGIN
@@ -213,10 +257,10 @@ module Vetra
          'REVOKE ALL ON SCHEMA "vetra", "vetra_private" FROM PUBLIC, "vetra_app";',
          'REVOKE ALL ON TABLE "vetra_private"."keys" FROM PUBLIC, "vetra_app";',
          'GRANT USAGE ON SCHEMA "vetra" TO "vetra_app";',
-         *FUNCTIONS.flat_map do |name, claim|
+         *routines(system_actor).flat_map do |name, claim, returns|
            function = "#{quote('vetra')}.#{quote(name)}()"
-           ["CREATE FUNCTION #{function} RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL UNSAFE\n" \
-            "  SET search_path = pg_catalog, pg_temp AS $vetra_context$#{body(claim)}$vetra_context$;",
+           ["CREATE FUNCTION #{function} RETURNS #{returns} LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL UNSAFE\n" \
+            "  SET search_path = pg_catalog, pg_temp AS $vetra_context$#{body(claim, system_actor: system_actor)}$vetra_context$;",
             "ALTER FUNCTION #{function} OWNER TO #{quote('vetra_owner')};",
             "REVOKE ALL ON FUNCTION #{function} FROM PUBLIC, #{quote('vetra_app')};",
             "GRANT EXECUTE ON FUNCTION #{function} TO #{quote('vetra_app')};"]

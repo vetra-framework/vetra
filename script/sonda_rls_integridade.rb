@@ -26,6 +26,7 @@ class DatabaseSecurityProbe < SignedContextProbe
       isolation_checks
       transition_checks
       scope_checks if revendas?
+      system_actor_checks
       set_by_checks if example == 'mini_crm_set_by'
       @connection.close
       @connection = nil
@@ -330,6 +331,39 @@ class DatabaseSecurityProbe < SignedContextProbe
     end
   end
 
+  # Ator de sistema (ADR-024, §4): alcança o tenant do evento inteiro, sempre sob a restritiva de tenant.
+  def system_actor_checks
+    check_case('ator de sistema lê o tenant do evento e não o de outro tenant') do
+      own = system_context { scalar('SELECT count(*) FROM public.leads WHERE id = $1', [@leads[0]]) == '1' && scalar('SELECT count(*) FROM public.leads WHERE id = $1', [@leads[2]]) == '0' }
+      other = system_context('tenant_id' => @other_tenant) { scalar('SELECT count(*) FROM public.leads WHERE id = $1', [@leads[2]]) == '1' && scalar('SELECT count(*) FROM public.leads WHERE id = $1', [@leads[0]]) == '0' }
+      own && other
+    end
+    check_case('token com actor_id e system_actor juntos não alcança linha alguma') do
+      app_context('system_actor' => 'crm.on_lead_won') { scalar('SELECT count(*) FROM public.leads') == '0' }
+    end
+    return unless revendas?
+    check_case('ator de sistema alcança todas as revendas do tenant, sem vínculo: lê, insere, altera e exclui') do
+      system_context do
+        scalar('SELECT count(*) FROM public.leads') == '2' &&
+          insert_lead(dealer: @dealers[1]).cmd_tuples == 1 &&
+          @connection.exec_params('UPDATE public.leads SET name = name WHERE id = $1', [@leads[1]]).cmd_tuples == 1 &&
+          @connection.exec_params('DELETE FROM public.leads WHERE id = $1', [@leads[1]]).cmd_tuples == 1
+      end
+    end
+    check_case('ator de sistema continua preso ao tenant: INSERT no tenant de outro falha 42501') do
+      rejected_state { system_context { insert_lead(tenant: @other_tenant, dealer: @dealers[2]) } }
+    end
+    check_case('um ator sem vínculos não ganha o alcance do sistema') do
+      app_context('actor_id' => SecureRandom.uuid) { scalar('SELECT count(*) FROM public.leads') == '0' }
+    end
+  end
+
+  def system_context(changes = {})
+    as_app do
+      @connection.exec_params("SELECT set_config('vetra.ctx', $1, true)", [system_token(changes)])
+      yield
+    end
+  end
   def set_by_checks
     check_case('set_by: INSERT aceita ausência, NULL e default false') { app_context { insert_lead.cmd_tuples == 1 } }
     check_case('set_by: INSERT de email protegido no comando genérico falha 42501') { rejected_state { app_context { insert_lead(email: 'novo@example.test') } } }

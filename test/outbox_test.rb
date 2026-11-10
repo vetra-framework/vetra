@@ -82,8 +82,9 @@ class OutboxTest < GraphTest
   def test_incremental_plan_creates_the_whole_outbox_in_one_transactional_step
     EVENTS.each do |example|
       plan = Vetra::SQL::Differ.call(base: model(example, '0001_inicial'), schema: schema(example), number: '0002')
-      # No mini_crm_revendas a troca das políticas de escopo (ADR-041) vai no mesmo plano: só a outbox é conferida aqui.
-      steps = plan.steps.reject { |item| item.sql.start_with?('DROP POLICY') }
+      # Nos CRMs o mesmo plano traz a troca das rotinas de contexto e das políticas (ADR-024, ADR-041): só a outbox é conferida aqui.
+      outbox_sql = Vetra::SQL::Outbox.new(schema(example)).statements.join("\n")
+      steps = plan.steps.select { |item| item.sql == outbox_sql }
       assert_equal 1, steps.size
       step = steps.first
       assert_equal %w[sim nenhum catalogo], [step.transaction, step.lock, step.cost]

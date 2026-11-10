@@ -331,7 +331,8 @@ module Vetra
             fail!('db_plan_statement', "guarda desconhecida #{object}") unless GUARDS.include?(object)
             emit(step.sql)
           when 'function', 'trigger'
-            safe = kind == 'function' ? step.sql.include?('$vetra_transition$') || step.sql.include?('$vetra_authz$') : object.split('.').last.start_with?('vt_transition_', 'vt_authz_')
+            # As rotinas de contexto vêm do gerador atual (Context.prefix); o plano as instala ou as troca pelo corpo novo.
+            safe = kind == 'function' ? %w[$vetra_transition$ $vetra_authz$ $vetra_context$].any? { |tag| step.sql.include?(tag) } : object.split('.').last.start_with?('vt_transition_', 'vt_authz_')
             fail!('db_plan_statement', "rotina ou trigger sem tradução #{object}") unless safe
             sql = previous ? step.sql.sub("CREATE #{kind.upcase}", "CREATE OR REPLACE #{kind.upcase}") : step.sql
             if kind == 'trigger' && previous

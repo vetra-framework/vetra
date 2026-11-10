@@ -46,7 +46,7 @@ class DBPlanTest < GraphTest
       text = File.read(plan_path(root))
       assert text.start_with?("-- vetra:plano 0001 inicial\n-- vetra:transacao unica\n")
       plan = Vetra::SQL::Plan.parse(text, file: 'db/plans/0001_inicial.sql')
-      statements = Vetra::SQL::Context.prefix + schema.blocks.flat_map { |block| block['statements'] } + Vetra::SQL::Context.suffix(schema.tables)
+      statements = Vetra::SQL::Context.prefix(system_actor: !document.dig('app', 'tenant').nil?) + schema.blocks.flat_map { |block| block['statements'] } + Vetra::SQL::Context.suffix(schema.tables)
       statements += Vetra::SQL::Outbox.new(schema).statements
       statements += Vetra::SQL::Security.new(schema).generate.statements + Vetra::SQL::Authorization.new(document).generate.statements
       assert_equal statements, plan.steps.map(&:sql)

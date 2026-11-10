@@ -11,17 +11,18 @@
 #   f3  a mesma lista como subconsulta não correlacionada: dealer_id IN (SELECT ...);
 #   f4  a tabela materializada do escopo efetivo do ADR-023, consultada como f1;
 #   f5  um único EXISTS correlacionado, com os papéis juntos em `role IN (...)`;
-#   f6  calibração: a f5 mais duas referências inúteis ao tenant, para medir o custo de cada chamada de contexto.
+#   f6  calibração: a f5 mais duas referências inúteis ao tenant, para medir o custo de cada chamada de contexto;
+#   f7  a f2 mais a política permissiva vt_system do ator de sistema (ADR-024, §4): a forma real do plano atual.
 # As referências ao contexto por SELECT são 1 (f0), 5 (f1 e f6) e 3 (f2 a f5): cada uma revalida o token (ADR-024, §4).
-# Antes de medir, confere por CONJUNTO DE IDs que f1 a f6 dão as mesmas permissões que a política real do plano, por
+# Antes de medir, confere por CONJUNTO DE IDs que f1 a f7 dão as mesmas permissões que a política real do plano, por
 # ação (ler, inserir, atualizar, apagar) e por ator (gerente, vendedor, papéis mistos e sem vínculos). As quatro ações
 # rodam contra a tabela real e contra cada variante, e o UPDATE compara também a mudança de unidade (OLD e NEW). Falha só nas
 # conferências funcionais: os limiares são relatados e o gate do teste 6 do ADR-023 continua pendente.
 require_relative 'sonda_custo_contexto'
 
 class ScopeFormsProbe < ContextCostProbe
-  FORMS = %w[f0 f1 f2 f3 f4 f5 f6].freeze
-  SCOPED = %w[f1 f2 f3 f4 f5 f6].freeze
+  FORMS = %w[f0 f1 f2 f3 f4 f5 f6 f7].freeze
+  SCOPED = %w[f1 f2 f3 f4 f5 f6 f7].freeze
   ACTION_ROLES = { 'read' => %w[gerente vendedor], 'create' => %w[gerente vendedor], 'update' => %w[gerente vendedor],
                    'delete' => %w[gerente] }.freeze
   SAMPLE_DEALERS = ((1..120).to_a + [150]).freeze
@@ -32,6 +33,10 @@ class ScopeFormsProbe < ContextCostProbe
     @admin.exec(Vetra::SQL::Context.role_guard)
     @seconds = Float(ENV.fetch('VETRA_MEDICAO_SEGUNDOS', '2'))
     @rounds = Integer(ENV.fetch('VETRA_MEDICAO_RODADAS', '3'))
+    # VETRA_ESCOPO_FORMAS limita as formas medidas (f0 sempre entra); a conferência de permissões cobre todas.
+    chosen = ENV['VETRA_ESCOPO_FORMAS']&.split(',')&.map(&:strip)
+    @forms = chosen ? FORMS.select { |form| form == 'f0' || chosen.include?(form) } : FORMS
+    @scoped = @forms - ['f0']
     @report, @detail, @thresholds = [], [], []
     before = roles
     prepare_scope_database
@@ -111,7 +116,7 @@ class ScopeFormsProbe < ContextCostProbe
       roles.sort.map do |role|
         "(EXISTS (SELECT 1 FROM public.memberships AS m WHERE (m.company_id = #{tenant}) AND (m.dealer_id = #{column}) AND ((m.role = '#{role}') AND (m.user_id = #{actor}))))"
       end.join(' OR ')
-    when 'f2'
+    when 'f2', 'f7'
       "#{column} = ANY (ARRAY(SELECT m.dealer_id FROM public.memberships AS m WHERE m.company_id = #{tenant} AND m.user_id = #{actor} AND m.role IN (#{list_roles})))"
     when 'f3'
       "#{column} IN (SELECT m.dealer_id FROM public.memberships AS m WHERE m.company_id = #{tenant} AND m.user_id = #{actor} AND m.role IN (#{list_roles}))"
@@ -144,6 +149,9 @@ class ScopeFormsProbe < ContextCostProbe
       return
     end
     read, create, update, delete = %w[read create update delete].map { |action| condition(form, name, ACTION_ROLES.fetch(action)) }
+    if form == 'f7'
+      script("CREATE POLICY vt_system ON #{table} AS PERMISSIVE FOR ALL TO vetra_app USING ((SELECT vetra.is_system_actor())) WITH CHECK ((SELECT vetra.is_system_actor()))")
+    end
     script(<<~SQL)
       CREATE POLICY vt_scope_read ON #{table} AS PERMISSIVE FOR SELECT TO vetra_app USING (#{read});
       CREATE POLICY vt_scope_create ON #{table} AS PERMISSIVE FOR INSERT TO vetra_app WITH CHECK (#{create});
@@ -278,9 +286,11 @@ class ScopeFormsProbe < ContextCostProbe
   def measure_actions
     @report << "Questão 2 do ADR-023 por ação, PostgreSQL #{@admin.server_version}: custo por instrução (ms), #{CLIENTS} clientes em processos " \
                "próprios, #{@seconds} s por série, #{@rounds} rodadas (mediana; mínimo a máximo). O controle f0 só tem o tenant; as colunas " \
-               'f1 a f6 mostram o **acréscimo sobre f0**, rodada a rodada.'
-    @report << '| Ação | Ator | f0, custo absoluto | f1, gerada | f2, ANY(ARRAY) | f3, IN (SELECT) | f4, materializada | f5, EXISTS único | f6, f5 + 2 chamadas |'
-    @report << '|---|---|---|---|---|---|---|---|---|'
+               "#{@scoped.first} a #{@scoped.last} mostram o **acréscimo sobre f0**, rodada a rodada."
+    names = { 'f1' => 'f1, EXISTS por papel', 'f2' => 'f2, ANY(ARRAY)', 'f3' => 'f3, IN (SELECT)', 'f4' => 'f4, materializada',
+              'f5' => 'f5, EXISTS único', 'f6' => 'f6, f5 + 2 chamadas', 'f7' => 'f7, f2 + política de sistema' }
+    @report << "| Ação | Ator | f0, custo absoluto | #{@scoped.map { |form| names.fetch(form) }.join(' | ')} |"
+    @report << "|#{'---|' * (3 + @scoped.size)}"
     plans = [
       ['SELECT por chave', ['gerente de 1', 'gerente de 100', 'gerente de 1000', 'vendedor de 10'], :rw, :read_point, 'COMMIT', false],
       ['SELECT varredura do tenant', ['gerente de 1', 'gerente de 100', 'gerente de 1000', 'vendedor de 10'], :rw, :read_scan, 'COMMIT', false],
@@ -293,7 +303,7 @@ class ScopeFormsProbe < ContextCostProbe
       filter = ENV['VETRA_ESCOPO_ATORES']&.split(',')&.map(&:strip)
       actors.each { |actor| measure_one(label, actor, scope, kind, finish, vacuum) if filter.nil? || filter.include?(actor) }
     end
-    SCOPED.each do |form|
+    @scoped.each do |form|
       @extras.each do |label, by_form|
         values = by_form[form]
         threshold("ADR-023, questão 2, #{label}, forma #{form}", values, SCOPE_LIMIT_MS, 'ms por instrução') unless values.empty?
@@ -328,7 +338,7 @@ class ScopeFormsProbe < ContextCostProbe
     costs = Hash.new { |hash, key| hash[key] = [] }
     @finish_statement = finish
     @rounds.times do |round|
-      FORMS.rotate(round).each do |form|
+      @forms.rotate(round).each do |form|
         table = form_table(form)
         restore = lambda do
           script("DELETE FROM #{table} WHERE name = 'Lead medido'")
@@ -340,10 +350,10 @@ class ScopeFormsProbe < ContextCostProbe
       end
     end
     @finish_statement = nil
-    extras = SCOPED.to_h { |form| [form, costs[form].zip(costs['f0']).map { |a, b| a - b }] }
+    extras = @scoped.to_h { |form| [form, costs[form].zip(costs['f0']).map { |a, b| a - b }] }
     extras.each { |form, values| @extras[label][form].concat(values) }
     range = ->(values) { "#{signed(median(values))} (#{signed(values.min)} a #{signed(values.max)})" }
-    @report << "| #{label} | #{actor} | #{ms(median(costs['f0']))} | #{SCOPED.map { |form| range.(extras[form]) }.join(' | ')} |"
+    @report << "| #{label} | #{actor} | #{ms(median(costs['f0']))} | #{@scoped.map { |form| range.(extras[form]) }.join(' | ')} |"
   end
 end
 

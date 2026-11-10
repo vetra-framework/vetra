@@ -52,7 +52,8 @@ class SignedContextProbe
       SQL
     end
     check('funções geradas passam pela identidade exata da guarda C2') do
-      @connection.exec("SELECT count(*) FROM pg_proc p WHERE #{Vetra::SQL::Context.trusted_routine_sql}").getvalue(0, 0) == '2'
+      # Três com o ator de sistema (ADR-024, §4): current_tenant, current_actor e is_system_actor.
+      @connection.exec("SELECT count(*) FROM pg_proc p WHERE #{Vetra::SQL::Context.trusted_routine_sql(system_actor: true)}").getvalue(0, 0) == '3'
     end
     check('vetra_app recebe os quatro privilégios DML e nenhum TRUNCATE/TRIGGER/REFERENCES') do
       @schema.tables.all? do |table|
@@ -73,8 +74,8 @@ class SignedContextProbe
           AND NOT has_database_privilege('vetra_app', current_database(), 'CREATE,TEMPORARY')
       SQL
     end
-    check('vetra_app alcança somente as duas funções Vetra de contexto') do
-      @connection.exec(<<~SQL).getvalue(0, 0) == '2'
+    check('vetra_app alcança somente as três funções Vetra de contexto') do
+      @connection.exec(<<~SQL).getvalue(0, 0) == '3'
         SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname IN ('vetra', 'vetra_private') AND has_schema_privilege('vetra_app', n.oid, 'USAGE')
             AND has_function_privilege('vetra_app', p.oid, 'EXECUTE')
@@ -152,6 +153,38 @@ class SignedContextProbe
       check("claims assinados inválidos #{index + 1} retornam NULL") { identity(token(changes)) == [nil, nil] }
     end
     check('payload não JSON, mesmo assinado, retorna NULL') { identity(sign(b64('not json'))) == [nil, nil] }
+    # Ator de sistema (ADR-024, §4): system_actor no lugar de actor_id; exatamente um dos dois, nunca os dois.
+    check('ator de sistema: tenant assinado, ator NULL e is_system_actor verdadeiro') { system_identity(system_token) == [@tenant, nil, 't'] }
+    check('ator comum: ator assinado e is_system_actor falso') { system_identity(token) == [@tenant, @actor, 'f'] }
+    check('sem contexto, is_system_actor é falso e as identidades são NULL') { system_identity(nil) == [nil, nil, 'f'] }
+    check('actor_id e system_actor juntos retornam NULL e falso') { system_identity(token({ 'system_actor' => 'crm.on_lead_won' })) == [nil, nil, 'f'] }
+    check('nem actor_id nem system_actor retorna NULL e falso') do
+      system_identity(sign(b64(JSON.generate(claims.reject { |name, _| name == 'actor_id' })))) == [nil, nil, 'f']
+    end
+    ['', '1abc', 'a b', 'a' * 129, 12, nil, 'ação', "a\n", 'a;b'].each_with_index do |invalid, index|
+      check("system_actor inválido #{index + 1} retorna NULL e falso") { system_identity(system_token({ 'system_actor' => invalid })) == [nil, nil, 'f'] }
+    end
+    check('system_actor de 128 caracteres válidos é aceito') { system_identity(system_token({ 'system_actor' => 'a' * 128 })) == [@tenant, nil, 't'] }
+    check('token de sistema expirado retorna NULL e falso') { system_identity(system_token({ 'iat' => now - 31, 'exp' => now - 1 })) == [nil, nil, 'f'] }
+    check('token de sistema com MAC adulterado retorna NULL e falso') do
+      parts = system_token.split('.')
+      mac = (parts.last.tr('-_', '+/') + '=').unpack1('m0')
+      mac.setbyte(7, mac.getbyte(7) ^ 1)
+      parts[-1] = b64(mac)
+      system_identity(parts.join('.')) == [nil, nil, 'f']
+    end
+    check('system_actor adicionado a um token de ator, sem reassinar, não vira ator de sistema') do
+      parts = token.split('.')
+      parts[2] = b64(JSON.generate(claims.reject { |name, _| name == 'actor_id' }.merge('system_actor' => 'crm.on_lead_won')))
+      system_identity(parts.join('.')) == [nil, nil, 'f']
+    end
+    check('token de sistema assinado com outra chave retorna NULL e falso') do
+      system_identity(system_token(secret: SecureRandom.random_bytes(32))) == [nil, nil, 'f']
+    end
+    check('vetra_app não executa is_system_actor fora do contexto assinado: set_config sem assinatura não basta') do
+      forged = "v1.first.#{b64(JSON.generate(claims.reject { |name, _| name == 'actor_id' }.merge('system_actor' => 'crm.on_lead_won')))}.#{'A' * 43}"
+      system_identity(forged) == [nil, nil, 'f']
+    end
     check('SET LOCAL não deixa contexto para a transação seguinte') do
       identity(token) == [@tenant, @actor] && identity(nil) == [nil, nil]
     end
@@ -208,13 +241,14 @@ class SignedContextProbe
     end
     check('corpo parecido no mesmo nome é recusado pela revisão') do
       rejected do
-        replacement = Vetra::SQL::Context.body('tenant_id').sub('RETURN NULL;', "RETURN '#{@tenant}'::uuid;")
+        # O corpo efetivamente confiável é o da aplicação com tenant (ADR-024, §4), não o legado.
+        replacement = Vetra::SQL::Context.body('tenant_id', system_actor: true).sub('RETURN NULL;', "RETURN '#{@tenant}'::uuid;")
         @connection.exec("CREATE OR REPLACE FUNCTION vetra.current_tenant() RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $body$#{replacement}$body$")
       end
     end
     check('cópia exata do corpo em outro schema continua recusada pela guarda de rotinas') do
       rejected(routine_guard: true) do
-        @connection.exec("CREATE FUNCTION public.current_tenant() RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $body$#{Vetra::SQL::Context.body('tenant_id')}$body$")
+        @connection.exec("CREATE FUNCTION public.current_tenant() RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $body$#{Vetra::SQL::Context.body('tenant_id', system_actor: true)}$body$")
         @connection.exec('ALTER FUNCTION public.current_tenant() OWNER TO vetra_owner; GRANT EXECUTE ON FUNCTION public.current_tenant() TO vetra_app')
       end
     end
@@ -286,6 +320,19 @@ class SignedContextProbe
   def claims
     issued = now
     { 'tenant_id' => @tenant, 'actor_id' => @actor, 'op_id' => @operation, 'cmd' => 'crm.create_lead', 'iat' => issued, 'exp' => issued + 30 }
+  end
+
+  # Ator de sistema (ADR-024, §4): o token leva system_actor no lugar de actor_id.
+  def system_token(changes = {}, kid: 'first', secret: @secret)
+    payload = claims.reject { |name, _| name == 'actor_id' }.merge('system_actor' => 'crm.on_lead_won').merge(changes)
+    sign(b64(JSON.generate(payload)), kid: kid, secret: secret)
+  end
+
+  def system_identity(value)
+    as_app do
+      @connection.exec_params("SELECT set_config('vetra.ctx', $1, true)", [value || '']) if value
+      @connection.exec('SELECT vetra.current_tenant(), vetra.current_actor(), vetra.is_system_actor()').values.first
+    end
   end
 
   def b64(bytes)
