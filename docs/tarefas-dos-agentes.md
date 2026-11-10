@@ -76,7 +76,7 @@ tarefas seguem a ordem da tabela.
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | concluída | `8a224a1` | Auditada pelo Claude; CI verde; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
-| C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18 e CI; a K17 é a próxima ([auditoria](#auditoria-c15)) |
+| C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | a fazer | — | — |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | a fazer | — | — |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
@@ -201,6 +201,9 @@ por acesso; a K20 mede o total no fluxo completo e a decisão de manter o verifi
 
 **Verificações.** Suíte 702 testes, 16.498 asserções, 0 falhas, 244/244 diagnósticos; gate sem diferenças; `db:plan` sem mudanças nos quatro
 exemplos; sonda `limites_unidade` 15/15 e as seis sondas afetadas 100% no 17 e no 18.
+
+**CI.** A [execução 42893712044](https://github.com/vetra-framework/vetra/actions/runs/42893712044) do commit `a5b339d` passou nos cinco jobs, com a sonda de limites e o bootstrap dos dois
+parâmetros do `vetra_app`.
 
 ## Auditoria C13
 
