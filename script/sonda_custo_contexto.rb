@@ -148,7 +148,8 @@ class ContextCostProbe < RelayProbe
             connection.exec('BEGIN')
             connection.exec_params('SELECT pg_catalog.set_config($1, $2, true)', context.call(state))
             count.times { statement.call(connection, state) }
-            connection.exec('COMMIT')
+            # DELETE mede com ROLLBACK, para que as linhas voltem e a série seguinte as encontre.
+            connection.exec(@finish_statement || 'COMMIT')
             samples << ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - began) * 1000) if began > warm
           end
           out_writer.write(Marshal.dump(samples))

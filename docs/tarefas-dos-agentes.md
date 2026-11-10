@@ -69,7 +69,7 @@ tarefas seguem a ordem da tabela.
 
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
-| K14 | Forma da política de escopo: ADR-041 proposto, escrita medida por ação, permissões comparadas e as três formas avaliadas | Claude | em andamento | — | Auditoria pelo Codex, com sonda |
+| K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | integrada, CI pendente | — | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
 | C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | a fazer | — | — |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
@@ -162,6 +162,33 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria K14
+
+Implementado pelo Claude sobre `81f416c`; auditado pelo Codex em modo somente leitura, com a árvore conferida por
+hash antes e depois de cada rodada. O Claude rodou a suíte, o gate, `db:plan --check` e as sondas no PostgreSQL 18.6 e
+num 17.11 local. A medição é **informativa**: não cumpre o teste de aceitação 6 do ADR-023, que continua pendente.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `actor_bound?` aceitava qualquer igualdade de campo com o ator; `company_id = actor.id` gerava a lista com todos os vínculos do tenant | sim | Ajustar: a coluna do tenant não vincula a lista ao ator, e o gerador mantém o `EXISTS`; teste de regressão e ADR-041, §2 |
+| A sonda só comparava a leitura com a política real; nas demais ações a "real" era a própria expectativa | sim | Ajustar: as quatro ações rodam contra `public.leads` e contra cada forma, e a expectativa é calculada sem consultar política |
+| O `UPDATE` mantinha a unidade (`SET name = name`) e não exercitava OLD e NEW | sim | Ajustar: pares de origem permitida e proibida e destino permitido, proibido e nulo, com os desfechos 1 linha, 0 linhas e erro, e uma verificação de que os três aparecem |
+| O relatório dizia que nenhuma forma ficava abaixo de 1 ms em `UPDATE` e `DELETE`, a materializada era dada como melhor sem a exceção e os totais (atores, vínculos) estavam errados | não | Ajustar: números, exceções e o teste de aceitação 4 do ADR-041 corrigidos |
+
+**Rodada 2 — aprovada pelo Codex.** Os quatro achados foram confirmados como fechados, sem regressão nos pontos tocados;
+a normalização do OR foi conferida em 128 mil combinações. O Claude confirmou: suíte 611 testes, 0 falhas, 222/222
+diagnósticos; gate sem diferenças nos quatro exemplos; `db:plan --check` nos quatro no 17 e no 18; sondas no 17 e no 18
+(plano incremental 18, Vetra Data 23, plano aditivo 99, contexto assinado 58, RLS 103, `db:migrate` 21, `db:migrate` incremental 16,
+repositórios 72, outbox 36, relay 38, custo do contexto 4/4, escopo 4/4). O `db:migrate`, a outbox e a contagem de tentativas do
+lock_timeout passaram a esperar os quatro planos do CRM com revendas.
+
+**Decisão do ADR-041.** Aceito pelo Claude, por delegação do mantenedor: a política de escopo por vínculo passa à forma
+lista, com as concessões da ação fundidas; o `0004_expand` do `mini_crm_revendas` faz a troca atômica das políticas.
+O piso de 1 ms por instrução em `UPDATE` e `DELETE` vem das referências ao contexto e fica para uma decisão sobre a função
+de contexto, depois da K20.
 
 ## Auditoria K13
 

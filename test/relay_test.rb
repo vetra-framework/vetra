@@ -60,14 +60,18 @@ class RelaySQLTest < GraphTest
   def test_incremental_plan_adds_the_whole_relay_section_in_one_step
     EVENTS.each do |example|
       plan = Vetra::SQL::Differ.call(base: model(example, '0002_expand'), schema: schema(example), number: '0003')
-      assert_equal 1, plan.steps.size
-      assert_equal Vetra::SQL::Outbox.new(schema(example)).relay.join("\n"), plan.steps.first.sql
+      # No mini_crm_revendas a troca das políticas de escopo (ADR-041) vai no mesmo plano: só o relay é conferido aqui.
+      steps = plan.steps.reject { |step| step.sql.start_with?('DROP POLICY') }
+      assert_equal 1, steps.size
+      assert_equal Vetra::SQL::Outbox.new(schema(example)).relay.join("\n"), steps.first.sql
       # Cria políticas nas tabelas da outbox, que já existem: o rótulo é o lock mais forte, não o da primeira instrução.
-      assert_equal %w[AccessExclusive catalogo sim], plan.steps.first.to_h.values_at(:lock, :cost, :transaction)
-      assert_equal File.read(File.join(PROJECT, 'examples', example, 'db/plans/0003_expand.sql')), plan.render
+      assert_equal %w[AccessExclusive catalogo sim], steps.first.to_h.values_at(:lock, :cost, :transaction)
+      committed = Vetra::SQL::Plan.parse(File.read(File.join(PROJECT, 'examples', example, 'db/plans/0003_expand.sql')), file: '0003_expand.sql')
+      assert_equal committed.steps.map(&:sql), steps.map(&:sql)
       # Uma base sem outbox recebe as duas partes juntas, num passo.
       fresh = Vetra::SQL::Differ.call(base: model(example, '0001_inicial'), schema: schema(example), number: '0002')
-      assert_equal [Vetra::SQL::Outbox.new(schema(example)).statements.join("\n")], fresh.steps.map(&:sql)
+      assert_equal [Vetra::SQL::Outbox.new(schema(example)).statements.join("\n")],
+                   fresh.steps.reject { |step| step.sql.start_with?('DROP POLICY') }.map(&:sql)
     end
   end
 

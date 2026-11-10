@@ -34,6 +34,10 @@ O [ADR-040](040-papeis-e-rls-da-outbox.md), aceito, define os papéis, o RLS e o
 particionadas por tempo no schema `vetra`, `INSERT` por coluna para a aplicação, o relay `vetra_relay` e a manutenção
 por rotinas fechadas. A K11 implementa o armazenamento e a emissão; o relay e a manutenção são da K12.
 
+O [ADR-041](041-forma-da-politica-de-escopo.md), aceito, decide a forma do SQL da política de escopo por vínculo
+com a escrita medida por ação: a lista de unidades do ator lida uma vez por instrução, com as concessões da ação
+fundidas num só predicado. Substitui em parte a decisão 3 da questão 2 do ADR-023 (só a forma do SQL).
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -78,6 +82,7 @@ por rotinas fechadas. A K11 implementa o armazenamento e a emissão; o relay e a
 | [038](038-fundacao-do-plano-incremental.md) | Fundação do plano incremental: modelo versionado, transação por passo e contenção | aceito |
 | [039](039-unidade-de-trabalho-e-repositorios.md) | Unidade de trabalho, emissão do contexto e contrato dos repositórios | aceito |
 | [040](040-papeis-e-rls-da-outbox.md) | Papéis, RLS e armazenamento da outbox | aceito |
+| [041](041-forma-da-politica-de-escopo.md) | Forma da política de escopo por vínculo | aceito |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
@@ -161,7 +166,7 @@ Os ADRs de resolução ficam registrados aqui, com o ADR que resolvem e as quest
 - Use o modelo abaixo.
 - Um ADR aceito não é editado; uma mudança de decisão gera um novo ADR que o substitui. As únicas exceções são
   linhas de referência no cabeçalho, que apontam para fora sem mudar o texto aceito: `Substituído por`,
-  `Questões resolvidas por`, `Evidência posterior` (sonda ou relatório adicionado depois do aceite) e
+  `Substituído em parte por` (só a parte que o ADR novo nomeia; o resto vale), `Questões resolvidas por`, `Evidência posterior` (sonda ou relatório adicionado depois do aceite) e
   `Implementação posterior` (ADR ou código que implementa a decisão).
 - Um ADR novo entra como `proposto`. O status passa a `aceito` quando o mantenedor o aceita, e a linha `Aceite`
   registra a data e quem aceitou.

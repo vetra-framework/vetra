@@ -31,11 +31,13 @@ class SecuritySQLTest < GraphTest
     end
   end
 
-  def test_scope_correlates_only_the_unit_and_binds_tenant_and_actor_with_initplans
+  def test_scope_is_the_actors_list_read_once_with_tenant_and_actor_as_initplans
     sql = security.statements.join("\n")
-    assert_match(/FROM "public"\."memberships" AS "vt_scope_\d+" WHERE \("vt_scope_\d+"\."company_id" = \(SELECT vetra.current_tenant\(\)\)\)/, sql)
+    # ADR-041: a unidade da linha é testada contra a lista de unidades do ator; nada é correlacionado além dela.
+    assert_match(/"leads"\."dealer_id" = ANY \(ARRAY\(SELECT "vt_scope_\d+"\."dealer_id" FROM "public"\."memberships" AS "vt_scope_\d+" WHERE \("vt_scope_\d+"\."company_id" = \(SELECT vetra.current_tenant\(\)\)\) AND /, sql)
     assert_match(/"vt_scope_\d+"\."user_id" = \(SELECT vetra.current_actor\(\)\)/, sql)
-    assert_match(/"vt_scope_\d+"\."dealer_id" = "leads"\."dealer_id"/, sql)
+    refute_match(/"vt_scope_\d+"\."dealer_id" = "leads"\."dealer_id"/, sql)
+    refute_includes sql, 'EXISTS'
     refute_match(/FROM "public"\."dealers"/, sql)
     refute_includes sql, '"leads"."company_id"'
     %w[SELECT INSERT UPDATE DELETE].each { |action| assert_includes sql, "AS PERMISSIVE FOR #{action}" }
@@ -50,6 +52,64 @@ class SecuritySQLTest < GraphTest
     refute_includes delete, "E'vendedor'"
     refute_includes sql, '"vt_access" ON "public"."leads"'
     refute_includes sql, '"vt_scope_create" ON "public"."dealers"'
+  end
+
+  def test_grants_of_the_same_relation_are_fused_into_one_list_with_the_actor_read_once
+    sql = security.statements.join("\n")
+    read = sql.lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    assert_equal 1, read.scan('FROM "public"."memberships"').size
+    assert_equal 1, read.scan('vetra.current_actor()').size
+    assert_includes read, "\"role\" IN (E'gerente', E'vendedor')"
+    delete = sql.lines.find { |line| line.include?('"vt_scope_delete" ON "public"."leads"') }
+    assert_includes delete, "\"role\" = E'gerente'"
+  end
+
+  def test_negated_or_unbound_exists_keeps_the_exists_form
+    doc = document
+    where = ->(term) { { 'op' => 'and', 'terms' => [term] } }
+    actor = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['user_id'] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
+    role = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['role'] }, 'right' => { 'kind' => 'literal', 'value' => 'gerente' } }
+    %w[crm.gerente.permission_1 crm.vendedor.permission_1].each do |id|
+      policy = node(doc, 'policy', id)
+      policy['predicate'] = { 'op' => 'not', 'term' => { 'op' => 'exists', 'relation' => ['dealer', 'memberships'], 'where' => where.call(actor) } }
+    end
+    negated = security(doc).statements.join("\n").lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    assert_includes negated, 'NOT (EXISTS (SELECT 1 FROM'
+    refute_includes negated, 'ANY (ARRAY'
+    %w[crm.gerente.permission_1 crm.vendedor.permission_1].each do |id|
+      node(doc, 'policy', id)['predicate'] = { 'op' => 'exists', 'relation' => ['dealer', 'memberships'], 'where' => where.call(role) }
+    end
+    unbound = security(doc).statements.join("\n").lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    assert_includes unbound, 'EXISTS (SELECT 1 FROM'
+    refute_includes unbound, 'ANY (ARRAY'
+  end
+
+  def test_equality_with_the_tenant_column_does_not_bind_the_list_to_the_actor
+    doc = document
+    # Com tenant e ator iguais, `company_id = actor.id` selecionaria todos os vínculos do tenant: continua EXISTS.
+    tenant_equals_actor = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['company_id'] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
+    %w[crm.gerente.permission_1 crm.vendedor.permission_1].each do |id|
+      node(doc, 'policy', id)['predicate'] = { 'op' => 'exists', 'relation' => ['dealer', 'memberships'], 'where' => tenant_equals_actor }
+    end
+    read = security(doc).statements.join("\n").lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    assert_includes read, 'EXISTS (SELECT 1 FROM'
+    refute_includes read, 'ANY (ARRAY'
+  end
+
+  def test_or_of_grants_factors_the_common_term_and_merges_equalities_exactly
+    doc = document
+    actor = { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['user_id'] }, 'right' => { 'kind' => 'actor', 'path' => ['id'] } }
+    role = ->(value) { { 'op' => 'eq', 'left' => { 'kind' => 'field', 'path' => ['role'] }, 'right' => { 'kind' => 'literal', 'value' => value } } }
+    exists = ->(where) { { 'op' => 'exists', 'relation' => ['dealer', 'memberships'], 'where' => where } }
+    node(doc, 'policy', 'crm.gerente.permission_1')['predicate'] = exists.call({ 'op' => 'and', 'terms' => [actor, role.call('gerente')] })
+    node(doc, 'policy', 'crm.vendedor.permission_1')['predicate'] = exists.call({ 'op' => 'and', 'terms' => [actor, role.call('vendedor')] })
+    base = security(doc).statements.join("\n").lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    # Um NULL literal nunca entra no IN: a igualdade com NULL usa IS NOT DISTINCT FROM.
+    node(doc, 'policy', 'crm.vendedor.permission_1')['predicate'] = exists.call({ 'op' => 'and', 'terms' => [actor, role.call(nil)] })
+    with_null = security(doc).statements.join("\n").lines.find { |line| line.include?('"vt_scope_read" ON "public"."leads"') }
+    assert_includes base, "IN (E'gerente', E'vendedor')"
+    assert_includes with_null, 'IS NOT DISTINCT FROM NULL'
+    refute_includes with_null, 'IN (E'
   end
 
   def test_membership_scope_requires_index_starting_with_tenant_and_actor

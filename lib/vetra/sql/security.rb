@@ -77,16 +77,18 @@ module Vetra
         ACTIONS.each do |action, command|
           selected = policies.select { |policy| policy['actions'].include?(action) }
           next if selected.empty? # Entidade com escopo: ação sem concessão continua negada.
-          expressions = selected.map do |policy|
+          entity = @entities.fetch(table['entity'])
+          supported, unsupported = selected.partition { |policy| supported?(policy['predicate'], entity) }
+          expressions = unsupported.map do |policy|
+            @notes << "#{policy['id']}: predicado fora do subconjunto SQL; #{command} depende da autorização na aplicação."
+            'true'
+          end
+          unless supported.empty?
+            # As concessões da ação são um OR (ADR-041): o OR é normalizado antes de gerar o SQL.
+            tree = normalize('op' => 'or', 'terms' => supported.map { |policy| policy['predicate'] })
             dependencies = []
-            begin
-              expression = predicate(policy['predicate'], @entities.fetch(table['entity']), quote(table['table']), dependencies)
-              @dependencies[table['entity']].concat(dependencies)
-              expression
-            rescue ApplicationPredicate
-              @notes << "#{policy['id']}: predicado fora do subconjunto SQL; #{command} depende da autorização na aplicação."
-              'true'
-            end
+            expressions << predicate(tree, entity, quote(table['table']), dependencies)
+            @dependencies[table['entity']].concat(dependencies)
           end
           condition = expressions.uniq.sort.map { |expression| "(#{expression})" }.join(' OR ')
           clauses = []
@@ -97,12 +99,25 @@ module Vetra
         statements
       end
 
-      def predicate(tree, entity, prefix, dependencies)
+      # O predicado de uma concessão é traduzível quando todo o seu SQL é gerável; a geração de prova não deixa rastro.
+      def supported?(tree, entity)
+        counter = @counter
+        predicate(tree, entity, 'x', [], true)
+        true
+      rescue ApplicationPredicate
+        false
+      ensure
+        @counter = counter
+      end
+
+      # `positive` é falso sob um NOT: ali um EXISTS não pode virar a forma de lista, porque NULL e false
+      # divergem sob a negação (ADR-041, §2).
+      def predicate(tree, entity, prefix, dependencies, positive = true)
         case tree['op']
         when 'true' then 'true'
         when 'and', 'or'
-          tree['terms'].map { |term| "(#{predicate(term, entity, prefix, dependencies)})" }.sort.join(" #{tree['op'].upcase} ")
-        when 'not' then "NOT (#{predicate(tree['term'], entity, prefix, dependencies)})"
+          tree['terms'].map { |term| "(#{predicate(term, entity, prefix, dependencies, positive)})" }.sort.join(" #{tree['op'].upcase} ")
+        when 'not' then "NOT (#{predicate(tree['term'], entity, prefix, dependencies, !positive)})"
         when 'eq'
           operator = [tree['left'], tree['right']].any? { |value| value['kind'] == 'literal' && value['value'].nil? } ? 'IS NOT DISTINCT FROM' : '='
           "#{operand(tree['left'], entity, prefix)} #{operator} #{operand(tree['right'], entity, prefix)}"
@@ -111,7 +126,7 @@ module Vetra
           raise ApplicationPredicate unless tree.dig('right', 'kind') == 'literal' && values.is_a?(Array)
           return 'false' if values.empty?
           "#{operand(tree['left'], entity, prefix)} IN (#{values.map { |value| literal(value) }.join(', ')})"
-        when 'exists' then exists(tree, entity, prefix, dependencies)
+        when 'exists' then exists(tree, entity, prefix, dependencies, positive)
         else raise ApplicationPredicate
         end
       end
@@ -130,7 +145,7 @@ module Vetra
         end
       end
 
-      def exists(tree, entity, prefix, dependencies)
+      def exists(tree, entity, prefix, dependencies, positive)
         source_tenant_column = @tables.fetch(entity['id'])['tenant_column']
         links = []
         tree['relation'].each do |name|
@@ -144,7 +159,7 @@ module Vetra
            links[0]['target_fields'] == links[1]['local_fields']
           links = [links[1].merge('local_fields' => links[0]['local_fields'])]
         end
-        from, conditions, source = [], [], prefix
+        from, conditions, source, joins = [], [], prefix, []
         links.each do |link|
           target = @tables.fetch(link.dig('target', 'id'))
           raise ApplicationPredicate if target['scope'] == 'global'
@@ -154,14 +169,123 @@ module Vetra
           conditions << "#{target_prefix}.#{quote(target['tenant_column'])} = (SELECT vetra.current_tenant())"
           link['local_fields'].zip(link['target_fields']).each do |local, remote|
             next if remote == target['tenant_column'] && local == source_tenant_column
+            joins << [source, local, target_prefix, remote]
             conditions << "#{target_prefix}.#{quote(remote)} = #{source}.#{quote(local)}"
           end
           source = target_prefix
           source_tenant_column = target['tenant_column']
         end
         check_scope_index!(entity, tree['where'])
-        conditions << predicate(tree['where'], entity, source, dependencies)
+        # Dentro do WHERE de um EXISTS, NULL e false excluem a linha do mesmo jeito: a polaridade recomeça positiva.
+        where = predicate(tree['where'], entity, source, dependencies, true)
+        if positive && links.size == 1 && joins.size == 1 && actor_bound?(tree['where'], @tables.fetch(entity['id'])['tenant_column'])
+          # Forma de lista (ADR-041): os vínculos do ator, lidos uma vez por instrução, e a unidade da linha testada contra eles.
+          outer, local, inner, remote = joins.first
+          list = "SELECT #{inner}.#{quote(remote)} FROM #{from.first} WHERE (#{conditions.first}) AND (#{where})"
+          return "#{outer}.#{quote(local)} = ANY (ARRAY(#{list}))"
+        end
+        conditions << where
         "EXISTS (SELECT 1 FROM #{from.join(', ')} WHERE #{conditions.map { |condition| "(#{condition})" }.join(' AND ')})"
+      end
+
+      # O predicado exige, em todos os ramos, a igualdade de um campo do vínculo com o ator: a lista tem o tamanho dos
+      # vínculos do ator, não o da tabela de destino. A coluna do tenant não conta: com tenant e ator iguais, ela
+      # selecionaria todos os vínculos do tenant.
+      def actor_bound?(tree, tenant_column)
+        case tree['op']
+        when 'and' then tree['terms'].any? { |term| actor_bound?(term, tenant_column) }
+        when 'or' then tree['terms'].all? { |term| actor_bound?(term, tenant_column) }
+        when 'eq'
+          sides = [tree['left'], tree['right']]
+          field = sides.find { |value| value['kind'] == 'field' }
+          field && sides.any? { |value| value['kind'] == 'actor' } && field['path'].first != tenant_column
+        else false
+        end
+      end
+
+      # Normalização do OR das concessões (ADR-041, §3): só equivalências exatas da lógica de três valores.
+      def normalize(tree)
+        case tree['op']
+        when 'and' then tree.merge('terms' => tree['terms'].map { |term| normalize(term) })
+        when 'not' then tree.merge('term' => normalize(tree['term']))
+        when 'exists' then tree.merge('where' => normalize(tree['where']))
+        when 'or' then normalize_or(tree['terms'])
+        else tree
+        end
+      end
+
+      def normalize_or(terms)
+        terms = terms.flat_map do |term|
+          term = normalize(term)
+          term['op'] == 'or' ? term['terms'] : [term]
+        end
+        terms = merge_exists(terms).uniq { |term| key(term) }
+        return terms.first if terms.size == 1
+        common = terms.map { |term| conjuncts(term) }.reduce { |all, other| all.select { |item| other.any? { |value| key(value) == key(item) } } }
+        if common.empty?
+          terms = merge_equalities(terms)
+          return terms.size == 1 ? terms.first : { 'op' => 'or', 'terms' => terms }
+        end
+        rests = terms.map { |term| conjuncts(term).reject { |item| common.any? { |value| key(value) == key(item) } } }
+        # A ∨ (A ∧ B) = A; (A ∧ B1) ∨ (A ∧ B2) = A ∧ (B1 ∨ B2).
+        inner = rests.any?(&:empty?) ? [] : [normalize_or(rests.map { |rest| rest.size == 1 ? rest.first : { 'op' => 'and', 'terms' => rest } })]
+        all = common + inner
+        all.size == 1 ? all.first : { 'op' => 'and', 'terms' => all }
+      end
+
+      def conjuncts(term)
+        term['op'] == 'and' ? term['terms'] : [term]
+      end
+
+      def key(term)
+        Graph::Canonical.dump(term)
+      end
+
+      # EXISTS(p1) OR EXISTS(p2) sobre a mesma relação é EXISTS(p1 OR p2).
+      def merge_exists(terms)
+        merged = {}
+        terms.each_with_object([]) do |term, result|
+          next result << term unless term['op'] == 'exists'
+          if (index = merged[term['relation']])
+            result[index] = result[index].merge('where' => normalize_or([result[index]['where'], term['where']]))
+          else
+            merged[term['relation']] = result.size
+            result << term
+          end
+        end
+      end
+
+      # f = a OR f = b é f IN (a, b); só literais não nulos, porque a igualdade com NULL usa IS NOT DISTINCT FROM.
+      def merge_equalities(terms)
+        groups = Hash.new { |hash, name| hash[name] = [] }
+        terms.each do |term|
+          field, values = equality_values(term)
+          groups[key(field)] << values if field
+        end
+        emitted = []
+        terms.each_with_object([]) do |term, result|
+          field, = equality_values(term)
+          next result << term unless field && groups[key(field)].size > 1
+          next if emitted.include?(key(field))
+          emitted << key(field)
+          values = groups[key(field)].flatten(1).uniq { |value| JSON.generate(value) }.sort_by { |value| JSON.generate(value) }
+          result << { 'op' => 'in', 'left' => field, 'right' => { 'kind' => 'literal', 'value' => values } }
+        end
+      end
+
+      def equality_values(term)
+        scalar = ->(value) { !value.nil? && !value.is_a?(Array) && !value.is_a?(Hash) }
+        case term['op']
+        when 'eq'
+          field, literal = [term['left'], term['right']].then { |pair| pair.partition { |value| value['kind'] == 'field' } }.then { |fields, others| [fields.first, others.first] }
+          return unless field && field['path'].size == 1 && literal && literal['kind'] == 'literal' && scalar.call(literal['value'])
+          [field, [literal['value']]]
+        when 'in'
+          values = term.dig('right', 'value')
+          return unless term['left']['kind'] == 'field' && term['left']['path'].size == 1 && term.dig('right', 'kind') == 'literal' &&
+                        values.is_a?(Array) && values.all?(&scalar)
+          [term['left'], values]
+        end
       end
 
       def check_scope_index!(entity, tree)

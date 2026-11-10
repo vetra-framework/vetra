@@ -3,6 +3,7 @@
 -- vetra:base 0001_inicial sha256=26bce26b615308acfbf3bb768c65dd85b9a9a3add19f02b7bd0efc6c5b6033c3
 -- vetra:base 0002_expand sha256=61c3c42273fbd3777f8cca9d35b7a5002eb9934a17b1dfed28645e77e9f10929
 -- vetra:base 0003_expand sha256=e284e8d252520473d806135f8831fddc7e029a09e2cc3d3ffc4acceb175ec450
+-- vetra:base 0004_expand sha256=844868a4395f6c6f2406a255c4853f0d2fc4a5e979238d284f6da3afc9e08176
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -946,37 +947,27 @@ CREATE POLICY vt_access ON public.memberships TO vetra_app USING (true) WITH CHE
 
 CREATE POLICY vt_access ON public.users TO vetra_app USING (true) WITH CHECK (true);
 
-CREATE POLICY vt_scope_create ON public.leads FOR INSERT TO vetra_app WITH CHECK (((EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_5
-  WHERE ((vt_scope_5.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_5.dealer_id = leads.dealer_id) AND ((vt_scope_5.role = 'gerente'::text) AND (vt_scope_5.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_6
-  WHERE ((vt_scope_6.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_6.dealer_id = leads.dealer_id) AND ((vt_scope_6.role = 'vendedor'::text) AND (vt_scope_6.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
-
-CREATE POLICY vt_scope_delete ON public.leads FOR DELETE TO vetra_app USING ((EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_9
-  WHERE ((vt_scope_9.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_9.dealer_id = leads.dealer_id) AND ((vt_scope_9.role = 'gerente'::text) AND (vt_scope_9.user_id = ( SELECT vetra.current_actor() AS current_actor)))))));
-
-CREATE POLICY vt_scope_read ON public.dealers FOR SELECT TO vetra_app USING (((EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_1
-  WHERE ((vt_scope_1.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_1.dealer_id = dealers.id) AND ((vt_scope_1.role = 'gerente'::text) AND (vt_scope_1.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_2
-  WHERE ((vt_scope_2.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_2.dealer_id = dealers.id) AND ((vt_scope_2.role = 'vendedor'::text) AND (vt_scope_2.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
-
-CREATE POLICY vt_scope_read ON public.leads FOR SELECT TO vetra_app USING (((EXISTS ( SELECT 1
+CREATE POLICY vt_scope_create ON public.leads FOR INSERT TO vetra_app WITH CHECK ((dealer_id = ANY (ARRAY( SELECT vt_scope_3.dealer_id
    FROM public.memberships vt_scope_3
-  WHERE ((vt_scope_3.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_3.dealer_id = leads.dealer_id) AND ((vt_scope_3.role = 'gerente'::text) AND (vt_scope_3.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_4
-  WHERE ((vt_scope_4.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_4.dealer_id = leads.dealer_id) AND ((vt_scope_4.role = 'vendedor'::text) AND (vt_scope_4.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+  WHERE ((vt_scope_3.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_3.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_3.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
 
-CREATE POLICY vt_scope_update ON public.leads FOR UPDATE TO vetra_app USING (((EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_7
-  WHERE ((vt_scope_7.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_7.dealer_id = leads.dealer_id) AND ((vt_scope_7.role = 'gerente'::text) AND (vt_scope_7.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_8
-  WHERE ((vt_scope_8.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_8.dealer_id = leads.dealer_id) AND ((vt_scope_8.role = 'vendedor'::text) AND (vt_scope_8.user_id = ( SELECT vetra.current_actor() AS current_actor)))))))) WITH CHECK (((EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_7
-  WHERE ((vt_scope_7.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_7.dealer_id = leads.dealer_id) AND ((vt_scope_7.role = 'gerente'::text) AND (vt_scope_7.user_id = ( SELECT vetra.current_actor() AS current_actor)))))) OR (EXISTS ( SELECT 1
-   FROM public.memberships vt_scope_8
-  WHERE ((vt_scope_8.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND (vt_scope_8.dealer_id = leads.dealer_id) AND ((vt_scope_8.role = 'vendedor'::text) AND (vt_scope_8.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+CREATE POLICY vt_scope_delete ON public.leads FOR DELETE TO vetra_app USING ((dealer_id = ANY (ARRAY( SELECT vt_scope_5.dealer_id
+   FROM public.memberships vt_scope_5
+  WHERE ((vt_scope_5.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_5.role = 'gerente'::text) AND (vt_scope_5.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_read ON public.dealers FOR SELECT TO vetra_app USING ((id = ANY (ARRAY( SELECT vt_scope_1.dealer_id
+   FROM public.memberships vt_scope_1
+  WHERE ((vt_scope_1.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_1.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_1.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_read ON public.leads FOR SELECT TO vetra_app USING ((dealer_id = ANY (ARRAY( SELECT vt_scope_2.dealer_id
+   FROM public.memberships vt_scope_2
+  WHERE ((vt_scope_2.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_2.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_2.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
+
+CREATE POLICY vt_scope_update ON public.leads FOR UPDATE TO vetra_app USING ((dealer_id = ANY (ARRAY( SELECT vt_scope_4.dealer_id
+   FROM public.memberships vt_scope_4
+  WHERE ((vt_scope_4.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_4.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_4.user_id = ( SELECT vetra.current_actor() AS current_actor)))))))) WITH CHECK ((dealer_id = ANY (ARRAY( SELECT vt_scope_4.dealer_id
+   FROM public.memberships vt_scope_4
+  WHERE ((vt_scope_4.company_id = ( SELECT vetra.current_tenant() AS current_tenant)) AND ((vt_scope_4.role = ANY (ARRAY['gerente'::text, 'vendedor'::text])) AND (vt_scope_4.user_id = ( SELECT vetra.current_actor() AS current_actor))))))));
 
 CREATE POLICY vt_tenant ON public.companies AS RESTRICTIVE TO vetra_app USING ((id = ( SELECT vetra.current_tenant() AS current_tenant))) WITH CHECK ((id = ( SELECT vetra.current_tenant() AS current_tenant)));
 

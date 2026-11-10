@@ -162,6 +162,12 @@ jobs:
           VETRA_MEDICAO_SEGUNDOS: '1.5'
           VETRA_MEDICAO_RODADAS: '2'
         run: bundle exec ruby script/sonda_custo_contexto.rb
+      - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)
+        env:
+          VETRA_MEDICAO_SEGUNDOS: '0.3'
+          VETRA_MEDICAO_RODADAS: '1'
+          VETRA_ESCOPO_ATORES: gerente de 1
+        run: bundle exec ruby script/sonda_escopo.rb
       - name: db:plan --check em todos os exemplos
         run: |
           for app in examples/*/; do

@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-07: o [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
+- **Atualizado em:** 2026-11-10: a política de escopo por vínculo passou à forma lista (K14, ADR-041). Antes, em 2026-11-07: o [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
   gerados da IR, com registros `Data` imutáveis, consulta restrita, transições protegidas e vínculos idempotentes.
   A outbox tem armazenamento e emissão (K11, ADR-040 aceito): blog, mini CRM e CRM com revendas ganham o plano
   `0002_expand`, com a outbox e as entregas particionadas por tempo, e o comando grava o evento na unidade de
@@ -54,6 +54,17 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Forma da política de escopo por vínculo (K14, [ADR-041](adr/041-forma-da-politica-de-escopo.md), aceito por
+  delegação do mantenedor): a política gerada passa a testar a unidade da linha contra a lista de unidades do ator,
+  lida uma vez por instrução, com as concessões da ação fundidas num só predicado (`EXISTS` continua sob `NOT`, sem
+  vínculo do ator ou com FK composta). O `mini_crm_revendas` ganha o plano `0004_expand` com a troca atômica das
+  políticas; os outros exemplos não mudam. A escrita foi medida por ação com 1 milhão de vínculos
+  ([relatório](sondas/escopo-por-acao.md)): a lista acrescenta de +0,2 a +1,6 ms por instrução, menos que a forma
+  anterior em todas as células, mas fica acima de 1 ms em quase todo `UPDATE` e `DELETE` por chave; o piso vem das
+  referências ao contexto (ADR-024, §4). A sonda `sonda_escopo.rb` confere por conjunto de IDs, nas quatro ações e
+  na mudança de unidade, que a política real e as seis formas concedem o mesmo, e roda na CI com medição curta. Não
+  cumpre o teste 6 do ADR-023. Integrada no commit da K14, CI pendente.
 
 - [x] Medição preliminar e informativa do custo do contexto assinado e dos registros (K13), pela sonda
   `sonda_custo_contexto.rb`, no PostgreSQL 17 e 18, com 16 clientes, 3 rodadas alternadas e os papéis de produção
@@ -626,8 +637,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-023:** a medição informativa (K13) no 17 e no 18, com 16 clientes, `WITH CHECK` e a comparação em tempo
   constante, deu de 0,2 a 0,4 ms por instrução para o contexto assinado na maior parte das rodadas, abaixo do limiar
   de 0,5 ms, com três de doze estimativas acima no 18 (inconclusivo). A política de escopo com 1 milhão de vínculos ficou acima do
-  limiar de 1 ms na leitura (de 0,8 a 2,8 ms), o que leva a um ADR novo sobre a forma da política; a forma com a lista
-  do ator reduz o acréscimo mas fica em torno do limiar com 100 revendas no 18, e nenhuma foi medida em escrita. O
+  limiar de 1 ms na leitura (de 0,8 a 2,8 ms), o que levou ao ADR-041 (K14): a forma lista, medida também em escrita, fica de
+  +0,2 a +1,6 ms e acima de 1 ms em quase todo `UPDATE` e `DELETE` por chave, e o piso vem das referências ao contexto
+  (baixá-lo é decisão futura sobre a função de contexto). O
   teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. Faltam o pooler, ausente na CI, e a
   medição de 25% da latência por comando, que espera o executor (rodada 5, K20); o teste 6 segue pendente. O gerador de políticas
   compõe o plano inicial com a forma tenant/ator não correlacionada e recusa vínculo sem índice físico
@@ -656,8 +668,8 @@ Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o [quadro d
 O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
 
 1. [ ] Persistência, rodada 5: um executor **parcial** do ADR-016, sem histórico, auditoria nem adaptadores, em duas
-   fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo e a construção dos
-   registros), o ator de sistema, a idempotência e a autorização em Ruby; a fase B, o executor (despacho,
+   fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo, **decidida na K14**, e a
+   construção dos registros, na C11), o ator de sistema, a idempotência e a autorização em Ruby; a fase B, o executor (despacho,
    autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, é
    replanejada ao fim da fase A. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está

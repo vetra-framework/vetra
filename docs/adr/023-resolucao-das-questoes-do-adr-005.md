@@ -2,6 +2,7 @@
 
 - Status: aceito
 - Data: 2026-10-31
+- Substituído em parte por: [ADR-041](041-forma-da-politica-de-escopo.md), só na forma do SQL da decisão 3 da questão 2 (a lista de unidades do ator no lugar do `EXISTS` correlacionado); as demais decisões valem
 - Evidência posterior ao aceite: [medição preliminar do custo do contexto e dos registros](../sondas/custo-contexto.md), adicionada em 2026-11-07 no PostgreSQL 17 e 18; o relatório registra os resultados, sem alterar a decisão abaixo.
 - Resolve: ADR-005 (as cinco questões que ele deixa para outros)
 - Depende de: ADR-005 (RLS e contexto assinado), ADR-002 (somente PostgreSQL), ADR-020 (revisão de autorização)

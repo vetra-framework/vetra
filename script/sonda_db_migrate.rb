@@ -74,12 +74,17 @@ class MigrateProbe
     connection.exec('SELECT plan, sha256, steps, applied_by FROM vetra.migrations ORDER BY plan').to_a
   end
 
-  # Os planos commitados, na ordem: o inicial e o 0002, que traz a outbox do ADR-040.
+  # Os planos commitados, na ordem: o inicial, o 0002 e o 0003 (outbox e relay, ADR-040) e o 0004 (forma da política de escopo, ADR-041).
   def expected_records
     Vetra::SQL::Planner.new(root: ROOT).migration_plans.map do |plan|
       { 'plan' => plan.file_name.delete_suffix('.sql'), 'sha256' => Vetra::SQL::Migrator.digest(plan),
         'steps' => plan.steps.size.to_s, 'applied_by' => 'vetra_migrator' }
     end
+  end
+
+  # Cada unidade aplicada conta uma tentativa: o plano de transação única é uma unidade, e o por passo, uma por passo.
+  def expected_units
+    Vetra::SQL::Planner.new(root: ROOT).migration_plans.sum { |plan| plan.transaction == 'unica' ? 1 : plan.steps.size }
   end
 
   def run_checks
@@ -88,7 +93,7 @@ class MigrateProbe
     expected = expected_records
     check('aplica o plano inicial e os incrementais num banco vazio como vetra_migrator e registra o hash de cada um') do
       result = migrate(connection)
-      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand 0003_expand] && records(connection) == expected
+      result.status == :applied && expected.map { |row| row['plan'] } == %w[0001_inicial 0002_expand 0003_expand 0004_expand] && records(connection) == expected
     end
     check('segunda execução não aplica nada e confere o esquema com o retrato') do
       migrate(connection).status == :up_to_date && records(connection) == expected
@@ -217,7 +222,7 @@ class MigrateProbe
       with_blocker do |migrator, blocker|
         sleeps = []
         result = migrate(migrator, sleeper: ->(seconds) { sleeps << seconds; blocker.exec('ROLLBACK') if sleeps.size == 1 })
-        result.status == :applied && result.attempts == expected.size + 1 && sleeps.size == 1 && records(migrator) == expected
+        result.status == :applied && result.attempts == expected_units + 1 && sleeps.size == 1 && records(migrator) == expected
       end
     end
 
