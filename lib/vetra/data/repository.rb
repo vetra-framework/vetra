@@ -3,9 +3,10 @@
 module Vetra
   module Data
     class Repository
-      def initialize(catalog:, unit:, access:, entity:, table:, record_type:, currency:)
+      def initialize(catalog:, unit:, access:, entity:, table:, record_type:, row_reader:, currency:)
         @catalog, @unit, @access = catalog, unit, access
         @entity, @table, @record_type, @currency = entity, table, record_type, currency
+        @row_reader = row_reader
         @fields = entity['fields'].to_h { |field| [field['name'], field] }.freeze
         freeze
       end
@@ -216,20 +217,7 @@ module Vetra
 
       def read_record!(row)
         raise RecordNotFound.new, cause: nil unless row
-        values = @fields.to_h do |name, field|
-          if field.dig('type', 'name') == 'money'
-            amount, currency = row.values_at("#{name}_amount".to_sym, "#{name}_currency".to_sym)
-            value = amount.nil? && currency.nil? ? nil : { amount: amount, currency: currency }
-          else
-            value = row.fetch(name.to_sym)
-            if field.dig('type', 'name') == 'json'
-              value = value.to_h if value.is_a?(Sequel::Postgres::JSONBHash)
-              value = value.to_a if value.is_a?(Sequel::Postgres::JSONBArray)
-            end
-          end
-          [name.to_sym, coerce(name, value)]
-        end
-        @record_type.new(**values)
+        @row_reader.call(row)
       end
 
       def sibling(entity_id)

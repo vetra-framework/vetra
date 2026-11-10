@@ -4,7 +4,10 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-10: a política de escopo por vínculo passou à forma lista (K14, ADR-041). Antes, em 2026-11-07: o [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
+- **Atualizado em:** 2026-11-10: a construção dos registros tem conversão imediata de leitura (C11,
+  [ADR-042 proposto](adr/042-construcao-dos-registros.md)), com entrada estrita preservada; o gate de 10% continua
+  aberto: a construção caiu de 136%-167% para 40%-56% da consulta no PostgreSQL 17 e 18, e a decisão do orçamento é do mantenedor. A política de escopo
+  por vínculo usa a forma lista (K14, ADR-041). O [Vetra Data](vetra-data.md) tem unidade de trabalho, emissor Ruby e repositórios
   gerados da IR, com registros `Data` imutáveis, consulta restrita, transições protegidas e vínculos idempotentes.
   A outbox tem armazenamento e emissão (K11, ADR-040 aceito): blog, mini CRM e CRM com revendas ganham o plano
   `0002_expand`, com a outbox e as entregas particionadas por tempo, e o comando grava o evento na unidade de
@@ -21,8 +24,9 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 40 aceitos (001 a 040), com o índice em [adr/README.md](adr/README.md); os últimos são as políticas e transições 037, a fundação do plano incremental 038 e a unidade de trabalho do Vetra Data 039 e a outbox 040 |
-| Testes do compilador, dados e exemplos | 607 testes e 11.199 asserções, sem falhas; 222/222 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 41 aceitos (001 a 041) e o 042 proposto, com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
+| Testes do compilador, dados e exemplos | 620 testes e 12.960 asserções, sem falhas; 223/223 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| Construção dos registros (C11) | Nove testes/1.735 asserções novos sem banco, incluindo a medição da sonda com Sequel.mock. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças; gate contra origin/main sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (5/5); construção de 40% a 56% da consulta, gate aberto e decisão do orçamento pendente |
 | Critérios da fase 0 (ADR-001) | 9 cobertos e 2 parciais (6 e 7); o 11 cobre os dados do compilador |
 | CI registrada | Três checks verdes no push direto de `ebed54a`, incluindo a sonda ADR-020 no PostgreSQL 17 e 18 ([execução 41641228179](https://github.com/vetra-framework/vetra/actions/runs/41641228179)) |
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
@@ -54,6 +58,16 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - Item novo entra como `[ ]`, com o responsável pela decisão. Item que deixou de valer é removido, não riscado.
 
 ## 1. Feito
+
+- [x] Conversão imediata de leitura dos registros (C11, [ADR-042 proposto](adr/042-construcao-dos-registros.md)),
+  separada da validação estrita da entrada: monta `Money`, JSON e UTC, mantém a faixa de datas e o congelamento
+  profundo e evita a segunda cópia dos valores. O mesmo `Data` conserva igualdade, inspeção, `to_h`, `with`,
+  predicados e compartilhamento entre Ractors. Medição Ruby compara a C10, o novo leitor, a construção sob demanda
+  com leitura integral e o piso de alocação; os resultados fundamentam a escolha no ADR. A sonda de custo mede a
+  construção sobre as linhas da consulta e mantém o limiar vigente de 10%. O gate não está cumprido: no
+  PostgreSQL 17.11 e 18.6 a construção custa de 7 a 10 µs por registro, de 40% a 56% da consulta (antes, de 136% a 167%).
+  Aceite e decisão do orçamento pelo mantenedor pendentes. Banco, planos, modelos,
+  retratos e IR 0.6 preservados.
 
 - [x] Forma da política de escopo por vínculo (K14, [ADR-041](adr/041-forma-da-politica-de-escopo.md), aceito por
   delegação do mantenedor): a política gerada passa a testar a unidade da linha contra a lista de unidades do ator,
@@ -630,7 +644,9 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   as diferenças aditivas e os repositórios estão implementados, e o `db:migrate` aplica o plano inicial e os
   incrementais, passo a passo; executor, outbox e medições restantes continuam pendentes (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** o custo dos registros no repositório real foi medido (K13): de 72% a 193% da consulta, acima do
-  limiar de 10%, o que leva a um ADR novo sobre a construção sob demanda e uma coerção mais barata do que vem do banco.
+  limiar de 10%. A C11 implementa a conversão imediata de leitura após medir também a construção sob demanda
+  ([ADR-042 proposto](adr/042-construcao-dos-registros.md)); o gate segue aberto: a construção caiu para 40%-56% da consulta no 17 e no 18 e a decisão do
+  orçamento é do mantenedor.
   Continuam pendentes a `sonda_pooler` contra o pooler da aplicação e o `pg` sob o Falcon em Ruby 4.0.9 com o
   adaptador Rack (hoje só medido em Ruby 3.3.6). O
   analisador do compilador já recusa `Sequel`, `ActiveRecord` e `PG` num `call` (#34), mas a regra sobre
@@ -670,7 +686,8 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
 
 1. [ ] Persistência, rodada 5: um executor **parcial** do ADR-016, sem histórico, auditoria nem adaptadores, em duas
    fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo, **decidida na K14**, e a
-   construção dos registros, na C11), o ator de sistema, a idempotência e a autorização em Ruby; a fase B, o executor (despacho,
+   construção dos registros, implementada na C11 com ADR-042 proposto e gate aberto), o ator de sistema, a
+   idempotência e a autorização em Ruby; a fase B, o executor (despacho,
    autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, é
    replanejada ao fim da fase A. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está

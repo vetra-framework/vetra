@@ -22,7 +22,7 @@ module Vetra
             raise Error.single('data_record_type', 'Nome do campo colide com método do registro.')
           end
         end
-        @types, @repositories = {}, {}
+        @types, @repositories, @readers = {}, {}, {}
         @entities.each_value do |entity|
           type = ::Data.define(*entity['fields'].map { |field| field['name'].to_sym })
           type.include(Record)
@@ -41,6 +41,7 @@ module Vetra
             type.class_eval("def #{name}?; enum_group?(#{name.dump}); end", __FILE__, __LINE__)
           end
           @types[entity['id']] = type.freeze
+          @readers[entity['id']] = RowReader.new(entity['fields'], type)
           repository = Class.new(Repository)
           entity['relations'].select { |relation| relation['kind'] == 'many_to_many' }.each do |relation|
             junction = @entities.fetch(relation.dig('through', 'id'))
@@ -60,6 +61,7 @@ module Vetra
         end
         @types.freeze
         @repositories.freeze
+        @readers.freeze
         @entity_ids = @entities.keys.sort.freeze
         @tenant_app = !schema.document.dig('app', 'tenant').nil?
         @emits = emissions(schema.document['nodes'])
@@ -135,7 +137,8 @@ module Vetra
 
       def build(entity_id, unit, access)
         @repositories.fetch(entity_id).new(catalog: self, unit: unit, access: access,
-          entity: @entities.fetch(entity_id), table: @tables.fetch(entity_id), record_type: @types.fetch(entity_id), currency: @currency)
+          entity: @entities.fetch(entity_id), table: @tables.fetch(entity_id), record_type: @types.fetch(entity_id),
+          row_reader: @readers.fetch(entity_id), currency: @currency)
       end
     end
   end

@@ -489,33 +489,51 @@ class ContextCostProbe < RelayProbe
     work = Vetra::Data::UnitOfWork.new(@runtime, issuer: @issuer)
     catalog = Vetra::Data::Repositories.new(@linked.document)
     claims = { tenant_id: other, actor_id: manager, cmd: 'crm.read_lead' }
-    query, build = [], []
-    7.times do
+    query, build, total, valid = [], [], [], []
+    7.times do |round|
       work.read(**claims.merge(op_id: SecureRandom.uuid)) do |unit|
-        unit.access(multi_tenant: true) do |db|
-          began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          rows = db[Sequel[:public][:leads]].where(company_id: other).order(:id).all
-          query << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - began)
-          raise 'consulta incompleta' unless rows.size == 10_000
-        end
         repository = catalog.bind('crm.leads_read', unit: unit)
-        began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        records = repository.all
-        build << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - began)
-        raise 'registros incompletos' unless records.size == 10_000 && Ractor.shareable?(records.first)
+        rows, records, hydrated = nil, nil, nil
+        # Alterna a consulta completa do repositório com a série consulta Sequel + conversão das mesmas linhas.
+        # Construção é medida diretamente: subtrair duas consultas ruidosas chegou a produzir custo negativo na K13.
+        operations = [lambda do
+          unit.access(multi_tenant: true) do |db|
+            began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            rows = db[Sequel[:public][:leads]].where(company_id: other).order(:id).all
+            query << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - began)
+          end
+          began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          hydrated = rows.map { |row| repository.__send__(:read_record!, row) }.freeze
+          build << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - began)
+        end, lambda do
+          began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          records = repository.all
+          total << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - began)
+        end]
+        operations.rotate(round % 2).each(&:call)
+        # Fora da região medida. A construção é imediata: igualdade e to_h já observam todos os campos convertidos.
+        valid << (rows.size == 10_000 && records.size == 10_000 && hydrated == records &&
+                  records.all? { |record| Ractor.shareable?(record) && record.created_at.utc? &&
+                    record.valor.amount == BigDecimal('123.45') && record.valor.currency == 'BRL' })
       end
     end
-    query_ms, total_ms = median(query) * 1000, median(build) * 1000
-    construction = total_ms - query_ms
+    check_case('10.000 registros imediatos coincidem com a leitura completa, com Money, UTC e compartilhamento') { valid.all? }
+    query_ms, total_ms = median(query) * 1000, median(total) * 1000
+    construction = median(build) * 1000
     ratio = construction / query_ms
     @report << ''
     @report << "Gate do ADR-022, §3 (aproximação: 9 campos lógicos, 10 colunas), Ruby #{RUBY_VERSION}, PostgreSQL #{@admin.server_version}: " \
-               '10.000 leads, mediana de 7'
-    @report << '| Consulta (Sequel) | Repositório (consulta e registros) | Construção dos registros | Construção / consulta | Limiar |'
-    @report << '|---|---|---|---|---|'
+               '10.000 leads, mediana de 7; conversão imediata do ADR-042, medida sobre as linhas da mesma consulta'
+    @report << '| Consulta (Sequel) | Repositório (consulta e registros) | Construção direta dos registros | µs / registro | Construção / consulta | Limiar vigente |'
+    @report << '|---|---|---|---|---|---|'
     @report << "| #{format('%.1f', query_ms).tr('.', ',')} ms | #{format('%.1f', total_ms).tr('.', ',')} ms | " \
-               "#{format('%.1f', construction).tr('.', ',')} ms | #{format('%.0f', ratio * 100)}% | #{(RECORDS_LIMIT * 100).round}% |"
-    ratios = (0...query.size).map { |index| (build[index] - query[index]) / query[index] * 100 }
+               "#{format('%.1f', construction).tr('.', ',')} ms | #{format('%.3f', construction / 10).tr('.', ',')} | " \
+               "#{format('%.0f', ratio * 100)}% | #{(RECORDS_LIMIT * 100).round}% |"
+    ratios = (0...query.size).map do |index|
+      @detail << "- Registros, rodada #{index + 1}: consulta #{ms(query[index] * 1000)}, construção #{ms(build[index] * 1000)}, " \
+                 "repositório #{ms(total[index] * 1000)} ms"
+      build[index] / query[index] * 100
+    end
     threshold('ADR-022, §3: construção dos registros sobre a consulta, por execução', ratios, RECORDS_LIMIT * 100, '%')
   ensure
     close_runtime

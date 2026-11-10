@@ -38,6 +38,11 @@ O [ADR-041](041-forma-da-politica-de-escopo.md), aceito, decide a forma do SQL d
 com a escrita medida por ação: a lista de unidades do ator lida uma vez por instrução, com as concessões da ação
 fundidas num só predicado. Substitui em parte a decisão 3 da questão 2 do ADR-023 (só a forma do SQL).
 
+O [ADR-042](042-construcao-dos-registros.md), proposto, escolhe a conversão imediata de leitura após medir também
+a construção sob demanda em Ruby. Preserva os registros `Data` e a entrada estrita; o gate de 10% do ADR-022
+continua aberto: no PostgreSQL 17 e 18 a construção custa de 40% a 56% da consulta (antes, de 136% a 167%), e a decisão do
+orçamento é do mantenedor.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -83,6 +88,7 @@ fundidas num só predicado. Substitui em parte a decisão 3 da questão 2 do ADR
 | [039](039-unidade-de-trabalho-e-repositorios.md) | Unidade de trabalho, emissão do contexto e contrato dos repositórios | aceito |
 | [040](040-papeis-e-rls-da-outbox.md) | Papéis, RLS e armazenamento da outbox | aceito |
 | [041](041-forma-da-politica-de-escopo.md) | Forma da política de escopo por vínculo | aceito |
+| [042](042-construcao-dos-registros.md) | Construção dos registros | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

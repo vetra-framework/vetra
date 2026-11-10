@@ -70,7 +70,7 @@ tarefas seguem a ordem da tabela.
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | K14 | Forma da política de escopo: ADR-041 (aceito por delegação), escrita medida por ação, permissões comparadas e as formas avaliadas | Claude | concluída | `4456826` | Rodada 1 devolvida pelo Codex; rodada 2 aprovada; CI verde; sonda 4/4 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k14)) |
-| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | em andamento | — | Auditoria pelo Claude, com sonda |
+| C11 | Construção dos registros: ADR-042 proposto, caminho de leitura sem a validação que o banco já garante e o gate do ADR-022, §3 refeito | Codex | integrada, CI pendente | — | Auditada pelo Claude; ADR-042 proposto, gate de 10% aberto ([auditoria](#auditoria-c11)) |
 | C12 | `graph:build` recusa campo cujo nome colide com método do registro `Data` | Codex | a fazer | — | — |
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | a fazer | — | — |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | a fazer | — | — |
@@ -162,6 +162,23 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Auditoria C11
+
+Implementado pelo Codex sobre `df40e80`; auditado pelo Claude (leitura do diff completo, suíte, gate e sondas). O Claude
+executou as sondas no PostgreSQL 18.6 e num 17.11 local, que o sandbox do Codex não alcança. O ADR-042 **continua proposto**:
+o aceite depende da decisão do mantenedor sobre o orçamento do gate.
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| O ADR-042 estimava cerca de 23% da consulta a partir da medição em Ruby e dos 17 µs por linha da K13; no PostgreSQL a construção ficou de 40% a 56% (7 a 10 µs por registro) | não | Ajustar: o ADR, o relatório da sonda e as docs trazem os números medidos, e a estimativa é registrada como errada |
+| O orçamento absoluto de 10 µs por registro, proposto antes da medição, seria atendido no limite (7,2 a 10,1 µs) | não | Ajustar: o ADR registra a ressalva; a decisão continua do mantenedor, e o limiar vigente segue 10% |
+| A primeira medição de custo rodou com os dois servidores ao mesmo tempo | não | Ajustar: repetida em sequência, duas execuções por versão |
+| O leitor captura `NoMethodError` e o converte em `data_read_value`, o que poderia esconder um defeito do próprio leitor | não | Não ajustar: o contrato é que toda linha incompatível vira o erro de leitura, e a equivalência com a C10 é testada em todos os campos dos quatro exemplos |
+
+**Verificações.** Suíte, 223/223 diagnósticos, gate sem diferenças e `db:plan` sem mudanças; sondas no 17 e no 18: Vetra Data 23,
+repositórios 72, outbox 36 e custo do contexto 5/5. Construção dos registros: de 136%-167% (K13) para 40%-56% da consulta; o gate
+de 10% do ADR-022 **não é alcançado** e permanece aberto.
 
 ## Auditoria K14
 

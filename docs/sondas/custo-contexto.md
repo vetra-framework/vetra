@@ -128,6 +128,24 @@ mesma execução continuaram em 166% (18) e 177% (17). Por isso o veredito usa a
 aproximação do cenário do ADR (9 campos lógicos, 10 colunas): ela captura o custo adicional do repositório sobre a
 mesma consulta, mas não é literalmente a carga de 10 campos.
 
+### ADR-022, §3, depois da C11: conversão imediata de leitura ([ADR-042](../adr/042-construcao-dos-registros.md))
+
+A sonda passou a cronometrar a construção diretamente sobre as linhas que a consulta trouxe, em vez de subtrair duas
+consultas ruidosas, e alterna a série do repositório completo com a série consulta mais conversão. Mesma carga (10.000
+leads, 9 campos lógicos, 10 colunas), mediana de sete rodadas por execução, uma versão do PostgreSQL por vez:
+
+| Execução | Consulta | Construção direta | µs por registro | Construção / consulta |
+|---|---:|---:|---:|---:|
+| PostgreSQL 18.6, 1 | 166,6 ms | 92,5 ms | 9,25 | 56% |
+| PostgreSQL 18.6, 2 | 182,0 ms | 72,4 ms | 7,24 | 40% |
+| PostgreSQL 17.11, 1 | 176,6 ms | 78,3 ms | 7,83 | 44% |
+| PostgreSQL 17.11, 2 | 204,1 ms | 100,7 ms | 10,07 | 49% |
+
+A construção caiu de 263 a 285 ms (K13) para 72 a 101 ms, de três a quatro vezes, mas a razão de 40% a 56% continua
+acima do limiar de 10%: o gate do ADR-022, §3 **não é alcançado**, e o ADR-042 o deixa aberto para decisão do mantenedor.
+Uma execução anterior, com os dois servidores medindo ao mesmo tempo, deu 41% e 49%: a dispersão entre rodadas é grande
+(a construção, de 50 a 167 ms). As conferências funcionais passaram, 5/5 nas quatro execuções.
+
 ## O que decide
 
 - **Questão 1: dentro na ordem de grandeza localmente; inconclusivo.** O desenho do contexto assinado do ADR-005 não é

@@ -120,6 +120,23 @@ antes de qualquer SELECT ou DML da operação.
 strings, hashes, arrays e datas. O registro não tem escritores nem métodos de persistência, e é compartilhável
 entre Ractors. Grupos de enum produzem predicados do tipo, como `lead.closed?`.
 
+Na leitura de SELECT/RETURNING, o [ADR-042 proposto](adr/042-construcao-dos-registros.md) usa conversão imediata
+própria para a linha tipada do Sequel/pg: o DDL garante tipo, nulidade, enum, comprimento e faixa; o leitor monta
+`Money`, retira wrappers de JSON, entrega UTC e congela os valores sem a segunda cópia do construtor público.
+`numeric(p,s)` já vem como `BigDecimal` exato na escala física. A faixa de anos 1–9999, microssegundos e números
+JSON finitos continuam conferidos, assim como o compartilhamento do registro final. Strings/datas da linha podem
+ser congeladas no lugar. Entrada de `create!`, `update!`, IDs e igualdades conserva toda a validação estrita.
+
+Igualdade, `hash`, `inspect`, `to_h`, pattern matching e `with` mantêm o contrato do mesmo `Data`, com os valores
+prontos antes do retorno. Falha de conversão, coluna ausente ou invariante residual produz `data_read_value`
+durante a leitura, sem dados na mensagem ou na causa. O leitor confia na correspondência entre IR, DDL aplicado e
+driver; não revalida todo hash artificial que viole o banco, como enum desconhecido ou NULL obrigatório.
+
+A medição Ruby sem banco é reproduzível com `bundle exec ruby script/medir_construcao_registros.rb`; compara a
+C10, a conversão escolhida, a construção sob demanda com acesso completo e o piso de `Data.new`. O custo medido
+não declara cumprido o gate de 10% do ADR-022. A sonda PostgreSQL abaixo mantém esse limiar; seu resultado e
+qualquer proposta de orçamento absoluto dependem, respectivamente, da auditoria e da decisão do mantenedor.
+
 `Repositories.new` recusa no runtime campos cujos nomes coincidam com métodos públicos ou protegidos do
 registro, inclusive os herdados de Object/Kernel, como `hash`, `class`, `with` e `public_send`. A recusa usa
 `data_record_type` e acontece antes de gerar qualquer tipo de entidade. A antecipação dessa checagem no
@@ -244,6 +261,7 @@ sem RLS de tenant/escopo ou revisão nessas aplicações; a autorização é da 
 | `data_relation` | Junção inelegível ou colisão de métodos gerados de vínculo |
 | `data_field` | Campo desconhecido ou expressão usada como nome de campo |
 | `data_value` | Valor inválido para o tipo, nulidade, limites ou precisão |
+| `data_read_value` | Linha do banco incompatível na conversão ou nas invariantes residuais, sem causa/valores |
 | `data_assignment` | Tentativa de atribuir identidade, tenant ou timestamp reservado |
 | `data_query` | Bloco ou limite inválido na consulta restrita |
 | `data_read_only` | Escrita/lock sem capacidade ou unidade gravável |
@@ -399,3 +417,26 @@ As 72 verificações são:
 Sintaxe e execução dos corpos com `Sequel.mock` são conferidas sem banco. O Claude executa esta sonda no 17/18
 e acrescenta a chamada à CI. Só a execução real confirma SQL, triggers, RLS e corridas; serialização/deadlock
 são classificados nos testes sem banco. O gate de custo dos registros continua na medição do ADR-022.
+
+## Sonda do custo do contexto e dos registros
+
+`DATABASE_URL=... VETRA_APP_PASSWORD=... bundle exec ruby script/sonda_custo_contexto.rb`, com o mesmo bootstrap e
+cluster descartável 17/18. As cinco conferências funcionais esperadas são:
+
+| Verificação | Resultado esperado |
+|---|---|
+| Isolamento antes de medir | Sem contexto/MAC inválido, zero linhas; token válido vê só as 4.000 linhas do tenant |
+| Escopo por vínculo | Os mesmos IDs da política real para gerentes, vendedor, papéis mistos e ator sem vínculos |
+| Planos da leitura | Nenhum Seq Scan da tabela inteira de vínculos, com 1, 10 e 100 revendas |
+| Registros | 10.000 valores iguais entre conversão direta e repositório completo, com Money, UTC e compartilhamento |
+| Papéis | Nenhum papel global alterado |
+
+Na parte de registros, sete rodadas alternam o repositório completo e a série Sequel + conversão das mesmas
+linhas. A construção é cronometrada diretamente, com congelamento; não é a diferença entre duas consultas.
+Relata ms totais, µs por registro e a razão construção/consulta, ainda contra **10%**. A carga real continua uma
+aproximação de nove campos lógicos/dez colunas. O script Ruby cobre também dez campos mistos. Não há construção
+sob demanda no caminho escolhido nem conversão transferida para acessos posteriores.
+
+A execução no PostgreSQL 17.11 e 18.6 passa as cinco conferências e mede a construção em 7 a 10 µs por registro, de 40% a 56%
+da consulta (antes da C11, de 136% a 167%): o gate de 10% do ADR-022 não é alcançado ([ADR-042](adr/042-construcao-dos-registros.md)).
+Os limiares dos ADRs 022 e 023 continuam informativos na sonda, sem cumprir o teste de aceitação 6 do ADR-023.
