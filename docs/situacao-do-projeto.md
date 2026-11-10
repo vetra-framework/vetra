@@ -744,9 +744,10 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo, **decidida na K14**, e a
    construção dos registros, implementada na C11 com ADR-042 proposto e gate aberto), o ator de sistema (K15, implementado; custo
    pendente de decisão do mantenedor), a
-   idempotência (K16, implementada) e a autorização em Ruby; a fase B, o executor (despacho,
-   autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, é
-   replanejada ao fim da fase A. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
+   idempotência (K16, implementada) e a autorização em Ruby (C13, ADR-044 proposto); a fase B, o executor (despacho,
+   autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, foi
+   **replanejada na P5** (parecer do Codex em duas rodadas, aprovada): C15 (limites da unidade), K17 (borda e despacho), C16
+   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a K17 não começou. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
    pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
 2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:

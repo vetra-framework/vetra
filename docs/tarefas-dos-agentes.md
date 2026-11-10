@@ -75,9 +75,11 @@ tarefas seguem a ordem da tabela.
 | K15 | Ator de sistema (ADR-024, §4) só em aplicações com tenant: claim, `vetra.is_system_actor()`, condição nas políticas, tradução incremental das rotinas de contexto e das guardas | Claude | concluída | `e84dc76` | Rodada 1 aprovada pelo Codex; CI verde; sondas 78 (contexto) e 112 (RLS) no PostgreSQL 17 e 18; custo da `vt_system` pendente de decisão do mantenedor ([auditoria](#auditoria-k15)) |
 | K16 | Idempotência da operação: ADR-043 proposto, `vetra.idempotency` nos quatro exemplos (contexto global incluído), retenção por origem e a purga | Claude | concluída | `146128a` | Rodadas 1 e 2 devolvidas pelo Codex; rodada 3 aprovada; CI verde; sonda 83 no PostgreSQL 17 e 18 ([auditoria](#auditoria-k16)) |
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | concluída | `8a224a1` | Auditada pelo Claude; CI verde; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
-| P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | a fazer | — | — |
-| K17 | Executor I (fase B): borda interna, capacidades, primitivas CRUD e de vínculo, timeouts por operação e os limites que protegem o `xmin` | Claude | a fazer | — | — |
-| K18 | Executor II (fase B): autorização nos acessos dos repositórios, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
+| P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
+| C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | a fazer | — | — |
+| K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | a fazer | — | — |
+| C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | a fazer | — | — |
+| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
@@ -162,6 +164,26 @@ bloqueantes:
 |---|---|---|
 | O plano chama de "leitura" do ADR-025, §1 o que é comparar com outro artefato | não | Ajustar: o ADR-038 diz expressamente como complementa o §1, inclusive segurança e infraestrutura, e o replay prova a equivalência entre modelo, planos e retrato |
 | Faltava a recuperação de uma partição `DEFAULT` populada antes da primeira manutenção | não | Ajustar: a K12 prepara as partições antes de liberar quem grava, com uma sonda de recuperação sem perda nem duplicação |
+
+## Parecer do Codex sobre o replanejamento da fase B (P5)
+
+**Primeira rodada — devolvida pelo Codex** (base `f64da31`, somente leitura). Confirmou as afirmações centrais (cinco testes e dois guias
+citam `executor: "pending"`; `graph:diff` já trata `calls` como permissão; os dois handlers têm `calls: []` e tenant; o visitante do blog
+depende de `rate_limit:`; a unidade fixa o isolamento e não recebe limites), a ordem sem ciclo e o tamanho da K18 com a divisão prevista.
+Sete achados, três bloqueantes; a decisão de cada um é do Claude.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `Repository#execute` converte `55P03` e `57014` no mesmo `data_database`; só a idempotência traduz `55P03` para `Conflict(:lock_timeout)`, e nenhuma entrega corrigia os acessos comuns | sim | Ajustar: a C15 traduz os dois estouros nos repositórios para erros próprios e retentáveis, com testes e sonda; a K19 os mapeia para 409 e para a resposta retentável |
+| A autoridade de revisão de referência estava subespecificada: faltavam a leitura consistente, a geração para mudanças externas de identidade e a prova de invalidação, revogação e perda de continuidade | sim | Ajustar: a K17 fixa o marcador composto nos CRMs, a geração em processo publicada pelo `Runner` em blog e chat, o limite de um processo dito no ADR-045, e a sonda exige invalidação, revogação e autoridade fora do ar |
+| A chave derivada só do `event_id` colide entre dois handlers do mesmo evento que chamam o mesmo comando, porque a unicidade é `(tenant, comando, chave)` e o principal não a separa | sim | Ajustar: a chave deriva do handler e do `event_id`, e a fixture da C14 tem dois handlers no mesmo evento |
+| "Só o provedor muda" prometia demais: a alternativa 1 do ADR-044 também revê a etapa 3 e o teste 1 | não | Ajustar: o texto passa a dizer que a injeção reduz o retrabalho, sem eliminá-lo |
+| A lista de testes integrais pendentes omitia o teste 2, que também pede histórico | não | Ajustar: o teste 2 entra, com a parte de dados, evento e idempotência verificada na rodada |
+| A K20 não tinha a medição do custo da escrita em `vetra.idempotency`, que o ADR-043 lhe atribui | não | Ajustar: a medição com e sem chave entra na K20 |
+| "Quase toda a autorização" do chat não se sustenta: `members` está em três das seis políticas | não | Ajustar: o texto diz três das seis políticas |
+
+**Segunda rodada — aprovada pelo Codex.** Os sete ajustes fecham os achados, sem afirmação falsa nem contradição nova. O plano foi integrado;
+a C15 é a próxima tarefa, e o aceite do ADR-044, a saída da `vt_system` e o aceite do ADR-042 seguem com o mantenedor, sem bloquear tarefa.
 
 ## Auditoria C13
 
