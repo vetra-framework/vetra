@@ -178,6 +178,8 @@ jobs:
         run: bundle exec ruby script/sonda_acessos.rb
       - name: Fechamento do Runner, com eventos, idempotência, status e repetição por transações concorrentes (ADR-047)
         run: bundle exec ruby script/sonda_fechamento.rb
+      - name: Handlers de sistema, com relay real, queda do worker, retenção da chave e timeout total (ADR-048)
+        run: bundle exec ruby script/sonda_handlers.rb
       - name: Registro de idempotência da operação, concorrência, privilégios e purga (ADR-043)
         run: bundle exec ruby script/sonda_idempotencia.rb
       - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)

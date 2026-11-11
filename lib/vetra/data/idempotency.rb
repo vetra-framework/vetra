@@ -47,7 +47,8 @@ module Vetra
         principal = principal_of(context)
         row = { tenant_id: context.tenant_id, command: command, key: key, origin: origin.to_s, principal: principal,
                 input_hash: Sequel.blob(hash), handler: event&.fetch(:handler), event_id: event&.fetch(:event_id),
-                event_created_at: event&.fetch(:event_created_at) }
+                # Texto com fuso: a retenção compara o instante exato, mesmo com a sessão em outro fuso.
+                event_created_at: event && Sequel.cast(event.fetch(:event_created_at).getutc.iso8601(6), :timestamptz) }
         # A linha pode sumir entre o INSERT que não inseriu e a leitura (a purga a apagou): a chave voltou a ser livre, e uma
         # segunda tentativa a reivindica. Três tentativas bastam; mais que isso não é corrida, é estado inconsistente.
         3.times do

@@ -4,6 +4,10 @@ require 'securerandom'
 
 module Vetra
   module Execution
+    # Cancelamento do handler: atravessa o mapeamento de StandardError do Runner. O controle da transação o adia
+    # durante BEGIN/COMMIT/ROLLBACK; dentro do bloco da unidade ele interrompe e provoca rollback.
+    class HandlerTimeout < Exception; end # rubocop:disable Lint/InheritException
+
     # Relógio da operação: o instante da unidade, compartilhado pelas criações e composições (capacidade `clock`).
     OperationClock = ::Data.define(:now) do
       def inspect = '#<Vetra::Execution::OperationClock>'
@@ -101,13 +105,13 @@ module Vetra
         freeze
       end
 
-      def run(operation_id, input, credentials: nil, idempotency_key: nil)
-        perform(operation_id, input, credentials, idempotency_key, false)
+      def run(operation_id, input, credentials: nil, idempotency_key: nil, idempotency_origin: :adapter, idempotency_event: nil)
+        perform(operation_id, input, credentials, idempotency_key, false, idempotency_origin, idempotency_event)
       end
 
       # Igual a `run`, mas o erro depois da etapa 4 (e das repetições) levanta como erro de dados, para testes e diagnóstico.
-      def run!(operation_id, input, credentials: nil, idempotency_key: nil)
-        perform(operation_id, input, credentials, idempotency_key, true)
+      def run!(operation_id, input, credentials: nil, idempotency_key: nil, idempotency_origin: :adapter, idempotency_event: nil)
+        perform(operation_id, input, credentials, idempotency_key, true, idempotency_origin, idempotency_event)
       end
 
       # A forma JSON do resultado de uma operação, a mesma que o registro de idempotência guarda e devolve na repetição: os campos
@@ -122,7 +126,7 @@ module Vetra
 
       private
 
-      def perform(operation_id, input, credentials, key, raising)
+      def perform(operation_id, input, credentials, key, raising, origin, event)
         operation = @operations.fetch(operation_id) do
           raise Error.single('data_execution_operation', 'Operação não é um comando ou consulta desta IR.')
         end
@@ -131,12 +135,15 @@ module Vetra
         context = context_for(identity, operation)
         normalized = validate(operation_id, input)                        # 2
         key_input = check_key!(operation, key, normalized)
+        check_origin!(key, origin, event, identity)
         # `while`, e não `loop`: o `loop` engoliria um StopIteration levantado pelo corpo e devolveria o rollback como resultado.
         while true # rubocop:disable Style/InfiniteLoop
           attempt += 1
           authorize(operation_id, normalized, context, identity)          # 3
           begin
-            value, replayed = attempt_unit(operation, identity, context, normalized, key, key_input) # 4 a 8
+            value, replayed = Thread.handle_interrupt(HandlerTimeout => :never) do
+              attempt_unit(operation, identity, context, normalized, key, key_input, origin, event) # 4 a 8
+            end
             return Outcome.new(status: :ok, value: value, replayed: replayed, attempts: attempt)
           rescue Data::Error => error
             if repeat?(error, operation) && attempt <= MAX_RETRIES
@@ -158,6 +165,19 @@ module Vetra
 
       def refuse!(status, error)
         raise Refusal.new(status, error.diagnostics), cause: nil
+      end
+
+      # A borda de eventos é interna: a retenção só vale para o handler que é o principal, numa aplicação com outbox.
+      def check_origin!(key, origin, event, identity)
+        valid = origin == :adapter && event.nil?
+        if origin == :event
+          valid = key && SQL::Outbox.needed?(@linked.document) && identity.system_actor &&
+                  event.is_a?(Hash) && event.keys.size == 3 && (event.keys - %i[event_created_at event_id handler]).empty? &&
+                  event[:handler] == identity.system_actor && event[:event_id].is_a?(String) &&
+                  event[:event_id].ascii_only? && Data::Context::UUID.match?(event[:event_id]) && event[:event_created_at].is_a?(Time)
+        end
+        return if valid
+        refuse!(:invalid, Error.single('execution_idempotency_origin', 'Origem de idempotência incompatível com o evento e o ator de sistema.'))
       end
 
       def resolve(credentials)
@@ -314,8 +334,8 @@ module Vetra
       end
 
       # Uma tentativa das etapas 4 a 8. Devolve [valor, repetição de resultado guardado].
-      def attempt_unit(operation, identity, context, input, key, key_input)
-        in_unit(operation, identity, context, input, key, key_input) { |unit| execute(unit, operation, input) }
+      def attempt_unit(operation, identity, context, input, key, key_input, origin, event)
+        in_unit(operation, identity, context, input, key, key_input, origin, event) { |unit| execute(unit, operation, input) }
       rescue Sequel::DatabaseError => error
         # BEGIN e COMMIT: a unidade só traduz os erros retentáveis. O resto sai como erro de dados, sem a mensagem do driver.
         raise Data::DatabaseErrors.translate(error), cause: nil
@@ -323,7 +343,7 @@ module Vetra
         confirm(operation, context)                                       # 8
       end
 
-      def in_unit(operation, identity, context, input, key, key_input)
+      def in_unit(operation, identity, context, input, key, key_input, origin, event)
         claims = { actor_id: context.actor_id, system_actor: context.system_actor, op_id: context.op_id, cmd: context.cmd }.merge(@unit_options)
         claims[:tenant_id] = context.tenant_id if context.scope == :tenant
         mode = operation['kind'] == 'query' ? :read : :transaction
@@ -331,17 +351,19 @@ module Vetra
         @unit.public_send(mode, **claims, guard: guard) do |unit|
           closed = false
           begin
-            # Etapa 4: a chave é reivindicada na unidade, no contexto transacional da operação; cada tentativa a reivindica de novo.
-            claim = key && Data::Idempotency.new(unit).claim!(command: operation['id'], key: key, input: key_input)
-            if claim&.replay
+            Thread.handle_interrupt(HandlerTimeout => :immediate) do
+              # Etapa 4: a chave é reivindicada na unidade, no contexto transacional da operação; cada tentativa a reivindica de novo.
+              claim = key && Data::Idempotency.new(unit).claim!(command: operation['id'], key: key, input: key_input, origin: origin, event: event)
+              if claim&.replay
+                closed = true
+                next [claim.result, true]
+              end
+              result = yield unit
+              persist(unit, operation, result, guard)
+              register(unit, operation, result, claim)
               closed = true
-              next [claim.result, true]
+              [result, false]
             end
-            result = yield unit
-            persist(unit, operation, result, guard)
-            register(unit, operation, result, claim)
-            closed = true
-            [result, false]
           ensure
             # Um call que sai por `throw` (ou `break`) pularia a reautorização e o Sequel confirmaria a transação: sem o
             # fechamento completo, ela nunca é confirmada.

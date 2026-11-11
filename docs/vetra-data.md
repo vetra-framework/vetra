@@ -2,7 +2,7 @@
 
 O Vetra Data abre unidades de trabalho PostgreSQL pelo Sequel, como `vetra_app`, e emite o contexto assinado
 validado pelas funções dos planos atuais. O contrato está no [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md).
-Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O `Runner` (K17, K18 e K19) despacha as operações com a borda, a guarda dos acessos e o fechamento transacional (eventos, idempotência e repetição); os handlers ainda não existem nele.
+Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O `Runner` (K17, K18 e K19) despacha as operações com a borda, a guarda dos acessos e o fechamento transacional (eventos, idempotência e repetição); o `HandlerRunner` liga os handlers ao relay e aos comandos.
 `Vetra::Execution` valida a entrada e avalia a autorização antes da unidade, conforme o
 [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md); a aplicação dessas decisões ao despacho e aos
 acessos dos repositórios está no `Runner` (K17) e na guarda dos acessos (K18, ADR-046).
@@ -71,7 +71,7 @@ end
 
 Sem `actor_id`, `vetra.current_actor()` é NULL e as políticas de escopo por vínculo não casam; a permissiva `vt_system`
 dá o alcance do tenant do evento. Eventos gravados por esse ator levam `actor_id` nulo. A autorização do comando pelo
-`calls` do handler (etapas 3 e 6 do ADR-016) é do executor, nas tarefas seguintes da rodada 5.
+`calls` do handler (etapas 3 e 6 do ADR-016) é conferida pelo executor.
 
 UUIDs são canônicos minúsculos. `operator_id:` opcional também é UUID. A transação externa recebe
 `set_config('vetra.ctx', token, true)` parametrizado uma única vez, antes do corpo. O contexto some no commit e
@@ -242,8 +242,7 @@ isolamento é o contexto da unidade e o RLS dos planos dos CRMs, nos limites do 
 responsável por autorizar as chamadas. **Sob o `Runner`**, a guarda do [ADR-046](adr/046-autorizacao-dos-acessos-e-estado-final.md)
 autoriza cada acesso e o estado final (veja [Autorização dos acessos](#autorização-dos-acessos-pelo-runner)).
 A emissão para a outbox e o relay estão descritos abaixo. O `Runner` das etapas 1 a 5 e 8 e a execução das
-primitivas builtin estão em [Executar uma operação](#executar-uma-operação-pelo-runner); os handlers reais, o
-histórico e a auditoria são entregas posteriores.
+primitivas builtin estão em [Executar uma operação](#executar-uma-operação-pelo-runner); o histórico e a auditoria são entregas posteriores.
 
 ## Entrada e autorização antes da unidade
 
@@ -460,7 +459,7 @@ invalidam snapshots. O provedor lê a junção inteira, dentro do limite de 10.0
 excesso). `chat.read_room`, `chat.read_message` e `chat.create_message` admitem membros da sala; o dono precisa do vínculo
 como os demais. Add/remove_member publicam a geração depois do commit e invalidam fatos anteriores.
 
-**O que ainda não existe.** Os handlers de sistema (C14), o histórico e a auditoria, a composição de comandos pelo `call` e os adaptadores.
+**O que ainda não existe.** O histórico e a auditoria, a composição de comandos pelo `call` de um comando e os adaptadores.
 Um comando composto não empresta a autoridade de transição de outro (ADR-039).
 
 ### Duas contagens de transações
@@ -519,7 +518,7 @@ onde não há RLS; nos CRMs o `WITH CHECK` recusa primeiro, e as duas recusas co
 
 **Ator de sistema.** `Identity.new(tenant_id:, system_actor: 'crm.notify_sales')`: a etapa 3 autoriza o comando se, e somente se, ele
 está nos `calls` do handler de mesmo `id`, sem papéis, fatos nem revisão; a guarda não aplica políticas de papéis, e o tenant do
-evento segue isolado pelo repositório e pelo RLS (`vt_system`). O runner dos handlers é da C14.
+evento segue isolado pelo repositório e pelo RLS (`vt_system`). O runner dos handlers está descrito em [Handlers de sistema](#handlers-de-sistema).
 
 ### Sonda dos acessos
 
@@ -618,7 +617,7 @@ end
   erro, inclusive dentro de `compose` e numa saída por `throw`, `break` ou `return` (`rollback_on_exit`).
 
 Com a manutenção em dia, cada evento cai na partição do seu dia; sem ela, na `DEFAULT`, que a manutenção recupera.
-Os handlers reais, com o ator de sistema, são da rodada 5; o relay e as entregas estão descritos abaixo.
+Os handlers usam o ator de sistema; o relay e as entregas estão descritos abaixo.
 
 ## Relay, entregas e manutenção
 
@@ -699,6 +698,46 @@ end
   adaptador mais velhas que o prazo e, numa aplicação com outbox, as de evento cuja entrega já não existe (nem em `deliveries` nem em
   `dead_deliveries`) e que também passaram do prazo. `vetra idempotency:purge [--retention-hours 24] [--batch 1000]` faz o mesmo pela
   linha de comando, com `DATABASE_URL` carregando a senha do `vetra_relay`.
+
+## Handlers de sistema
+
+`Vetra::Execution::HandlerRunner.new(linked:, relay:, runner:, effects:)` executa
+`work('crm.notify_sales', limit: 10)` com uma reserva por vez, pelo relay. O Runner injetado usa o mesmo grafo, pool
+`vetra_app` e borda interna que aceite a `Identity` confiável; o relay usa outro pool, `vetra_relay`. O tenant vem
+da entrega e `system_actor` é o ID do handler. Aplicação sem tenant/outbox recusa a carga: blog e chat não rodam
+handlers de sistema. O retorno de `work` conta `done`, `retry`, `dead` e `lost`.
+
+No `call`, `call_command(:nome, { campo: valor })` (ou ID completo do comando) chama somente comandos de `calls`,
+pelo Runner, com uma unidade independente por comando. Devolve o JSON imutável do contrato de saída, igual numa
+primeira execução e num replay. O bloco recebe o payload imutável com campos declarados do evento e as capacidades
+de `uses`; `calls: []` continua permitindo executar só o efeito externo. `effects` mapeia o ID da capacidade para
+um provedor confiável, por exemplo `{ 'crm.mailer' => mailer }`. A fachada congelada encaminha `deliver` e injeta
+`idempotency_key:` se a capacidade declarar `idempotency_key true`, além de impor seu timeout. Restrições de hosts
+e protocolo são do provedor; não há adaptador HTTP genérico. `core.clock` usa o instante do evento; outros
+executores de capacidades, inclusive repositório direto no handler, recusam a carga nesta versão.
+
+A chave base é `event:` + SHA-256 do JSON canônico `[handler_id, event_id]`; comandos e capacidades usam essa
+mesma base na primeira chamada. A segunda chamada ao mesmo comando ou capacidade acrescenta `:2`, e assim por
+diante. Ordem e argumentos precisam ser estáveis entre tentativas e deploys. Dois handlers do mesmo evento têm
+chaves distintas; o principal é `system:<handler>`. O Runner mantém o padrão de origem `adapter` e aceita
+`idempotency_origin: :event, idempotency_event: { handler:, event_id:, event_created_at: }` para o handler da
+identidade, com chave e outbox. A retenção preserva essas chaves enquanto houver entrega, inclusive `dead`.
+Saída pessoal recusada antes da etapa 4 (`execution_idempotency_personal`) torna a entrega permanentemente falha;
+não se remove a chave. Outras recusas definitivas, `fail!` e `Relay::PermanentFailure` também vão a `dead`;
+erros retentáveis ou de servidor pedem nova tentativa.
+
+O timeout **total** é 30 s com lease de 60 s, além dos timeouts individuais. A opção de infraestrutura `timeout:`
+exige lease pelo menos duas vezes maior (`lease:` de 1 a 3600 s); não é campo novo por handler na IR.
+`HandlerTimeout` atravessa o resgate de `StandardError` e desfaz a unidade aberta antes de devolver o worker.
+BEGIN/COMMIT/ROLLBACK e a limpeza adiam essa interrupção para terminar com segurança; se o commit já começou,
+pode confirmar e o próximo worker obtém replay. Esses trechos podem prolongar o retorno do timeout e continuam
+dependendo dos limites SQL/sessão da C15. O relay registra falha retentável, tentativa e espera crescente,
+preservando a lease até vencer. Não há thread abandonada ainda usando a conexão. Capturar `Exception` e suprimir
+o cancelamento ou usar I/O fora das capacidades escapa da garantia do runtime.
+
+[ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md) registra as decisões e limites.
+`script/sonda_handlers.rb` prova os casos no banco descartável com os papéis de produção; a sua execução no 17/18
+tem 12 verificações no 17 e no 18, e na CI. Reprocessamento de `dead`, histórico e auditoria continuam na rodada 6.
 
 ## Aplicações globais
 

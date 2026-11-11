@@ -123,7 +123,8 @@ module Vetra
       # Falha do efeito: nova tentativa com espera de min(1800 s, 10 s × 2^(n−1)) ±20%, ou `dead` depois da décima
       # falha ou numa falha definitiva, com a cópia para vetra.dead_deliveries na mesma transação (ADR-024, §1 e §3).
       # O erro guardado é só a classe, sem mensagem: a mensagem pode trazer dados do evento.
-      def failed(delivery, error, permanent: false)
+      # `retain_lease` é do timeout total: registra a tentativa, mas só libera para outro worker quando a lease vencer.
+      def failed(delivery, error, permanent: false, retain_lease: false)
         outside_transaction!
         attempts = delivery.attempts + 1
         reason = error.class.name.to_s[0, 200]
@@ -150,7 +151,7 @@ module Vetra
           else
             delay = ([1800, 10 * (2**(attempts - 1))].min * (0.8 + (0.4 * @random.rand))).round(3)
             retried = @db.fetch(<<~SQL, reason, delay, *fence(delivery)).all.size == 1
-              UPDATE vetra.deliveries SET attempts = attempts + 1, leased_until = NULL, last_error = ?,
+              UPDATE vetra.deliveries SET attempts = attempts + 1, leased_until = #{retain_lease ? 'leased_until' : 'NULL'}, last_error = ?,
                      run_after = pg_catalog.statement_timestamp() + pg_catalog.make_interval(secs => ?),
                      updated_at = pg_catalog.statement_timestamp()
                WHERE #{FENCE} RETURNING 1

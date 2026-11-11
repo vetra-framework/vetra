@@ -81,7 +81,7 @@ tarefas seguem a ordem da tabela.
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
-| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | em andamento | — | Sobre `c2be39e`; a árvore é do Codex até a entrega para a auditoria do Claude |
+| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
 
 ### Parecer do Codex sobre o plano da rodada 5
@@ -1327,3 +1327,42 @@ autorização Ruby (68), de Vetra Data (23), de repositórios (72), da outbox (3
 
 **CI.** A [execução 43090719902](https://github.com/vetra-framework/vetra/actions/runs/43090719902) do commit `ba60d88` passou nos cinco jobs, com a sonda do fechamento em 13/13 no 17 e no 18, inclusive a serialização e o deadlock
 com duas transações concorrentes reais. O aceite do ADR-047 é do mantenedor; a próxima tarefa é a C14 (Codex), os handlers de sistema.
+
+## Entrega da C14 pelo Codex
+
+Base: `1fc7ff2`, árvore limpa na `main` (só a linha do quadro). O Codex implementou sem commit, branch nem push e **bateu o limite de uso da conta antes de escrever o
+relatório final e de passar a tarefa a `em auditoria`**; o Claude reconstruiu o relatório abaixo a partir do código, do ADR-048 e do log do Codex.
+
+- **O que mudou.** `lib/vetra/execution/handler_runner.rb` (novo: `HandlerRunner`, `Host` com `call_command`, fachada `Effect`, chave derivada), `runner.rb`
+  (`idempotency_origin:` e `idempotency_event:`, `HandlerTimeout`, `Thread.handle_interrupt` em torno da unidade), `relay.rb` (`failed(retain_lease:)`),
+  `idempotency.rb` (o instante da retenção como texto UTC com cast `timestamptz`), `execution.rb`; `test/handler_runner_test.rb` (14 testes),
+  `script/sonda_handlers.rb` (12 verificações) e `script/support/handlers_fixture.rb` (cópia temporária do mini_crm com dois handlers no mesmo evento que chamam o mesmo
+  comando; os exemplos e a IR não mudam); ADR-048, `docs/vetra-data.md` ("Handlers de sistema") e o índice de ADRs.
+- **Decisões (ADR-048, proposto).** O `call` chama comandos por `call_command`, que confere `calls` antes de despachar e devolve sempre o JSON do contrato de saída (igual na
+  primeira execução e na repetição); cada comando abre a sua unidade, e o handler não abre transação. A chave base é `event:` + SHA-256 do JSON canônico `[handler, event_id]`
+  (e `:2`, `:3` para a segunda chamada ao mesmo comando), a mesma no provedor externo; o principal é `system:<handler>`. Saída pessoal com chave é falha **permanente** sem abrir
+  a unidade. O timeout total é 30 s com lease de 60 s (a lease precisa ser ao menos o dobro), imposto por um `Timeout` que levanta `HandlerTimeout < Exception`, adiado durante
+  BEGIN, COMMIT e ROLLBACK; a falha registrada preserva a lease do worker interrompido.
+- **Verificação do Codex (sem banco).** Suíte 807 testes, 17.464 asserções, 0 falhas, 259/259 diagnósticos, `graph:check`, validação com fontes e link, `db:plan` e o gate sem diferenças; as sondas ele
+  não alcança.
+- **O que ficou de fora.** Reprocessamento de `dead`, histórico, auditoria e cifra (rodada 6); capacidades além de externa com provedor e `core.clock`; chamadas paralelas dentro de um `call`.
+
+## Auditoria C14
+
+Implementado pelo Codex sobre `1fc7ff2`; auditado pelo Claude (leitura do `HandlerRunner`, do diff do `Runner`, do `Relay` e da `Idempotency`, do ADR-048, dos testes e da sonda; suíte, gate, `db:plan` e
+as sondas no PostgreSQL 17.11 e no 18.6, que o sandbox do Codex não alcança). O ADR-048 **continua proposto**.
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| O Codex não escreveu o relatório nem passou a linha do quadro a `em auditoria` (limite de uso) | não | Ajustar (pelo Claude): a seção "Entrega da C14 pelo Codex" acima |
+| O guia, o ADR-048 e a situação diziam que a sonda estava "pendente do Claude" | não | Ajustar (pelo Claude): 12/12 no 17 e no 18 |
+| A sonda dos handlers não estava na CI (o Codex não edita `.github/`) | não | Ajustar (pelo Claude): passo novo depois da sonda do fechamento |
+
+Não achei defeito no código. O que eu conferi: a chave derivada não depende do worker, da tentativa nem do tenant do payload (dois handlers do mesmo evento chamando o mesmo comando ficam com
+chaves distintas, e a retenção as preserva até a entrega sumir, inclusive `dead`); o tenant vem só de `Delivery#tenant_id`; `HandlerTimeout` é uma `Exception`, então não é engolido pelo mapeamento de
+`StandardError` do `Runner`, e as interrupções são adiadas só em BEGIN, COMMIT e ROLLBACK; a lease do worker interrompido é preservada, então outro worker só recupera depois dela; o `Runner` mantém o
+comportamento antigo sem os parâmetros novos. **Limites que ficam escritos no ADR:** a ordem e os argumentos das chamadas do handler precisam ser estáveis entre tentativas e deploys (o contador de
+ocorrências não é um histórico durável); o timeout só interrompe o que é interrompível (o driver `pg` assíncrono do Sequel é; código que captura `Exception` ou I/O fora das capacidades escapa); e a chave
+não é a `<handler>:<event_id>` literal do plano, e sim um digest, para caber nos 255 caracteres com qualquer id de handler.
+
+**Verificações.** Suíte 808 testes, 17.476 asserções, 0 falhas, 259/259 diagnósticos; sonda dos handlers 12/12, do fechamento 13/13, do relay 38/38 e do Runner 27/27, no 17 e no 18.

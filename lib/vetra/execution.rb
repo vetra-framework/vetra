@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Etapas 1 a 5 e 8 do ADR-016 (ADR-044 e ADR-045). Carregamento explícito; abre conexão só pela unidade e pelos
+# Executor parcial do ADR-016 e handlers de sistema (ADR-044 a ADR-048). Carregamento explícito; abre conexão só pela unidade e pelos
 # colaboradores que o chamador injeta na borda.
 require_relative 'data'
 
@@ -18,3 +18,4 @@ require_relative 'execution/edge'
 require_relative 'execution/facts'
 require_relative 'execution/guard'
 require_relative 'execution/runner'
+require_relative 'execution/handler_runner'

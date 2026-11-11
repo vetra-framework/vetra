@@ -66,6 +66,10 @@ O [ADR-047](047-fechamento-transacional-do-runner.md), proposto, fecha as oito e
 idempotência reivindicada na etapa 4 e concluída na 7 (com a repetição do resultado em JSON), o status do ADR-016 para cada falha (422, 403,
 404, 409, 500, com a indicação de resposta retentável) e a repetição por serialização e deadlock, só quando a operação é segura para repetir.
 
+O [ADR-048](048-execucao-dos-handlers-de-sistema.md), proposto, liga o relay ao Runner dos comandos: `call_command` no
+hospedeiro do handler, identidade do tenant do evento, chave derivada de handler/evento/ocorrência também no provedor externo,
+retenção por evento e timeout total de 30 s, com fechamento da unidade antes da recuperação pela lease de 60 s.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -117,6 +121,7 @@ idempotência reivindicada na etapa 4 e concluída na 7 (com a repetição do re
 | [045](045-borda-interna-e-runner.md) | Borda interna, autoridade de revisão e Runner | proposto |
 | [046](046-autorizacao-dos-acessos-e-estado-final.md) | Autorização dos acessos, estado final e ator de sistema | proposto |
 | [047](047-fechamento-transacional-do-runner.md) | Fechamento transacional do Runner | proposto |
+| [048](048-execucao-dos-handlers-de-sistema.md) | Execução dos handlers de sistema | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
