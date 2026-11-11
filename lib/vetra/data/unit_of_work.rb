@@ -21,11 +21,12 @@ module Vetra
         @contexts = {}
         @times = {}
         @doomed = {}
+        @guards = {}
         @clock = clock
       end
 
       def transaction(tenant_id: nil, actor_id: nil, system_actor: nil, op_id:, cmd:, operator_id: nil, read_only: false,
-                      statement_timeout: OMITTED_TIMEOUT, lock_timeout: OMITTED_TIMEOUT, isolation: :read_committed)
+                      statement_timeout: OMITTED_TIMEOUT, lock_timeout: OMITTED_TIMEOUT, isolation: :read_committed, guard: nil)
         if @db.in_transaction?
           raise Error.single('data_transaction_nested', 'A unidade abre a transação mais externa; use compose dentro dela.')
         end
@@ -41,7 +42,10 @@ module Vetra
           # set_config(..., true) equivale a SET LOCAL e aceita parâmetros pelo protocolo.
           timeouts.each { |name, value| @db.get(Sequel.function(:set_config, name.to_s, value.to_s, true)) }
           install_context(@issuer.issue(**context.claims)) if @scope == :tenant
-          Sequel.synchronize { @contexts[Sequel.current] = context }
+          Sequel.synchronize do
+            @contexts[Sequel.current] = context
+            @guards[Sequel.current] = guard if guard
+          end
           begin
             time = @clock.call
             Values.invalid! unless time.is_a?(Time)
@@ -57,6 +61,7 @@ module Vetra
               @contexts.delete(Sequel.current)
               @times.delete(Sequel.current)
               @doomed.delete(Sequel.current)
+              @guards.delete(Sequel.current)
             end
           end
         end
@@ -73,10 +78,28 @@ module Vetra
 
       def compose
         active_context!
+        access = guard
+        checkpoint = access&.checkpoint
         @db.transaction(savepoint: true, rollback: :reraise) { yield self }
-      rescue Sequel::DatabaseError => error
-        abort_on_retryable_error!(error)
+      rescue Exception => error # rubocop:disable Lint/RescueException
+        # Uma exceção que sai do bloco desfaz o savepoint e leva consigo as escritas que a guarda registrou e os fatos que ela leu
+        # (K18). `break`, `return` e `throw` não são exceções: o Sequel libera o savepoint, e o que foi escrito vale.
+        access&.restore!(checkpoint)
+        abort_on_retryable_error!(error) if error.is_a?(Sequel::DatabaseError)
         raise
+      end
+
+      # Guarda de acesso da operação (K18): quem autoriza cada acesso dos repositórios nesta unidade. Nil fora do Runner, e
+      # os repositórios então só aplicam o que sempre aplicaram (capacidade, tenant, contexto e transições).
+      def guard
+        Sequel.synchronize { @guards[Sequel.current] }
+      end
+
+      # Infraestrutura do Runner: marca a transação para ser desfeita quando o bloco sair, e vale também para `break`, `return` e
+      # `throw`, que o Sequel trataria como commit. Chamado quando o call sai sem concluir o fechamento (K18).
+      def abandon!
+        active_context!
+        @db.rollback_on_exit
       end
 
       def rollback!

@@ -3,6 +3,9 @@
 module Vetra
   module Data
     class Repository
+      # Lote da leitura de coleção sob a guarda (K18).
+      PAGE_SIZE = 200
+
       def initialize(catalog:, unit:, access:, entity:, table:, record_type:, row_reader:, currency:)
         @catalog, @unit, @access = catalog, unit, access
         @entity, @table, @record_type, @currency = entity, table, record_type, currency
@@ -11,23 +14,33 @@ module Vetra
         freeze
       end
 
+      # Com a guarda da operação (K18), o que o papel não pode ler se comporta como ausente (RecordNotFound), como no RLS.
       def find!(id)
-        execute { |dataset| read_record!(dataset.where(id: record_id(id)).first) }
+        guard&.require_grant!(@entity['id'], 'read') # antes da consulta: sem concessão, existir ou não é irrelevante
+        record = execute { |dataset| read_record!(dataset.where(id: record_id(id)).first) }
+        guard&.authorize_read!(@entity['id'], record)
+        record
       end
 
       def lock!(id)
-        execute(write: true) { |dataset| read_record!(dataset.where(id: record_id(id)).for_update.first) }
+        guard&.require_grant!(@entity['id'], 'read')
+        record = execute(write: true) { |dataset| read_record!(dataset.where(id: record_id(id)).for_update.first) }
+        guard&.authorize_read!(@entity['id'], record)
+        record
       end
 
       def create!(**attributes)
         execute(write: true) do |dataset|
           values = creation_values(attributes)
+          guard&.authorize_write!(@entity['id'], 'create', values, attributes.keys)
           transitions!(nil, values)
           record = read_record!(dataset.returning.insert(physical(values)).first)
+          guard&.written!(@entity['id'], :created, record.id, attributes.keys)
           @entity['relations'].select { |relation| relation['kind'] == 'many_to_many' }.each do |relation|
             relation.fetch('include_on_create', []).each do |name|
               link = @entity['relations'].find { |entry| entry['name'] == name && entry['kind'] == 'belongs_to' }
-              change_link(relation, 'add', record.id, record.public_send(link['local_fields'].last))
+              # O vínculo do dono faz parte da criação já autorizada: não repete a decisão.
+              change_link(relation, 'add', record.id, record.public_send(link['local_fields'].last), checked: false)
             end
           end
           record
@@ -39,14 +52,40 @@ module Vetra
           values = writable(attributes, create: false)
           target = dataset.where(id: record_id(record_or_id))
           # OLD vem sempre do banco, sob lock; nunca se confia no objeto recebido.
+          access = guard
+          if access
+            access.require_grant!(@entity['id'], 'read')
+            access.require_grant!(@entity['id'], 'update')
+          end
           old = read_record!(target.for_update.first)
+          if access
+            access.authorize_read!(@entity['id'], old)
+            access.authorize_write!(@entity['id'], 'update', old, values.keys)
+          end
           transitions!(old, values)
-          values.empty? ? old : read_record!(target.returning.update(physical(values)).first)
+          next old if values.empty?
+          updated = read_record!(target.returning.update(physical(values)).first)
+          guard&.written!(@entity['id'], :updated, old.id, values.keys)
+          updated
         end
       end
 
       def delete!(record_or_id)
-        execute(write: true) { |dataset| read_record!(dataset.where(id: record_id(record_or_id)).returning.delete.first) }
+        execute(write: true) do |dataset|
+          target = dataset.where(id: record_id(record_or_id))
+          access = guard
+          if access
+            access.require_grant!(@entity['id'], 'read')
+            access.require_grant!(@entity['id'], 'delete')
+            # O OLD vem do banco, sob lock, para a decisão: o DELETE ... RETURNING só o devolveria depois de apagar.
+            old = read_record!(target.for_update.first)
+            access.authorize_read!(@entity['id'], old)
+            access.authorize_write!(@entity['id'], 'delete', old, [])
+          end
+          deleted = read_record!(target.returning.delete.first)
+          access&.written!(@entity['id'], :deleted, deleted.id, [])
+          deleted
+        end
       end
 
       def where(**equalities, &block)
@@ -68,6 +107,10 @@ module Vetra
 
       private
 
+      def guard
+        @unit.guard
+      end
+
       def query_fields(fields)
         fields.map do |name|
           unless (name.is_a?(String) || name.is_a?(Symbol)) && @fields.key?(name.to_s)
@@ -83,15 +126,30 @@ module Vetra
       end
 
       def query_all(equalities, fields, limit: nil, reverse: false)
+        guard&.require_grant!(@entity['id'], 'read') # antes da consulta, como em find!
         execute do |dataset|
           equalities.each { |values| dataset = dataset.where(physical(values)) }
           columns = fields.flat_map { |name| physical_names(name) }.map(&:to_sym)
           # reverse_order também inverte NULLS LAST, preservando a janela de last(n).
           dataset = dataset.order(*columns)
           dataset = dataset.reverse_order if reverse
-          dataset = dataset.limit(limit) if limit
-          records = dataset.all.map { |row| read_record!(row) }
-          (reverse ? records.reverse : records).freeze
+          access = guard
+          unless access
+            dataset = dataset.limit(limit) if limit
+            records = dataset.all.map { |row| read_record!(row) }
+            next (reverse ? records.reverse : records).freeze
+          end
+          # Com a guarda, as linhas que o papel não lê somem depois de lidas; por isso o limite vale para as linhas
+          # visíveis, e a leitura avança em lotes até completá-lo (ou esgotar a tabela), sem devolver menos do que há.
+          visible, offset = [], 0
+          loop do
+            batch = dataset.limit(PAGE_SIZE).offset(offset).all.map { |row| read_record!(row) }
+            visible.concat(access.visible(@entity['id'], batch))
+            offset += PAGE_SIZE
+            break if batch.size < PAGE_SIZE || (limit && visible.size >= limit)
+          end
+          visible = visible.first(limit) if limit
+          (reverse ? visible.reverse : visible).freeze
         end
       end
 
@@ -210,25 +268,40 @@ module Vetra
         @catalog.__send__(:build, entity_id, @unit, @access)
       end
 
-      def change_link(relation, verb, owner_id, target_id)
+      # Com a guarda (K18): ler e travar o dono e a ação do vínculo (`add_member`, `remove_member`) valem sobre o dono. O
+      # alvo, a junção e o vínculo da criação (`checked: false`) são parte do que a ação já autorizou e não repetem a decisão.
+      def change_link(relation, verb, owner_id, target_id, checked: true)
+        access = guard
+        return link_change(relation, verb, owner_id, target_id, access, checked) unless access && !checked
+        access.without_checks { link_change(relation, verb, owner_id, target_id, access, false) }
+      end
+
+      def link_change(relation, verb, owner_id, target_id, access, checked)
+        action = Graph::RelationCommands.action(verb, relation)
+        access.require_grant!(@entity['id'], action) if access && checked
         execute(write: true) do
           owner = lock!(owner_id)
-          target = sibling(relation.dig('target', 'id')).find!(target_id)
-          if verb == 'remove'
-            required = relation.fetch('include_on_create', []).any? do |name|
-              link = @entity['relations'].find { |entry| entry['kind'] == 'belongs_to' && entry['name'] == name }
-              link['local_fields'].zip(link['target_fields']).all? { |local, remote| owner.public_send(local) == target.public_send(remote) }
+          access.authorize_write!(@entity['id'], action, owner, []) if access && checked
+          body = lambda do
+            target = sibling(relation.dig('target', 'id')).find!(target_id)
+            if verb == 'remove'
+              required = relation.fetch('include_on_create', []).any? do |name|
+                link = @entity['relations'].find { |entry| entry['kind'] == 'belongs_to' && entry['name'] == name }
+                link['local_fields'].zip(link['target_fields']).all? { |local, remote| owner.public_send(local) == target.public_send(remote) }
+              end
+              raise Error.single('data_required_link', 'Vínculo obrigatório da criação não pode ser removido.') if required
             end
-            raise Error.single('data_required_link', 'Vínculo obrigatório da criação não pode ser removido.') if required
+            junction = sibling(relation.dig('through', 'id'))
+            links = junction.__send__(:belongs_to_links)
+            values = {}
+            [[@entity['id'], owner], [relation.dig('target', 'id'), target]].each do |entity_id, record|
+              entry = links.find { |item| item.dig('target', 'id') == entity_id }
+              entry['local_fields'].zip(entry['target_fields']).each { |local, remote| values[local] = record.public_send(remote) }
+            end
+            junction.__send__(:persist_link, values, verb)
+            access&.touched!(relation.dig('through', 'id'))
           end
-          junction = sibling(relation.dig('through', 'id'))
-          links = junction.__send__(:belongs_to_links)
-          values = {}
-          [[@entity['id'], owner], [relation.dig('target', 'id'), target]].each do |entity_id, record|
-            link = links.find { |entry| entry.dig('target', 'id') == entity_id }
-            link['local_fields'].zip(link['target_fields']).each { |local, remote| values[local] = record.public_send(remote) }
-          end
-          junction.__send__(:persist_link, values, verb)
+          access && checked ? access.without_checks(&body) : body.call
           owner
         end
       end

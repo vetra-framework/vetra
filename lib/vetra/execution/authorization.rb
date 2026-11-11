@@ -40,12 +40,16 @@ module Vetra
       def fact_plan(operation_id, roles)
         operation = operation!(operation_id)
         entity_id, action = operation.dig('authorize', 'entity', 'id'), operation.dig('authorize', 'action')
-        assigned = roles | @roles.values.select { |role| role['anonymous'] }.map { |role| role['id'] }
-        targets = @policies.select do |policy|
-          policy.dig('entity', 'id') == entity_id && policy['actions'].include?(action) && assigned.include?(policy.dig('role', 'id'))
-        end.flat_map { |policy| @predicate.traversed(policy.fetch('predicate'), entity_id) }
-        { principal: operation.dig('authorize', 'record') ? entity_id : nil, entities: targets.uniq.sort.freeze,
+        # Consulta de coleção sem `record:` é admitida pelo papel; as linhas são filtradas acesso a acesso (K18).
+        return { principal: nil, entities: [].freeze, record: nil }.freeze if collection_read?(operation)
+        { principal: operation.dig('authorize', 'record') ? entity_id : nil, entities: fact_entities(entity_id, action, roles),
           record: operation.dig('authorize', 'record') }.freeze
+      end
+
+      # Entidades que as políticas candidatas desta entidade e ação percorrem com os papéis dados (sem a de partida).
+      def fact_entities(entity_id, action, roles)
+        candidates_for(entity_id, action, with_anonymous(roles))
+          .flat_map { |policy| @predicate.traversed(policy.fetch('predicate'), entity_id) }.uniq.sort.freeze
       end
 
       # Entidades que alguma política lê: mudar uma delas muda a decisão de outra operação (invalida os fatos).
@@ -55,26 +59,46 @@ module Vetra
       def operation_ids = @nodes.values.select { |node| %w[command query].include?(node['kind']) }.map { |node| node['id'] }.sort.freeze
 
       # Não chama o call, a unidade, o pool ou os repositórios. current_revision é da borda confiável.
-      def check(operation_id, input:, context:, snapshot:, current_revision:, fields: nil)
+      def check(operation_id, input:, context:, snapshot: nil, current_revision: nil, fields: nil)
         operation = operation!(operation_id)
         normalized = validate_input(operation_id, input)
         context!(context, operation_id)
+        # Ator de sistema: a concessão é a lista `calls` do handler (ADR-024, §4), sem papéis, fatos nem revisão.
+        return system_result(operation, normalized, context) if context.system_actor?
         fresh!(snapshot, context, current_revision)
         roles = roles!(snapshot, context)
         authorization = operation.fetch('authorize')
         entity_id, action = authorization.dig('entity', 'id'), authorization.fetch('action')
-        candidates = @policies.select do |policy|
-          policy.dig('entity', 'id') == entity_id && policy['actions'].include?(action) && roles.include?(policy.dig('role', 'id'))
-        end
+        requested = -> { requested_fields(operation, normalized, fields) }
+        policy_ids =
+          if collection_read?(operation)
+            admit_collection(entity_id, action, roles, requested)
+          else
+            # O registro principal só é resolvido depois das políticas candidatas (a ordem dos diagnósticos da C13).
+            row = -> { principal_record(operation, normalized, context, snapshot) }
+            decide(entity_id, action, row, context: context, roles: roles, snapshot: snapshot, fields: requested)
+          end
+        fresh!(snapshot, context, current_revision)
+        Result.new(allowed: true, diagnostics: [].freeze, input: normalized, policy_ids: policy_ids)
+      rescue Data::Error => error
+        Result.new(allowed: false, diagnostics: error.diagnostics.freeze, input: nil, policy_ids: [].freeze)
+      end
+
+      # Decisão sobre uma linha, para uma entidade e uma ação, com os fatos dados (a admissão e, na K18, cada acesso e o
+      # estado final). Levanta Data::Error se recusa; devolve os IDs das políticas sem limite que sustentam a permissão.
+      # `fields` é a lista de campos solicitados, ou um objeto chamável que a devolve (avaliado só depois da avaliação das
+      # políticas, para que a recusa de acesso preceda a de campos).
+      def decide(entity_id, action, row, context:, roles:, snapshot:, fields:)
+        candidates = candidates_for(entity_id, action, with_anonymous(roles))
         denied! if candidates.empty?
         candidates.each { |policy| @predicate.validate!(policy.fetch('predicate'), entity_id) }
         # Mesmo um ramo sem linhas exige as entidades do percurso: omissão não prova ausência sob NOT EXISTS.
         candidates.flat_map { |policy| @predicate.traversed(policy.fetch('predicate'), entity_id) }.uniq.each { |id| snapshot.rows(id) }
-        row = principal_record(operation, normalized, context, snapshot)
+        row = row.call if row.respond_to?(:call)
         denied! unless @predicate.in_tenant?(entity_id, row, context)
         applicable = candidates.select { |policy| @predicate.evaluate(policy.fetch('predicate'), entity_id, row, context, snapshot) == true }
         denied! if applicable.empty?
-        requested = requested_fields(operation, normalized, fields)
+        requested = fields.respond_to?(:call) ? fields.call : fields
         unless covers?(applicable, requested)
           raise Error.single('data_authorization_fields', 'Concessões aplicáveis não autorizam todos os campos solicitados.')
         end
@@ -82,10 +106,19 @@ module Vetra
         if unlimited.empty? || !covers?(unlimited, requested)
           raise Error.single('data_authorization_rate_limit', 'Autorização depende de limite de taxa; contadores ainda não disponíveis.')
         end
-        fresh!(snapshot, context, current_revision)
-        Result.new(allowed: true, diagnostics: [].freeze, input: normalized, policy_ids: unlimited.map { |policy| policy['id'] }.sort.freeze)
-      rescue Data::Error => error
-        Result.new(allowed: false, diagnostics: error.diagnostics.freeze, input: nil, policy_ids: [].freeze)
+        unlimited.map { |policy| policy['id'] }.sort.freeze
+      end
+
+      # Nomes dos campos da entidade, na ordem da IR: o que uma leitura de registro inteiro solicita.
+      def field_names(entity_id)
+        @entities.fetch(entity_id).fetch('fields').map { |field| field['name'] }.freeze
+      end
+
+      def tenant_column(entity_id) = @tables.fetch(entity_id)['tenant_column']
+
+      # Algum papel dado tem concessão para a ação nesta entidade? Sem isso nenhuma linha é concedida, e a recusa é estática.
+      def granted?(entity_id, action, roles)
+        candidates_for(entity_id, action, with_anonymous(roles)).any?
       end
 
       private
@@ -102,13 +135,48 @@ module Vetra
         unless context.is_a?(Data::Context)
           raise Error.single('data_authorization_context', 'Contexto ou papéis incompatíveis com a operação.')
         end
-        if context.system_actor?
-          raise Error.single('data_authorization_system_actor', 'Ator de sistema exige autorização por calls do handler; não usa políticas de papéis.')
-        end
         scope = @document.dig('app', 'tenant') ? :tenant : :global
         unless context.scope == scope && context.cmd == operation_id
           raise Error.single('data_authorization_context', 'Contexto ou papéis incompatíveis com a operação.')
         end
+      end
+
+      # Consulta sem `record:` que lê a coleção: o papel a admite, e cada linha é filtrada acesso a acesso pela guarda (K18).
+      def collection_read?(operation)
+        operation['kind'] == 'query' && operation.dig('authorize', 'action') == 'read' && !operation.dig('authorize', 'record')
+      end
+
+      def admit_collection(entity_id, action, roles, fields)
+        candidates = candidates_for(entity_id, action, roles)
+        denied! if candidates.empty?
+        candidates.each { |policy| @predicate.validate!(policy.fetch('predicate'), entity_id) }
+        requested = fields.call
+        unless covers?(candidates, requested)
+          raise Error.single('data_authorization_fields', 'Concessões aplicáveis não autorizam todos os campos solicitados.')
+        end
+        unlimited = candidates.reject { |policy| policy.key?('rate_limit') }
+        if unlimited.empty? || !covers?(unlimited, requested)
+          raise Error.single('data_authorization_rate_limit', 'Autorização depende de limite de taxa; contadores ainda não disponíveis.')
+        end
+        unlimited.map { |policy| policy['id'] }.sort.freeze
+      end
+
+      def system_result(operation, input, context)
+        handler = @nodes[context.system_actor]
+        unless handler && handler['kind'] == 'handler' && Array(handler['calls']).any? { |reference| reference['id'] == operation['id'] }
+          raise Error.single('data_authorization_system_actor', 'O comando não está nos calls do handler deste ator de sistema.')
+        end
+        Result.new(allowed: true, diagnostics: [].freeze, input: input, policy_ids: ["calls:#{handler['id']}"].freeze)
+      end
+
+      def candidates_for(entity_id, action, roles)
+        @policies.select do |policy|
+          policy.dig('entity', 'id') == entity_id && policy['actions'].include?(action) && roles.include?(policy.dig('role', 'id'))
+        end
+      end
+
+      def with_anonymous(roles)
+        roles | @roles.values.select { |role| role['anonymous'] }.map { |role| role['id'] }
       end
 
       def roles!(snapshot, context)

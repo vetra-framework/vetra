@@ -564,6 +564,78 @@ class ExecutionAuthorizationTest < GraphTest
     assert_denied('data_authorization_system_actor', check(engine, 'crm.delete_lead', { id: id(10) }, ctx: ctx, roles: []))
   end
 
+  # ---- K18: ator de sistema, consulta de coleção e decisão por linha -------------------------------------------------
+
+  def engine_with_handler_calls(*commands)
+    doc = document('mini_crm')
+    node(doc, 'handler', 'crm.notify_sales')['calls'] = commands.map { |id| { 'id' => id, 'kind' => 'command' } }
+    doc['digest'] = Vetra::Graph::Canonical.digest(doc)
+    Vetra::Execution::Authorization.new(doc)
+  end
+
+  def system_context(operation, handler: 'crm.notify_sales')
+    Vetra::Data::Context.new(scope: :tenant, tenant_id: tenant, system_actor: handler, op_id: id(3), cmd: operation)
+  end
+
+  def test_a_system_actor_is_authorized_only_by_the_calls_of_its_handler_without_roles_facts_or_revision
+    engine = engine_with_handler_calls('crm.win_lead')
+    result = engine.check('crm.win_lead', input: { lead_id: id(10) }, context: system_context('crm.win_lead'))
+    assert result.allowed?
+    assert_equal ['calls:crm.notify_sales'], result.policy_ids
+    assert_equal({ 'lead_id' => id(10) }, result.input)
+    # Fora dos calls, handler desconhecido ou nó que não é handler: recusa, com o mesmo código.
+    assert_denied('data_authorization_system_actor', engine.check('crm.update_lead', input: { id: id(10), name: 'Nome' }, context: system_context('crm.update_lead')))
+    assert_denied('data_authorization_system_actor', engine.check('crm.win_lead', input: { lead_id: id(10) }, context: system_context('crm.win_lead', handler: 'crm.nada')))
+    assert_denied('data_authorization_system_actor', engine.check('crm.win_lead', input: { lead_id: id(10) }, context: system_context('crm.win_lead', handler: 'crm.lead')))
+    # A entrada continua validada e o contexto continua conferido antes da concessão.
+    assert_denied('data_value', engine.check('crm.win_lead', input: { lead_id: 'x' }, context: system_context('crm.win_lead')))
+    assert_denied('data_authorization_context', engine.check('crm.win_lead', input: { lead_id: id(10) }, context: system_context('crm.read_lead')))
+    # Um visitante não é um ator de sistema: sem snapshot, a admissão por papéis recusa.
+    assert_denied('data_authorization_snapshot', evaluator.check('crm.read_lead', input: { id: id(10) }, context: context('crm.read_lead')))
+  end
+
+  def test_a_collection_query_is_admitted_by_the_role_without_a_row_and_the_plan_asks_for_no_facts
+    engine = evaluator('chat')
+    ctx = context('chat.my_rooms', example: 'chat')
+    snapshot = engine.snapshot(context: ctx, roles: ['chat.authenticated'], revision: 4, records: {})
+    result = engine.check('chat.my_rooms', input: {}, context: ctx, snapshot: snapshot, current_revision: ->(_) { 4 })
+    assert result.allowed?, result.diagnostics.map(&:to_s).join
+    assert_equal({ principal: nil, entities: [], record: nil }, engine.fact_plan('chat.my_rooms', ['chat.authenticated']))
+    # Sem concessão de leitura para os papéis, a coleção é recusada.
+    no_role = engine.snapshot(context: ctx, roles: [], revision: 4, records: {})
+    assert_denied('data_authorization_denied', engine.check('chat.my_rooms', input: {}, context: ctx, snapshot: no_role, current_revision: ->(_) { 4 }))
+    # A leitura de registro inteiro exige todos os campos: concessão limitada a um campo recusa a coleção.
+    limited = Vetra::Graph::Data.copy(document('chat'))
+    node(limited, 'policy', 'chat.authenticated.permission_2')['fields'] = ['name']
+    limited['digest'] = Vetra::Graph::Canonical.digest(limited)
+    narrow = Vetra::Execution::Authorization.new(limited)
+    narrow_snapshot = narrow.snapshot(context: ctx, roles: ['chat.authenticated'], revision: 4, records: {})
+    assert_denied('data_authorization_fields', narrow.check('chat.my_rooms', input: {}, context: ctx, snapshot: narrow_snapshot, current_revision: ->(_) { 4 }))
+  end
+
+  def test_decide_judges_one_row_for_an_entity_and_action_with_the_given_facts
+    engine = evaluator('chat')
+    ctx = context('chat.read_room', example: 'chat')
+    snapshot = engine.snapshot(context: ctx, roles: ['chat.authenticated'], revision: 'in_unit', records: chat_records)
+    row = { 'id' => id(10), 'owner_id' => actor }
+    ids = engine.decide('chat.room', 'read', row, context: ctx, roles: ['chat.authenticated'], snapshot: snapshot, fields: engine.field_names('chat.room'))
+    assert_equal 1, ids.size
+    outsider = { 'id' => id(11), 'owner_id' => id(90) }
+    error = assert_raises(Vetra::Data::Error) { engine.decide('chat.room', 'read', outsider, context: ctx, roles: ['chat.authenticated'], snapshot: snapshot, fields: []) }
+    assert_equal 'data_authorization_denied', error.code
+    assert engine.granted?('chat.room', 'read', ['chat.authenticated'])
+    refute engine.granted?('chat.user', 'read', ['chat.authenticated'])
+    refute engine.granted?('chat.room', 'read', [])
+    assert_equal %w[id name owner_id created_at].sort, engine.field_names('chat.room').sort
+    assert_nil engine.tenant_column('chat.room')
+  end
+
+  def test_the_principal_record_is_resolved_only_after_the_candidate_policies
+    # Sem papéis e com fatos que não têm o registro: a recusa é a da política, não a do registro ausente.
+    result = check(evaluator, 'crm.read_lead', { id: id(10) }, roles: [], facts: {})
+    assert_denied('data_authorization_denied', result)
+  end
+
   def test_all_refusals_and_validation_happen_before_any_mock_sql_or_transaction
     engine = evaluator
     db = Sequel.mock(host: :postgres)

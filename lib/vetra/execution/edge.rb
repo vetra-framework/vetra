@@ -4,9 +4,11 @@ module Vetra
   module Execution
     # Identidade resolvida pela borda confiável (ADR-045, §1): quem, em que tenant e com quais papéis. Nada disto vem da
     # entrada do cliente. Sem tenant numa aplicação global; sem papéis, visitante.
-    Identity = ::Data.define(:tenant_id, :actor_id, :roles) do
-      def initialize(tenant_id: nil, actor_id: nil, roles: [])
-        super(tenant_id: tenant_id, actor_id: actor_id, roles: roles.is_a?(Array) ? roles.dup.freeze : roles)
+    Identity = ::Data.define(:tenant_id, :actor_id, :roles, :system_actor) do
+      # `system_actor` é o handler (ADR-024, §4): um ator de sistema não tem actor_id nem papéis, e a concessão dele é a
+      # lista `calls` do handler.
+      def initialize(tenant_id: nil, actor_id: nil, roles: [], system_actor: nil)
+        super(tenant_id: tenant_id, actor_id: actor_id, roles: roles.is_a?(Array) ? roles.dup.freeze : roles, system_actor: system_actor)
       end
 
       def inspect = '#<Vetra::Execution::Identity [REDACTED]>'

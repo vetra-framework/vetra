@@ -58,6 +58,10 @@ colaboradores (identidade, fatos e autoridade de revisão), as implementações 
 processo em blog e chat, e o seu limite de um processo) e o `Runner` das etapas 1 a 5 e 8, com as primitivas CRUD e de vínculo. As
 duas contagens de transações (a da operação e a da borda) substituem o "zero transações do fluxo".
 
+O [ADR-046](046-autorizacao-dos-acessos-e-estado-final.md), proposto, decide a autorização de cada acesso dos repositórios por uma
+guarda instalada pelo `Runner` (ação, registro e campos, com fatos lidos na própria unidade), a reautorização do estado final antes do
+commit e o ator de sistema, autorizado pelos `calls` do seu handler.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -107,6 +111,7 @@ duas contagens de transações (a da operação e a da borda) substituem o "zero
 | [043](043-registro-de-idempotencia-da-operacao.md) | Registro de idempotência da operação | aceito |
 | [044](044-entrada-e-autorizacao-em-ruby.md) | Entrada e autorização em Ruby | proposto |
 | [045](045-borda-interna-e-runner.md) | Borda interna, autoridade de revisão e Runner | proposto |
+| [046](046-autorizacao-dos-acessos-e-estado-final.md) | Autorização dos acessos, estado final e ator de sistema | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

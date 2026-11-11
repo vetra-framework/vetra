@@ -79,7 +79,7 @@ tarefas seguem a ordem da tabela.
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
-| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | em andamento | — | Sobre `1481c92`; a árvore é do Claude até a entrega para a auditoria do Codex |
+| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
@@ -1170,3 +1170,74 @@ autorização do chat 30/30, a do Runner 27/27 e a de autorização Ruby 68/68, 
 
 **CI.** A [execução 43035403713](https://github.com/vetra-framework/vetra/actions/runs/43035403713) do commit `8fb069f` passou nos cinco jobs, com a sonda de autorização do chat em 30/30 e a do Runner em
 27/27 no 17 e no 18. A próxima tarefa é a K18 (Claude): autorização nos acessos dos repositórios, coletor de fatos na unidade e reautorização do estado final.
+
+## Entrega da K18 pelo Claude
+
+Base: `055600e` (`git rev-parse HEAD`), árvore limpa antes da tarefa. Implementação sem commit, branch ou push; árvore entregue para a
+auditoria do Codex, em modo somente leitura.
+
+- **O que mudou.** ADR-046 proposto ([autorização dos acessos, estado final e ator de sistema](adr/046-autorizacao-dos-acessos-e-estado-final.md)).
+  `lib/vetra/execution/guard.rb` (`AccessGuard`); `Authorization#decide`, `#granted?`, `#field_names`, `#fact_entities`, o ramo de sistema
+  (`system_result`) e a admissão de consulta de coleção (`admit_collection`) em `authorization.rb`; `UnitOfWork#transaction(guard:)` e
+  `#guard`; os ganchos da guarda em `Repository` (`find!`, `lock!`, `create!`, `update!`, `delete!`, `query_all` em lotes, `change_link`);
+  `Identity#system_actor`; `Runner` com a guarda, o `persist` (etapa 6) e o ramo de sistema (sem fatos). O Runner passou a enviar
+  `system_actor` nas claims da unidade (o teste do ator de sistema achou o erro).
+- **Semântica.** `lock!` decide só `read`; `update!` e `delete!` leem o OLD sob lock e decidem a ação; o vínculo decide a ação do vínculo
+  sobre o dono (o alvo, a junção e o `include_on_create` não repetem a decisão); a coleção filtra por linha, em lotes de 200, e o limite
+  vale para as visíveis. Sem concessão alguma do papel, a recusa é explícita (`data_authorization_denied`), mesmo numa coleção vazia (é o
+  caso de `chat.add_member_by_email`); com concessão e linha não satisfeita, a leitura some (`RecordNotFound`) e a escrita recusa.
+- **Estado final.** `reauthorize!` relê cada linha criada ou alterada com fatos novos e decide `create` ou `update`; recusa com o código
+  novo `data_authorization_final` e desfaz a unidade. O cache de fatos é por entidade, dentro da operação, descartado a cada escrita.
+- **Ator de sistema.** A etapa 3 autoriza o comando se, e somente se, ele está nos `calls` do handler de mesmo `id`, sem papéis, fatos nem
+  revisão; a guarda e a reautorização são vazias para ele.
+- **Verificação.** Suíte 768 testes, 17.128 asserções, 0 falhas, 251/251 diagnósticos (30 testes novos: 26 em `test/execution_guard_test.rb`
+  e 4 em `execution_authorization_test.rb`). Sonda `script/sonda_acessos.rb` (nova, modo 100755) com 21 verificações no PostgreSQL 17.11
+  e no 18.6; as sondas anteriores seguem verdes nos dois (Runner 27, chat 30, autorização Ruby 68, Vetra Data 23, repositórios 72, outbox
+  36, relay 38, idempotência 83, limites 15). Entrou na CI. Gate e `db:plan` são rodados pelo Claude antes do envio.
+- **O que ficou de fora.** Eventos do `emits` e idempotência no `Runner` (K19), handlers e o runner deles (C14), contadores de
+  `rate_limit:` (rodada 6), leitura de coleção traduzida para SQL, leitura com projeção de campos.
+- **Riscos que vejo.** (1) Cada acesso custa uma decisão, e a primeira de cada entidade, a leitura dos fatos que ela percorre; o
+  `delete!` ganha um `SELECT ... FOR UPDATE`; a K20 mede. (2) O filtro de coleção é em Ruby e pagina de 200 em 200: não serve a tabelas
+  grandes com filtro seletivo. (3) A leitura de registro inteiro exige todos os campos da entidade: uma política de leitura com menos
+  campos recusa. (4) O ator de sistema não passa por política alguma: o que o limita é o `calls`, o tenant e o RLS (`vt_system`).
+
+## Auditoria K18
+
+Implementado pelo Claude sobre `055600e`; auditado pelo Codex em modo somente leitura, com a árvore conferida por hash antes e depois de cada
+rodada. O Claude rodou a suíte, o gate, `db:plan` e as sondas no PostgreSQL 17.11 e no 18.6, que o sandbox do Codex não alcança.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A guarda não acompanhava o rollback de um savepoint de `compose`: apagar dentro dele, reverter, resgatar e transferir o autor deixava `deleted: true`, e a etapa 6 pulava a linha | sim | Ajustar: `UnitOfWork#compose` pede à guarda um ponto de retorno e o restaura se o savepoint não termina (`AccessGuard#checkpoint` e `#restore!`, que também descartam os fatos lidos); teste que reproduz o caso |
+| Apagar e recriar o mesmo UUID não limpava a marca de exclusão: um `update!` posterior para outro autor escapava da etapa 6 | sim | Ajustar: só a última escrita diz se a linha está apagada; teste |
+| Oráculo de existência: `find!`, `lock!`, `update!` e `delete!` consultavam a linha antes da concessão estática, então o papel sem concessão recebia "negado" para um id existente e "não encontrado" para um inexistente | sim | Ajustar: `AccessGuard#require_grant!` roda antes da consulta nos quatro, e no vínculo antes de travar o dono; teste com tabela cheia e vazia |
+| Regressão na precedência de diagnósticos: o registro principal passou a ser resolvido antes das políticas candidatas (`crm.read_lead` sem papéis devolvia `data_authorization_snapshot` em vez de `data_authorization_denied`) | não | Ajustar: `decide` recebe a linha como bloco, resolvido depois da seleção e da validação das políticas; teste |
+| No `create!`, a transição era conferida antes da permissão | não | Ajustar: a permissão vem primeiro, como no `update!`; teste |
+| A sonda não provava a invalidação dos fatos dentro da mesma operação (cinco chamadas independentes ao Runner) | não | Ajustar: uma cópia temporária do chat com um comando que lê a coleção, cria a sala (vínculo do dono) e relê a sala; passa só se o cache da junção foi descartado. Mais dois testes de unidade, com e sem `touched!`. 21/21 no 17 e no 18 |
+| `situacao-do-projeto.md` e o topo do `vetra-data.md` ainda diziam que a autorização dos acessos e o executor não existiam | não | Ajustar |
+
+**Rodada 2 — devolvida pelo Codex.** Os três bloqueantes e os quatro não bloqueantes da rodada 1 foram dados como fechados, e restaram um bloqueante
+e um ajuste:
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `break`, `return` e `throw` para fora do `compose` pulavam o `done = true`, mas o Sequel libera o savepoint: o `ensure` restaurava o ponto de retorno e apagava uma escrita válida, e a troca de autor passava pela etapa 6 e chegava ao `COMMIT` | sim | Ajustar: só uma exceção desfaz o savepoint, então a guarda restaura o ponto de retorno em `rescue Exception` (e não em `ensure`); teste com `break` e `throw` (o `return` segue o mesmo caminho); ADR-046, §4 |
+| A coleção consultava o banco antes da concessão estática (`where(...).first(2)` executava o `SELECT` antes de `visible` recusar) | não | Ajustar: `query_all` chama `require_grant!` antes de consultar; o teste confere que nenhum `SELECT` saiu |
+| Contagens desatualizadas depois dos ajustes (testes, asserções e verificações da sonda) | não | Ajustar |
+
+**Rodada 3 — devolvida pelo Codex.** O `compose`, a coleção e as contagens foram dados como fechados, e restou um bloqueante.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Um `call` que sai por `throw` (aceito pela análise estática) para fora do `Runner#run` pulava `persist`, e o Sequel confirmava a transação: a mesma troca de autor que recebia `data_authorization_final` chegava ao `COMMIT` | sim | Ajustar: o `Runner` só dá o fechamento por concluído depois de `persist` e `register`; senão marca a transação com `UnitOfWork#abandon!` (`rollback_on_exit`), que vale também para `break` e `throw`. A geração continua publicada (o `ensure` do `run`). Teste com um `publish_post` que escreve e faz `throw`; ADR-046, §4 |
+
+**Rodada 4 — aprovada pelo Codex.** O ajuste fecha o achado da rodada 3: o Codex confirmou, com Sequel mock, que `throw`, `break`, `return` e exceção
+geram `ROLLBACK`, publicam a geração e limpam a unidade. Restaram três achados não bloqueantes, todos de texto: o registro e as contagens (768 testes, 26 na
+guarda, 30 novos), que o Claude já havia atualizado enquanto a auditoria rodava, e duas descrições da sonda que prometiam mais do que executavam (a de
+`add_member` e `remove_member` falava de "mesma operação", e a do post alheio de "alterado"); ajustadas, a invalidação dentro da operação continua provada pela
+variante do chat.
+
+**Verificações.** Suíte 768 testes, 17.128 asserções, 0 falhas, 251/251 diagnósticos; sonda dos acessos 21/21, e as sondas do Runner (27), do chat (30),
+de repositórios (72) e de autorização Ruby (68) verdes no 17 e no 18.

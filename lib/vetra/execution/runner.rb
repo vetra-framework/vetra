@@ -122,7 +122,7 @@ module Vetra
       def context_for(identity, operation)
         scope = @authorization.scope
         # O tenant da identidade vai como veio: o Context recusa tenant numa aplicação global e a falta dele numa de tenant.
-        Data::Context.new(scope: scope, tenant_id: identity.tenant_id, actor_id: identity.actor_id,
+        Data::Context.new(scope: scope, tenant_id: identity.tenant_id, actor_id: identity.actor_id, system_actor: identity.system_actor,
                           op_id: SecureRandom.uuid, cmd: operation['id'])
       rescue Data::Error => error
         refuse!(:denied, error)
@@ -135,6 +135,12 @@ module Vetra
       end
 
       def authorize(operation_id, input, context, identity)
+        # Ator de sistema: a concessão é o `calls` do handler, estático no grafo; não há fatos nem revisão a confirmar.
+        if identity.system_actor
+          result = @authorization.check(operation_id, input: input, context: context)
+          raise Refusal.new(:denied, result.diagnostics) unless result.allowed?
+          return result
+        end
         request = FactsRequest.new(authorization: @authorization, operation_id: operation_id, context: context,
                                    roles: identity.roles, input: input)
         snapshot = @edge.snapshot(request)
@@ -147,19 +153,32 @@ module Vetra
       end
 
       def in_unit(operation, identity, context)
-        claims = { actor_id: context.actor_id, op_id: context.op_id, cmd: context.cmd }.merge(@unit_options)
+        claims = { actor_id: context.actor_id, system_actor: context.system_actor, op_id: context.op_id, cmd: context.cmd }.merge(@unit_options)
         claims[:tenant_id] = context.tenant_id if context.scope == :tenant
         mode = operation['kind'] == 'query' ? :read : :transaction
-        @unit.public_send(mode, **claims) do |unit|
-          result = yield unit
-          persist(unit, operation, result)
-          register(unit, operation, result)
-          result
+        guard = AccessGuard.new(authorization: @authorization, catalog: @catalog, unit: @unit, roles: identity.roles)
+        @unit.public_send(mode, **claims, guard: guard) do |unit|
+          closed = false
+          begin
+            result = yield unit
+            persist(unit, operation, result, guard)
+            register(unit, operation, result)
+            closed = true
+            result
+          ensure
+            # Um call que sai por `throw` (ou `break`) pularia a reautorização e o Sequel confirmaria a transação: sem o
+            # fechamento completo, ela nunca é confirmada.
+            unit.abandon! unless closed
+          end
         end
       end
 
-      # Etapa 6, da K18: reautoriza o estado final e confere os campos de transição.
-      def persist(_unit, _operation, _result); end
+      # Etapa 6: reautoriza o estado final de cada linha criada ou alterada, com fatos relidos na unidade (K18). Os campos de
+      # transição são conferidos pelo repositório a cada escrita. Um ator de sistema não passa por políticas: o `calls` do
+      # handler já foi conferido na etapa 3.
+      def persist(_unit, _operation, _result, guard)
+        guard.reauthorize!
+      end
 
       # Etapa 7, da K19: eventos do `emits` e registro de idempotência, na mesma unidade.
       def register(_unit, _operation, _result); end

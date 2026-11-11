@@ -2,10 +2,10 @@
 
 O Vetra Data abre unidades de trabalho PostgreSQL pelo Sequel, como `vetra_app`, e emite o contexto assinado
 validado pelas funções dos planos atuais. O contrato está no [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md).
-Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O executor de operações ainda não existe.
+Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O `Runner` (K17 e K18) despacha as operações com a borda e a guarda dos acessos; os eventos, a idempotência e os handlers ainda não existem nele.
 `Vetra::Execution` valida a entrada e avalia a autorização antes da unidade, conforme o
 [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md); a aplicação dessas decisões ao despacho e aos
-acessos dos repositórios continua na K17/K18.
+acessos dos repositórios está no `Runner` (K17) e na guarda dos acessos (K18, ADR-046).
 
 ## Configurar o processo
 
@@ -237,14 +237,13 @@ e `:deadlock`, `data_lock_timeout` para `:lock_timeout` e `data_serialization` p
 SQL nem valores do driver. Recusa SQL de acesso é `data_access_denied`, não conflito. Não há repetição automática.
 Erros SQL devem ser resgatados fora da unidade ou fora de `compose`, depois do rollback.
 
-Os repositórios ainda não aplicam `authorize`, papéis Ruby ou permissões por campo aos seus acessos, nem a
-reautorização do estado final (etapa 6 do ADR-016). O avaliador abaixo produz a decisão de admissão; a K18
-integra a autorização nos acessos. O isolamento disponível no repositório é o contexto da unidade e o RLS
-dos planos dos CRMs, nos limites do ADR-037; a aplicação continua responsável por autorizar as chamadas,
-inclusive administração de vínculos.
+Os repositórios, **fora do `Runner`**, não aplicam `authorize`, papéis Ruby ou permissões por campo aos seus acessos: o
+isolamento é o contexto da unidade e o RLS dos planos dos CRMs, nos limites do ADR-037, e a aplicação continua
+responsável por autorizar as chamadas. **Sob o `Runner`**, a guarda do [ADR-046](adr/046-autorizacao-dos-acessos-e-estado-final.md)
+autoriza cada acesso e o estado final (veja [Autorização dos acessos](#autorização-dos-acessos-pelo-runner)).
 A emissão para a outbox e o relay estão descritos abaixo. O `Runner` das etapas 1 a 5 e 8 e a execução das
 primitivas builtin estão em [Executar uma operação](#executar-uma-operação-pelo-runner); os handlers reais, o
-histórico, a reautorização do estado final, os eventos e a idempotência no `Runner` são entregas posteriores.
+histórico, os eventos e a idempotência no `Runner` são entregas posteriores.
 
 ## Entrada e autorização antes da unidade
 
@@ -261,7 +260,7 @@ result = authorization.check('crm.win_lead', input: { lead_id: lead_id }, contex
                              snapshot: snapshot, current_revision: revision_authority)
 if result.allowed?
   # A K17 usa result.input (hash imutável com chaves String) para o despacho.
-  # A K18 autoriza cada acesso e reautoriza o estado final antes do commit.
+  # O Runner autoriza cada acesso e reautoriza o estado final antes do commit (ADR-046).
 else
   result.diagnostics # Diagnósticos de dados, sem identidade, SQL ou valores recebidos.
 end
@@ -288,8 +287,8 @@ omitido é informação insuficiente e recusa, inclusive sob NOT. O avaliador fi
 O registro de `authorize record:` vem desses fatos e é selecionado pelo ID da entrada validada.
 Criação CRUD monta o candidato com entrada, defaults da entidade e tenant do contexto. Comandos Ruby
 arbitrários sem `record:` não ganham um mapeamento inventado de parâmetros para campos; uma política
-que precise de fatos indisponíveis recusa. Consultas de coleção continuam dependendo da K18 para
-filtrar e autorizar cada acesso; uma política sem suporte não recebe admissão provisória.
+que precise de fatos indisponíveis recusa. Uma consulta de coleção sem `record:` é admitida pelo papel (sem fatos) e
+filtrada linha a linha pela guarda do `Runner` (ADR-046); uma política sem suporte não recebe admissão provisória.
 
 `revision_authority.call(context)` confirma o marcador atual; a confirmação acontece no começo e antes
 de permitir. Ela pertence à borda, não pode consultar o pool da operação e não pode devolver cegamente
@@ -305,8 +304,8 @@ Papéis são IDs completos existentes na IR, atribuídos exclusivamente pela bor
 não anônimo exige `actor_id`; o nome `authenticated` não prova autenticação. Papéis não informados
 significam visitante, com as políticas `anonymous: true` da aplicação; elas também se somam às dos
 atores identificados. Os predicados ainda verificam os vínculos reais: declarar `crm.gerente` não
-concede uma revenda. O contexto deve pertencer ao comando e ao escopo da aplicação. `system_actor` é
-recusado: seu caminho por `calls` pertence à K18.
+concede uma revenda. O contexto deve pertencer ao comando e ao escopo da aplicação. Um `system_actor` é autorizado
+só pelos `calls` do handler de mesmo `id` (ADR-024, §4; ADR-046), sem papéis, fatos nem revisão.
 
 O subconjunto suporta true, AND/OR/NOT, igualdade, IN literal, `actor.id`, campo escalar local e EXISTS
 por belongs_to/has_many/many_to_many, com lógica SQL de NULL. `many_to_many` percorre dono → junção → alvo
@@ -319,7 +318,7 @@ inclusive quando há OR com true. Caminhos de campo compostos e comparação de 
 permanecem fora. Campos permitidos são a união das políticas aplicáveis à mesma linha.
 Create/update CRUD conferem os campos fornecidos pelo cliente, além de qualquer `fields:` explícito;
 leituras/comandos Ruby exigem todos os campos da entidade por padrão. A borda pode fornecer `fields:`
-para uma projeção/acesso efetivo na K18; nunca para esconder um campo fornecido no CRUD.
+para uma projeção/acesso efetivo; nunca para esconder um campo fornecido no CRUD.
 
 Uma concessão limitada não autoriza execução enquanto não houver contadores: cobertura que dependa
 dela resulta em `data_authorization_rate_limit`. Cobertura completa por concessões sem limite continua
@@ -327,8 +326,8 @@ permitindo sem consumir cota. No blog, o visitante não cria comentários, enqua
 concessão aplicável sem limite pode criá-los.
 
 `uses` não concede acesso de dados implícito. Ser dono da sala admite a ação principal de
-`chat.add_member_by_email`; o acesso adicional a `users_read` deverá ser recusado na K18 pelo grafo
-atual, que não concede leitura de `chat.user`. Esta entrega preserva esse modelo e não libera o acesso
+`chat.add_member_by_email`; o acesso adicional a `users_read` é recusado no corpo, com `data_authorization_denied`, pela guarda do
+`Runner` (ADR-046), porque o grafo atual não concede leitura de `chat.user`. O modelo é preservado, e o acesso não é liberado
 por inferência do corpo Ruby.
 
 | Código | Motivo |
@@ -461,7 +460,7 @@ invalidam snapshots. O provedor lê a junção inteira, dentro do limite de 10.0
 excesso). `chat.read_room`, `chat.read_message` e `chat.create_message` admitem membros da sala; o dono precisa do vínculo
 como os demais. Add/remove_member publicam a geração depois do commit e invalidam fatos anteriores.
 
-**O que ainda não existe.** A autorização dos acessos do repositório e a reautorização do estado final (K18), os eventos do
+**O que ainda não existe.** Os eventos do
 `emits` e a idempotência (K19), os handlers de sistema (C14), a composição de comandos pelo `call` e os adaptadores.
 Um comando composto não empresta a autoridade de transição de outro (ADR-039).
 
@@ -488,6 +487,55 @@ exemplo, aplica a cadeia como `vetra_migrator` e abre dois pools de `vetra_app`.
 | Chat (global) | `create_room` cria a sala e o vínculo do dono pela primitiva e publica a geração; `read_room` permite ao dono vinculado sem publicar geração e recusa não membro sem transação da operação; papel desconhecido recusado |
 
 `VETRA_SONDA_DEBUG=1` imprime, por chamada, o estado do `Outcome` e as duas contagens, nunca valores.
+
+## Autorização dos acessos pelo Runner
+
+O `Runner` instala uma `Execution::AccessGuard` na unidade de cada operação (K18, [ADR-046](adr/046-autorizacao-dos-acessos-e-estado-final.md),
+proposto). O `uses` não concede dados (ADR-044, §2): cada acesso do `call` é decidido pelas políticas dos papéis da identidade, com fatos
+lidos **na própria unidade**, e o estado final é reautorizado antes do commit.
+
+| Acesso | Decisão |
+|---|---|
+| `find!`, `lock!` | `read` do registro, com todos os campos; o que o papel não lê vira `RecordNotFound`, como no RLS. `lock!` não exige `update` |
+| `create!` | `create` sobre a linha candidata, antes do `INSERT` |
+| `update!`, `delete!` | `read` e a ação, sobre o OLD lido sob lock (o `delete!` ganha um `SELECT ... FOR UPDATE`) |
+| `add_member!`, `remove_member!` | `read` do dono e a ação do vínculo (`add_member`, `remove_member`) sobre o dono; alvo e junção fazem parte da ação |
+| `where`, `order`, `first`, `last`, `all` | `read` por linha: a que o papel não lê some; o limite vale para as visíveis, lidas em lotes de 200 |
+
+**Recusas.** Sem concessão alguma do papel para a ação na entidade, a recusa é explícita (`data_authorization_denied`), **antes de qualquer
+consulta** (a resposta não pode depender de o registro existir) e mesmo numa coleção vazia: é o que acontece com `chat.add_member_by_email`, que usa `users_read` sem política de leitura de `chat.user`, e nada é gravado.
+Campos não cobertos são `data_authorization_fields`; concessão com `rate_limit:` sem contadores, `data_authorization_rate_limit`.
+Uma consulta de coleção sem `record:` é admitida pelo papel na etapa 3, sem fatos, e filtrada linha a linha no corpo.
+
+**Fatos e cache.** Os fatos são as entidades que as políticas candidatas percorrem (com as junções), lidas pelo mesmo `fact_rows` do
+provedor da borda, com o limite de 10.000 linhas por entidade. Há cache por entidade dentro da operação, descartado a cada escrita
+dela. Não há marcador de revisão: os fatos nascem da transação que vai gravar.
+
+**Savepoints.** `UnitOfWork#compose` devolve à guarda o ponto de retorno se uma exceção desfaz o savepoint (`break`, `return` e `throw` não desfazem): as escritas registradas dentro dele e os fatos
+lidos deixam de valer. Apagar e recriar o mesmo `id` deixa a linha existente para a reautorização.
+
+**Estado final (etapa 6).** Um `call` que sai por `throw` ou `break` nunca é confirmado (a transação é desfeita). Antes do commit, cada linha criada ou alterada é relida com fatos novos e decidida (`create` ou `update`) com
+os campos gravados; a recusa é `data_authorization_final` e desfaz a unidade. Cobre a troca de revenda no `update` (teste 4 do ADR-016)
+onde não há RLS; nos CRMs o `WITH CHECK` recusa primeiro, e as duas recusas concordam.
+
+**Ator de sistema.** `Identity.new(tenant_id:, system_actor: 'crm.notify_sales')`: a etapa 3 autoriza o comando se, e somente se, ele
+está nos `calls` do handler de mesmo `id`, sem papéis, fatos nem revisão; a guarda não aplica políticas de papéis, e o tenant do
+evento segue isolado pelo repositório e pelo RLS (`vt_system`). O runner dos handlers é da C14.
+
+### Sonda dos acessos
+
+```sh
+DATABASE_URL=postgres://administrador@localhost/postgres \
+  bundle exec ruby script/sonda_acessos.rb
+```
+
+Mesmos requisitos da sonda do Runner. São **21 verificações**, no 17 e no 18:
+
+| Exemplo | Verificações |
+|---|---|
+| Chat (sem RLS) | `my_rooms` só com as salas do membro; a sala nova lida na mesma operação que escreveu o vínculo (os fatos antigos são descartados); `room_page` com as mensagens da sala e a sala alheia recusada sem transação da operação; `add_member_by_email` recusado no corpo sem gravar; `add_member` e `remove_member` mudando o que o membro novo lê; não dono não administra membros; `create_room` com o vínculo do dono e o estado final reautorizado |
+| Blog (sem RLS) | o autor lê e altera o post; passar o post a outro autor recusado no estado final, desfeito, com a geração publicada; criar em nome de outro recusado na admissão; o post alheio não é lido |
+| CRM com revendas (RLS) | troca de revenda recusada e desfeita (teste 4 do ADR-016); alteração na própria revenda; lead de outro tenant inalcançável; o vendedor lê e não apaga; o ator de sistema executa o comando dos `calls` sem ler fatos, não alcança outro tenant nem comando fora dos `calls` |
 
 ## Emissão de eventos
 
