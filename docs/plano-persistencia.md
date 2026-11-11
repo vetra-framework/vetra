@@ -132,7 +132,7 @@ anteriores. Nenhuma muda o formato da IR.
   confirmação autoritativa da revisão, `uses` sem concessão implícita de dados e papéis atribuídos pela borda. O
   aceite é do mantenedor. A K17 integra o provedor de fatos/revisão; a K18 aplica a autorização aos acessos e ao
   estado final. O acesso adicional a `chat.users_read` permanece sem concessão no grafo atual e deverá recusar na
-  K18; políticas de `many_to_many` também recusam por estarem fora do subconjunto do avaliador. A IR 0.6 só admite
+  K18; as políticas de `many_to_many` passaram a ser avaliadas na C16. A IR 0.6 só admite
   contratos estruturados em saídas de consultas; a C13 os valida recursivamente sem estendê-los à entrada de comandos.
 - **O teste 6 do ADR-023 (K20).** Fica pendente; só o mantenedor pode alterar o seu contrato.
 

@@ -267,10 +267,152 @@ class ExecutionAuthorizationTest < GraphTest
     assert check(engine, 'chat.delete_message', { id: id(11) }, example: 'chat', roles: ['chat.authenticated'], facts: facts).allowed?
   end
 
-  def test_chat_many_to_many_is_refused_with_its_own_code_before_reading_facts
-    result = check(evaluator('chat'), 'chat.create_message', { body: 'Olá', room_id: id(10) },
-                   example: 'chat', roles: ['chat.authenticated'], facts: {})
-    assert_denied('data_authorization_predicate', result)
+  def chat_records
+    {
+      'chat.room' => [{ id: id(10), owner_id: actor }, { id: id(11), owner_id: id(90) }],
+      'chat.user' => [actor, id(88), id(89), id(90)].map { |user| { id: user, name: nil } },
+      'chat.room_membership' => [
+        { id: id(30), room_id: id(10), user_id: actor },
+        { id: id(31), room_id: id(10), user_id: id(88) },
+        { id: id(32), room_id: id(11), user_id: id(89) }
+      ],
+      'chat.message' => [{ id: id(40), room_id: id(10), author_id: id(89) },
+                         { id: id(41), room_id: id(11), author_id: actor }]
+    }
+  end
+
+  def chat_check(operation, input, actor_id: actor, facts: chat_records, **options)
+    check(evaluator('chat'), operation, input, example: 'chat', roles: ['chat.authenticated'], facts: facts,
+          ctx: context(operation, example: 'chat', actor_id: actor_id), **options)
+  end
+
+  def test_chat_real_policies_read_room_read_message_and_create_message_require_membership_in_that_room
+    { actor => [true, false], id(88) => [true, false], id(89) => [false, true], id(90) => [false, false] }.each do |user, expected|
+      [10, 11].each_with_index do |room, index|
+        { 'chat.read_room' => { id: id(room) }, 'chat.read_message' => { id: id(40 + index) },
+          'chat.create_message' => { room_id: id(room), body: 'Olá' } }.each do |operation, input|
+          result = chat_check(operation, input, actor_id: user)
+          assert_equal expected[index], result.allowed?, [operation, user, room, result.code].inspect
+          assert_denied('data_authorization_denied', result) unless expected[index]
+        end
+      end
+    end
+    # Nem ser autor da mensagem nem dono sem vínculo substitui a política members.
+    assert_denied('data_authorization_fields', chat_check('chat.create_message', { room_id: id(10), body: 'Olá', author_id: actor }))
+    assert_denied('data_authorization_denied', chat_check('chat.read_room', { id: id(999) }))
+    assert_denied('data_authorization_denied', chat_check('chat.create_message', { room_id: id(999), body: 'Olá' }))
+  end
+
+  def test_chat_null_or_orphan_junction_keys_do_not_match_and_message_with_null_room_is_denied
+    [{ room_id: nil, user_id: actor }, { room_id: id(10), user_id: nil },
+     { room_id: id(10), user_id: id(999) }, { room_id: nil, user_id: nil }].each do |keys|
+      facts = chat_records.merge('chat.room_membership' => [keys.merge(id: id(30))])
+      facts['chat.user'] << { id: nil }
+      assert_denied('data_authorization_denied', chat_check('chat.read_room', { id: id(10) }, facts: facts))
+    end
+    facts = chat_records
+    facts['chat.message'].first[:room_id] = nil
+    assert_denied('data_authorization_denied', chat_check('chat.read_message', { id: id(40) }, facts: facts))
+  end
+
+  def test_chat_junction_and_target_must_be_present_even_when_a_previous_hop_has_no_rows
+    %w[chat.room_membership chat.user].each do |entity|
+      facts = chat_records.merge('chat.room_membership' => []).except(entity)
+      assert_denied('data_authorization_snapshot', chat_check('chat.read_room', { id: id(10) }, facts: facts))
+      facts['chat.room'] = []
+      assert_denied('data_authorization_snapshot', chat_check('chat.create_message', { room_id: id(10), body: 'Olá' }, facts: facts))
+    end
+    %w[chat.room_membership chat.user].each do |entity|
+      assert_denied('data_authorization_denied', chat_check('chat.read_room', { id: id(10) }, facts: chat_records.merge(entity => [])))
+    end
+    facts = chat_records
+    facts['chat.room_membership'].first.delete(:user_id)
+    assert_denied('data_authorization_snapshot', chat_check('chat.read_room', { id: id(10) }, facts: facts))
+  end
+
+  # Variações só em memória para percursos que o chat não declara: sem alterar modelos, planos ou artefatos.
+  def chat_predicate
+    schema = Vetra::SQL::Schema.new(document('chat')).generate
+    entities = Vetra::Graph::Data.copy(schema.document)['nodes'].select { |entry| entry['kind'] == 'entity' }.to_h { |entry| [entry['id'], entry] }
+    tables = Vetra::Graph::Data.copy(schema.tables).to_h { |table| [table['entity'], table] }
+    yield entities, tables if block_given?
+    Vetra::Execution::Predicate.new(entities, tables)
+  end
+
+  def exists(path, tree = eq(field('id'), { 'kind' => 'actor', 'path' => ['id'] }))
+    { 'op' => 'exists', 'relation' => Array(path), 'where' => tree }
+  end
+
+  def evaluate_chat_predicate(predicate, tree, facts: chat_records, row: { 'id' => id(10) }, ctx: context('chat.read_room', example: 'chat'))
+    snapshot = evaluator('chat').snapshot(context: ctx, roles: ['chat.authenticated'], revision: 4, records: facts)
+    predicate.validate!(tree, 'chat.room')
+    predicate.evaluate(tree, 'chat.room', row, ctx, snapshot)
+  end
+
+  def test_many_to_many_scopes_both_hops_by_tenant_and_matches_the_whole_composite_key
+    predicate = chat_predicate do |entities, tables|
+      tables.each_value { |table| table['tenant_column'] = 'company_id' }
+      entities['chat.room']['relations'].find { |link| link['name'] == 'members' }.merge!(
+        'same_tenant' => true, 'local_fields' => %w[company_id id], 'target_fields' => %w[company_id id])
+      entities['chat.room_membership']['relations'].each do |link|
+        link['same_tenant'] = true
+        link['local_fields'].unshift('company_id')
+        link['target_fields'].unshift('company_id')
+      end
+    end
+    facts = chat_records
+    facts.each_value { |rows| rows.each { |row| row[:company_id] = tenant } }
+    ctx = context('crm.read_lead')
+    row = { 'id' => id(10), 'company_id' => tenant }
+    assert evaluate_chat_predicate(predicate, exists('members'), facts: facts, row: row, ctx: ctx)
+    ['chat.room_membership', 'chat.user'].each do |entity|
+      foreign = Marshal.load(Marshal.dump(facts))
+      foreign[entity].each { |entry| entry[:company_id] = id(99) }
+      refute evaluate_chat_predicate(predicate, exists('members'), facts: foreign, row: row, ctx: ctx)
+    end
+    # IDs iguais não bastam: mesmo com candidatos do tenant certo a chave composta do dono deve casar inteira.
+    refute evaluate_chat_predicate(predicate, exists('members'), facts: facts, row: row.merge('company_id' => id(99)), ctx: ctx)
+    refute evaluate_chat_predicate(predicate, exists('members'), facts: facts, row: row.merge('company_id' => nil), ctx: ctx)
+  end
+
+  def test_many_to_many_can_be_followed_by_more_hops_and_two_many_to_many_can_share_a_tree
+    predicate = chat_predicate do |entities, _tables|
+      entities['chat.user']['relations'] << {
+        'name' => 'rooms', 'kind' => 'many_to_many', 'target' => { 'id' => 'chat.room' },
+        'through' => { 'id' => 'chat.room_membership' }, 'local_fields' => ['id'], 'target_fields' => ['id']
+      }
+    end
+    path = exists(%w[members rooms owner])
+    nested = exists('members', exists('rooms', exists('owner')))
+    [path, nested].each do |tree|
+      assert evaluate_chat_predicate(predicate, tree)
+      refute evaluate_chat_predicate(predicate, tree, row: { 'id' => id(11) })
+      assert_includes predicate.traversed(tree, 'chat.room'), 'chat.room_membership'
+    end
+    tree = { 'op' => 'and', 'terms' => [exists('members'), exists('members', eq(field('id'), literal(id(88))))] }
+    assert evaluate_chat_predicate(predicate, tree)
+    facts = chat_records
+    facts['chat.room_membership'].delete_at(1)
+    refute evaluate_chat_predicate(predicate, tree, facts: facts)
+  end
+
+  def test_many_to_many_preserves_null_logic_under_not_in_and_exists_and_validates_unreachable_branches
+    predicate = chat_predicate
+    comparison = eq(field('name'), literal('Ana'))
+    list = { 'op' => 'in', 'left' => field('name'), 'right' => literal(['Ana', nil]) }
+    [comparison, list].each do |tree|
+      refute evaluate_chat_predicate(predicate, exists('members', { 'op' => 'not', 'term' => tree }))
+    end
+    assert evaluate_chat_predicate(predicate, exists('members', eq(field('name'), literal(nil))))
+    assert evaluate_chat_predicate(predicate, { 'op' => 'not', 'term' => exists('members') }, facts: chat_records.merge('chat.room_membership' => []))
+    [eq({ 'kind' => 'field', 'path' => %w[name value] }, literal(nil)),
+     eq({ 'kind' => 'actor', 'path' => ['email'] }, literal(nil)),
+     { 'op' => 'in', 'left' => field('id'), 'right' => field('id') },
+     { 'op' => 'unsupported' }].each do |unsupported|
+      tree = { 'op' => 'or', 'terms' => [{ 'op' => 'true' }, exists('members', unsupported)] }
+      error = assert_raises(Vetra::Data::Error) { predicate.validate!(tree, 'chat.room') }
+      assert_equal 'data_authorization_predicate', error.code
+    end
   end
 
   def modified_engine

@@ -414,4 +414,95 @@ class ExecutionRunnerTest < GraphTest
     assert_equal :global, blog.scope
     assert_equal [], blog.fact_plan('blog.find_post', [])[:entities]
   end
+
+  def chat_runner(limit: Vetra::Execution::DatabaseFacts::DEFAULT_LIMIT)
+    linked = self.class.linked('chat')
+    room, member = @post_id, SecureRandom.uuid
+    now = Time.now.utc.floor(6)
+    @chat_rows = {
+      'rooms' => [{ id: room, owner_id: @actor, name: 'Sala', created_at: now }],
+      'users' => [@actor, member].map { |id| { id: id, name: 'Pessoa', email: "#{id}@example.test", created_at: now } },
+      'room_memberships' => [@actor, member].map { |id| { id: SecureRandom.uuid, room_id: room, user_id: id, created_at: now } }
+    }
+    [@ops_db, @facts_db].each do |db|
+      db.fetch = lambda do |sql|
+        table = @chat_rows.keys.find { |name| sql.include?(%Q("public"."#{name}")) }
+        rows = table ? @chat_rows.fetch(table) : []
+        # Leituras por ID da operação; o provedor lê junção/alvo inteiros.
+        requested = rows.find { |row| sql.include?('WHERE') && sql.include?(row[:id]) }
+        requested ? [requested] : rows
+      end
+    end
+    catalog = Vetra::Data::Repositories.new(linked.document)
+    facts = Vetra::Execution::DatabaseFacts.new(catalog: catalog, authority: @authority, limit: limit,
+                                                unit: Vetra::Data::UnitOfWork.new(@facts_db, scope: :global, limits: false))
+    edge = Vetra::Execution::Edge.new(identity: ->(credentials) { credentials }, facts: facts, authority: @authority)
+    runner = Vetra::Execution::Runner.new(linked: linked, catalog: catalog, edge: edge,
+                                          unit: Vetra::Data::UnitOfWork.new(@ops_db, scope: :global, limits: false))
+    [runner, edge, room, member]
+  end
+
+  def test_chat_fact_plan_includes_the_junction_and_target_and_a_junction_write_invalidates_policies
+    chat = Vetra::Execution::Authorization.new(self.class.linked('chat').document)
+    assert_equal %w[chat.message chat.room chat.room_membership chat.user], chat.policy_entities
+    assert_equal %w[chat.room_membership chat.user], chat.fact_plan('chat.read_room', ['chat.authenticated'])[:entities]
+    %w[chat.read_message chat.create_message].each do |operation|
+      assert_equal %w[chat.room chat.room_membership chat.user], chat.fact_plan(operation, ['chat.authenticated'])[:entities]
+    end
+    assert_nil chat.fact_plan('chat.create_message', ['chat.authenticated'])[:principal]
+    assert_equal [], chat.fact_plan('chat.read_room', [])[:entities]
+    runner, = chat_runner
+    # Isola a dependência da junção: add/remove_member do chat usam rooms, que já é entidade de política.
+    assert runner.__send__(:writes_policy_entity?, { 'kind' => 'command', 'uses' => [{ 'id' => 'chat.room_memberships' }] })
+    refute runner.__send__(:writes_policy_entity?, { 'kind' => 'command', 'uses' => [{ 'id' => 'chat.room_memberships_read' }] })
+  end
+
+  def test_chat_runner_reads_for_owner_and_member_and_denies_nonmember_without_operation_sql
+    runner, _edge, room, member = chat_runner
+    [@actor, member].each do |user|
+      identity = Vetra::Execution::Identity.new(actor_id: user, roles: ['chat.authenticated'])
+      outcome = runner.run('chat.read_room', { id: room }, credentials: identity)
+      assert outcome.ok?, outcome.code
+      assert_equal room, outcome.value.id
+    end
+    ops_sqls
+    @ops_seen.clear
+    outcome = runner.run('chat.read_room', { id: room }, credentials:
+      Vetra::Execution::Identity.new(actor_id: SecureRandom.uuid, roles: ['chat.authenticated']))
+    assert_equal 'data_authorization_denied', outcome.code
+    assert_empty ops_sqls
+    assert_equal 0, @authority.call
+    junction_reads = facts_sqls.select { |sql| sql.start_with?('SELECT') && sql.include?('"room_memberships"') }
+    assert_equal 3, junction_reads.size
+    assert junction_reads.all? { |sql| sql.end_with?('LIMIT 10001') && !sql.include?('WHERE') }, 'a junção é lida inteira, com sentinela de excesso'
+  end
+
+  def test_chat_junction_over_the_provider_limit_refuses_before_the_operation_even_for_the_owner
+    runner, _edge, room, = chat_runner(limit: 1)
+    identity = Vetra::Execution::Identity.new(actor_id: @actor, roles: ['chat.authenticated'])
+    assert_equal 'data_authorization_snapshot', runner.run('chat.read_room', { id: room }, credentials: identity).code
+    assert_empty ops_sqls
+    assert facts_sqls.any? { |sql| sql.include?('"room_memberships"') && sql.end_with?('LIMIT 2') }
+  end
+
+  def test_chat_add_and_remove_member_publish_after_commit_and_refuse_an_older_read_snapshot
+    runner, edge, room, member = chat_runner
+    identity = Vetra::Execution::Identity.new(actor_id: @actor, roles: ['chat.authenticated'])
+    ctx = Vetra::Data::Context.new(scope: :global, tenant_id: nil, actor_id: member, op_id: SecureRandom.uuid, cmd: 'chat.read_room')
+    request = Vetra::Execution::FactsRequest.new(authorization: runner.authorization, operation_id: ctx.cmd, context: ctx,
+                                                roles: ['chat.authenticated'], input: { 'id' => room })
+    %w[chat.add_member chat.remove_member].each do |operation|
+      old = edge.snapshot(request)
+      marker = @authority.call
+      assert runner.authorization.check(ctx.cmd, input: { id: room }, context: ctx, snapshot: old, current_revision: edge.authority).allowed?
+      outcome = runner.run(operation, { room_id: room, user_id: member }, credentials: identity)
+      assert outcome.ok?, outcome.code
+      assert_equal marker + 1, @authority.call
+      assert_equal 'COMMIT', ops_sqls.last
+      stale = runner.authorization.check(ctx.cmd, input: { id: room }, context: ctx, snapshot: old, current_revision: edge.authority)
+      assert_equal 'data_authorization_snapshot', stale.code
+    end
+    assert ops_sqls.any? { |sql| sql.start_with?('INSERT INTO "public"."room_memberships"') }
+    assert ops_sqls.any? { |sql| sql.start_with?('DELETE FROM "public"."room_memberships"') }
+  end
 end

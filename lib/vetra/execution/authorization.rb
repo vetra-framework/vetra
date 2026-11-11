@@ -68,6 +68,8 @@ module Vetra
         end
         denied! if candidates.empty?
         candidates.each { |policy| @predicate.validate!(policy.fetch('predicate'), entity_id) }
+        # Mesmo um ramo sem linhas exige as entidades do percurso: omissão não prova ausência sob NOT EXISTS.
+        candidates.flat_map { |policy| @predicate.traversed(policy.fetch('predicate'), entity_id) }.uniq.each { |id| snapshot.rows(id) }
         row = principal_record(operation, normalized, context, snapshot)
         denied! unless @predicate.in_tenant?(entity_id, row, context)
         applicable = candidates.select { |policy| @predicate.evaluate(policy.fetch('predicate'), entity_id, row, context, snapshot) == true }

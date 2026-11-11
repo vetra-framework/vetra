@@ -26,16 +26,16 @@ module Vetra
           right['value'].each { |value| comparison!(tree.fetch('left'), { 'kind' => 'literal', 'value' => value }, entity) }
         when 'exists'
           tree.fetch('relation').each do |name|
-            link = entity.fetch('relations').find { |relation| relation['name'] == name }
-            unsupported! unless link && %w[belongs_to has_many].include?(link['kind'])
-            entity = @entities.fetch(link.dig('target', 'id'))
+            steps = relation_steps(entity.fetch('id'), name)
+            unsupported! unless steps
+            entity = @entities.fetch(steps.last.first)
           end
           validate!(tree.fetch('where'), entity.fetch('id'))
         else unsupported!
         end
       end
 
-      # Entidades que o percurso da política lê (alvos de cada salto do exists, inclusive aninhados), sem a de partida.
+      # Entidades que a política lê (junções e alvos de cada salto do exists, inclusive aninhados), sem a de partida.
       # Um salto desconhecido é ignorado aqui: validate! o recusa antes da avaliação.
       def traversed(tree, entity_id, found = [])
         case tree['op']
@@ -43,10 +43,10 @@ module Vetra
         when 'not' then traversed(tree.fetch('term'), entity_id, found)
         when 'exists'
           tree.fetch('relation').each do |name|
-            link = @entities.fetch(entity_id).fetch('relations').find { |relation| relation['name'] == name }
-            return found unless link && @entities.key?(link.dig('target', 'id'))
-            entity_id = link.dig('target', 'id')
-            found << entity_id
+            steps = relation_steps(entity_id, name)
+            return found unless steps
+            steps.each { |target, _local, _remote| found << target }
+            entity_id = steps.last.first
           end
           traversed(tree.fetch('where'), entity_id, found)
         end
@@ -83,15 +83,15 @@ module Vetra
         when 'exists'
           rows = [row]
           tree.fetch('relation').each do |name|
-            link = @entities.fetch(entity_id).fetch('relations').find { |relation| relation['name'] == name }
-            target = link.dig('target', 'id')
-            candidates = scoped_rows(target, context, snapshot)
-            rows = rows.flat_map do |source|
-              local = link.fetch('local_fields').map { |field| field_value(source, field) }
-              next [] if local.any?(&:nil?)
-              candidates.select { |candidate| link.fetch('target_fields').map { |field| field_value(candidate, field) } == local }
+            relation_steps(entity_id, name).each do |target, local_fields, target_fields|
+              candidates = scoped_rows(target, context, snapshot)
+              rows = rows.flat_map do |source|
+                local = local_fields.map { |field| field_value(source, field) }
+                next [] if local.any?(&:nil?)
+                candidates.select { |candidate| target_fields.map { |field| field_value(candidate, field) } == local }
+              end
+              entity_id = target
             end
-            entity_id = target
           end
           rows.any? { |candidate| evaluate(tree.fetch('where'), entity_id, candidate, context, snapshot) == true }
         end
@@ -114,6 +114,25 @@ module Vetra
       end
 
       private
+
+      # A IR validada descreve as duas FKs na junção: inverte a do dono e segue a do alvo.
+      # Os três percursos (validação, fatos e avaliação) usam os mesmos saltos e as mesmas chaves.
+      def relation_steps(entity_id, name)
+        link = @entities.fetch(entity_id).fetch('relations').find { |relation| relation['name'] == name }
+        return unless link && @entities.key?(link.dig('target', 'id'))
+        target = link.dig('target', 'id')
+        case link['kind']
+        when 'belongs_to', 'has_many'
+          [[target, link.fetch('local_fields'), link.fetch('target_fields')]]
+        when 'many_to_many'
+          junction = @entities.fetch(link.dig('through', 'id'))
+          owner_key, target_key = [entity_id, target].map do |id|
+            junction.fetch('relations').find { |key| key['kind'] == 'belongs_to' && key.dig('target', 'id') == id }
+          end
+          [[junction.fetch('id'), owner_key.fetch('target_fields'), owner_key.fetch('local_fields')],
+           [target, target_key.fetch('local_fields'), target_key.fetch('target_fields')]]
+        end
+      end
 
       def scalar?(value)
         value.nil? || value == true || value == false || value.is_a?(String) || value.is_a?(Numeric)

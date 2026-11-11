@@ -78,7 +78,7 @@ tarefas seguem a ordem da tabela.
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
-| C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | em andamento | — | Sobre `6b2f011`; a árvore é do Codex até a entrega para a auditoria do Claude |
+| C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
@@ -1148,3 +1148,22 @@ achado de forma, não bloqueante: uma linha em branco no fim do quadro (`git dif
 
 **CI.** A [execução 43023877656](https://github.com/vetra-framework/vetra/actions/runs/43023877656) do commit `074c75c` passou nos cinco jobs, com a sonda do Runner em 26/26 no 17 e no 18 e o
 `db:plan --check` dos quatro exemplos. O aceite do ADR-045 é do mantenedor; a próxima tarefa é a C16 (Codex), `many_to_many` no avaliador.
+
+## Auditoria C16
+
+Implementado pelo Codex sobre `e775a65`; auditado pelo Claude (leitura de todo o código, dos testes, da sonda nova e das emendas; suíte, gate,
+`db:plan` e as sondas no PostgreSQL 17.11 e 18.6, que o sandbox do Codex não executa). O ADR-044 **continua proposto**.
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| O guia, o ADR-045, a situação e o plano ainda diziam "esperadas", "pendente de execução" e que as políticas de `many_to_many` recusam | não | Ajustar (pelo Claude): os textos passam a dar as contagens executadas (30 e 27) e a C16 como integrada |
+| A sonda nova não estava na CI | não | Ajustar (pelo Claude; o Codex não edita `.github/`): passo novo depois da sonda de autorização Ruby |
+| O provedor de referência lê inteiras a junção `room_membership` **e** a tabela `chat.user` (com e-mail, dado pessoal) para decidir `members`, porque o avaliador compara a linha do alvo | não | Não ajustar agora: é da referência e do limite de 10.000 linhas por entidade, que recusa em vez de truncar; a K20 mede o custo, e uma leitura por chaves (só as linhas dos ids percorridos) é uma otimização do provedor, não do contrato. Registrado no ADR-045 |
+
+Não achei defeito no avaliador: os três percursos (validação, fatos e avaliação) usam os mesmos saltos pela mesma função, a chave composta é
+comparada inteira, NULL em qualquer componente não casa, o tenant filtra junção e alvo, e a entidade omitida recusa mesmo com um salto anterior vazio
+(a conferência nova de `Authorization#check` exige todas as entidades percorridas). Os testes cobrem membro, não membro, dono, outra sala, outro tenant,
+chave NULL ou órfã, percursos com mais de um salto e dois `many_to_many` na mesma árvore.
+
+**Verificações.** Suíte 738 testes, 0 falhas, 250/250 diagnósticos; gate sem diferenças; `db:plan` sem mudanças nos quatro exemplos; sonda de
+autorização do chat 30/30, a do Runner 27/27 e a de autorização Ruby 68/68, no 17 e no 18.

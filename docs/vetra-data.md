@@ -309,11 +309,14 @@ concede uma revenda. O contexto deve pertencer ao comando e ao escopo da aplica�
 recusado: seu caminho por `calls` pertence à K18.
 
 O subconjunto suporta true, AND/OR/NOT, igualdade, IN literal, `actor.id`, campo escalar local e EXISTS
-por belongs_to/has_many, com lógica SQL de NULL. Um predicado candidato inteiro sem suporte provoca
+por belongs_to/has_many/many_to_many, com lógica SQL de NULL. `many_to_many` percorre dono → junção → alvo
+pelas duas FKs da IR, compara as chaves inteiras e filtra tenant em ambos os saltos. Chave com NULL não
+casa. Junção e alvo precisam estar no snapshot: lista vazia afirma ausência; entidade omitida recusa,
+mesmo se um salto anterior não encontrar linhas. Um predicado candidato inteiro sem suporte provoca
 recusa. Literais de comparação recebem o tipo do outro operando (UUID, data, timestamp ou número). Famílias
 incompatíveis recusam em vez de transformar uma comparação inválida em concessão sob NOT. A recusa vale
-inclusive quando há OR com true. `many_to_many` das políticas do chat e comparação de money/JSON
-composto permanecem fora. Campos permitidos são a união das políticas aplicáveis à mesma linha.
+inclusive quando há OR com true. Caminhos de campo compostos e comparação de money/JSON composto
+permanecem fora. Campos permitidos são a união das políticas aplicáveis à mesma linha.
 Create/update CRUD conferem os campos fornecidos pelo cliente, além de qualquer `fields:` explícito;
 leituras/comandos Ruby exigem todos os campos da entidade por padrão. A borda pode fornecer `fields:`
 para uma projeção/acesso efetivo na K18; nunca para esconder um campo fornecido no CRUD.
@@ -369,6 +372,29 @@ para preservar os mesmos dados. Um erro SQL inesperado faz a verificação falha
 A contagem é a do pool do runtime, o único caminho de uma operação até o banco: o logger do Sequel não pode ver SQL
 algum durante as recusas, e o controle positivo vê o BEGIN e o COMMIT da unidade. A preparação/resolução dos
 fatos ocorre antes da medição. Não se confunde zero transações da admissão com zero custo da borda.
+
+### Sonda de autorização do chat
+
+```sh
+DATABASE_URL=postgres://administrador@localhost/postgres \
+  bundle exec ruby script/sonda_autorizacao_chat.rb
+```
+
+Exige o bootstrap ADR-036 e os dois `ALTER ROLE` da C15, além de `VETRA_APP_PASSWORD` quando necessária.
+Cria/remove um banco próprio, aplica os planos existentes como `vetra_migrator` e usa dois pools com login
+real `vetra_app`. O chat não tem RLS: a referência é um EXISTS escrito à mão em SQL, nas mesmas linhas,
+sem alterar o tradutor SQL de políticas. A avaliação Ruby usa `DatabaseFacts` e a geração em processo.
+São **30 verificações**, no 17 e no 18, e na CI:
+
+| Verificações | Resultado esperado |
+|---|---|
+| Planos, logins e ausência de RLS (2) | Cadeia aplica como migrador; ambos os pools usam vetra_app e as quatro tabelas continuam sem RLS |
+| Quatro atores × três operações × duas salas (24) | `read_room`, `read_message` e `create_message`: dono vinculado e membro permitem só na primeira sala; não membro (mesmo autor da mensagem) recusa ambas; membro da outra sala permite só nela; dono da segunda sala sem vínculo recusa |
+| Completude dos fatos (1) | Junção contém os três vínculos das duas salas e alvo contém os quatro usuários |
+| Add/remove_member (2) | Publicação só depois do commit, marcador avança, snapshot antigo recusa e fatos novos/SQL permitem após inclusão e recusam após remoção |
+| Catálogo de papéis (1) | Idêntico antes/depois |
+
+Cada decisão SQL é consultada mesmo quando Ruby recusa. Não se anuncia proteção SQL de autorização no chat.
 
 ## Executar uma operação pelo Runner
 
@@ -430,10 +456,14 @@ chega como um `Data` com todos os campos do contrato (o opcional ausente é `nil
 `crud.create|read|update|delete` e `many_to_many.add|remove.<relação>` rodam pelos métodos do repositório. O descritor `builtin` do
 linker não traz mais `executor: "pending"`, e o bloco Ruby só roda por `LinkedGraph#run_implementation`, a porta do `Runner`.
 
+O percurso `members` do chat inclui `chat.room_membership` e `chat.user` no plano de fatos e nas entidades que
+invalidam snapshots. O provedor lê a junção inteira, dentro do limite de 10.000 linhas (consulta 10.001 para detectar
+excesso). `chat.read_room`, `chat.read_message` e `chat.create_message` admitem membros da sala; o dono precisa do vínculo
+como os demais. Add/remove_member publicam a geração depois do commit e invalidam fatos anteriores.
+
 **O que ainda não existe.** A autorização dos acessos do repositório e a reautorização do estado final (K18), os eventos do
-`emits` e a idempotência (K19), os handlers de sistema (C14), a composição de comandos pelo `call` e os adaptadores. O
-`many_to_many` das políticas do chat continua recusado pelo avaliador (C16): `chat.read_room` recusa com
-`data_authorization_predicate`. Um comando composto não empresta a autoridade de transição de outro (ADR-039).
+`emits` e a idempotência (K19), os handlers de sistema (C14), a composição de comandos pelo `call` e os adaptadores.
+Um comando composto não empresta a autoridade de transição de outro (ADR-039).
 
 ### Duas contagens de transações
 
@@ -449,13 +479,13 @@ DATABASE_URL=postgres://administrador@localhost/postgres \
 ```
 
 Exige o bootstrap ADR-036, os dois `ALTER ROLE` do `vetra_app` (C15) e, quando necessária, `VETRA_APP_PASSWORD`. Cria um banco por
-exemplo, aplica a cadeia como `vetra_migrator` e abre dois pools de `vetra_app`. São **26 verificações**, no 17 e no 18:
+exemplo, aplica a cadeia como `vetra_migrator` e abre dois pools de `vetra_app`. São **27 verificações**, no 17 e no 18:
 
 | Exemplo | Verificações |
 |---|---|
 | CRM com revendas (tenant, RLS) | `update_lead` (crud) com uma transação na operação e a da borda; consulta em transação somente leitura; `win_lead` (call Ruby) e a segunda tentativa como `Failure` desfeita; ator sem vínculo recusado com zero transações na operação; entrada inválida e identidade não resolvida sem SQL; papel errado na borda recusado; revogação durante a admissão pega pela segunda conferência; autoridade fora do ar recusa sem a exceção; marcador avança e o snapshot antigo é recusado depois do commit da revogação; geração da identidade invalida o snapshot; pool sem contexto residual |
 | Blog (global, geração em processo) | `create_post` e `publish_post` com uma geração publicada depois de cada commit; consulta sem publicar; visitante recusado; `Failure` desfeita que ainda publica; snapshot antigo recusado depois de um comando; `delete_post`; a geração só é publicada depois do `COMMIT` e, num comando que escreve e depois falha (cópia temporária do blog), depois do `ROLLBACK`, com a escrita desfeita |
-| Chat (global) | `create_room` cria a sala e o vínculo do dono pela primitiva e publica a geração; `read_room` recusa pelo `many_to_many` (C16) sem transação da operação; papel desconhecido recusado |
+| Chat (global) | `create_room` cria a sala e o vínculo do dono pela primitiva e publica a geração; `read_room` permite ao dono vinculado sem publicar geração e recusa não membro sem transação da operação; papel desconhecido recusado |
 
 `VETRA_SONDA_DEBUG=1` imprime, por chamada, o estado do `Outcome` e as duas contagens, nunca valores.
 

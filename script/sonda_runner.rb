@@ -341,7 +341,7 @@ class RunnerProbe < VetraDataProbe
     close_all
   end
 
-  # ---- Chat: global, sem RLS; read de sala depende do many_to_many (C16) ----------------------------------------------
+  # ---- Chat: global, sem RLS; read de sala percorre a junção de members (C16) -----------------------------------------
 
   def chat
     boot('chat', false)
@@ -362,9 +362,15 @@ class RunnerProbe < VetraDataProbe
         sql_value('SELECT owner_id FROM public.rooms WHERE id = $1', [room]).first['owner_id'] == user &&
         sql_value('SELECT count(*) AS n FROM public.room_memberships WHERE room_id = $1 AND user_id = $2', [room, user]).first['n'].to_i == 1
     end
-    check('chat: read_room recusa com o predicado de many_to_many fora do subconjunto (C16) e sem transação da operação') do
-      outcome, ops_begins = measured(@runner, 'chat.read_room', { id: room }, identity)
-      !outcome.ok? && outcome.code == 'data_authorization_predicate' && ops_begins.zero?
+    check('chat: read_room permite ao dono pelo vínculo de members, sem publicar geração') do
+      generation = @authority.call
+      outcome, ops_begins, ops_commits, edge_begins = measured(@runner, 'chat.read_room', { id: room }, identity)
+      outcome.ok? && outcome.value.id == room && ops_begins == 1 && ops_commits == 1 && edge_begins == 1 && @authority.call == generation
+    end
+    check('chat: read_room recusa não membro sem transação da operação, mas a borda lê os fatos') do
+      outsider = Vetra::Execution::Identity.new(actor_id: SecureRandom.uuid, roles: ['chat.authenticated'])
+      outcome, ops_begins, _, edge_begins = measured(@runner, 'chat.read_room', { id: room }, outsider)
+      refused_without_operation_transaction?(outcome, 'data_authorization_denied', ops_begins, edge_begins)
     end
     check('chat: um papel desconhecido recusa antes de abrir a operação') do
       outcome, ops_begins = measured(@runner, 'chat.create_room', { name: %q(Nome válido) }, Vetra::Execution::Identity.new(actor_id: user, roles: ['chat.inexistente']))

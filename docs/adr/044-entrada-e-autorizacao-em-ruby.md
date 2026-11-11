@@ -123,18 +123,33 @@ Não despacha o `call`. `validate_input` isolado levanta `Data::Error`; `check` 
 em resultado de recusa. `inspect` dos fatos e resultados não mostra dados nem identidade.
 
 O avaliador aceita `true`, AND, OR, NOT, igualdade, IN literal, `actor.id`, campo escalar local e EXISTS
-por `belongs_to`/`has_many`, inclusive percursos com mais de uma relação e EXISTS aninhado. Filtra tenant
-no registro principal e a cada salto, usando as chaves locais/remotas da IR. Avalia NULL com lógica de
+por `belongs_to`/`has_many`/`many_to_many`, inclusive percursos com mais de uma relação e EXISTS aninhado. Filtra tenant
+no registro principal e a cada salto, usando as chaves locais/remotas da IR. Em `many_to_many`, inverte
+a FK da junção para o dono (chaves remotas do dono → locais da junção) e segue a FK da junção para o
+alvo (locais da junção → remotas do alvo). As chaves compostas são comparadas inteiras; qualquer componente
+NULL impede o casamento. Junção e alvo são filtrados pelo tenant do contexto em cada salto, inclusive
+quando outro salto ou EXISTS vem depois. Avalia NULL com lógica de
 três valores do SQL: igualdade com literal NULL corresponde a `IS NOT DISTINCT FROM`, e os demais
 operandos NULL conservam o desconhecido sob NOT/IN. Uma política só concede se o resultado é `true`.
 Literais de comparação são tipados pelo outro operando, como no SQL (UUID canônico, data, timestamp e
 número exato), sem normalizar texto ou aplicar as restrições de entrada do campo. Comparações de famílias
 incompatíveis e conversões sem suporte recusam com o mesmo código de predicado, inclusive sob NOT.
 Em aplicações globais, os mesmos operadores funcionam sobre os fatos globais fornecidos pela borda;
-isso não acrescenta RLS. `many_to_many`, caminhos de campo compostos, money/JSON composto e operandos
+isso não acrescenta RLS. Caminhos de campo compostos, money/JSON composto e operandos
 fora desse subconjunto recusam com `data_authorization_predicate`. O percurso inteiro de **todas** as
 políticas candidatas é conferido antes da avaliação; nem OR com true nem outra concessão esconde uma
-política candidata sem suporte. As políticas atuais do chat baseadas em `members` são recusadas assim.
+política candidata sem suporte.
+
+**Emenda C16.** O percurso pelas duas FKs torna executáveis as três políticas do chat baseadas em
+`members` (ler sala, ler e criar mensagem por `room → members`), antes recusadas. O EXISTS quantifica
+os alvos efetivamente vinculados, sem inferir que propriedade da sala equivale a associação. A junção
+e o alvo integram `Predicate#traversed`, `Authorization#fact_plan` e `#policy_entities`: o provedor lê
+ambos e o Runner invalida snapshots quando um comando escreve na junção. Todas as entidades percorridas
+devem estar presentes no snapshot, mesmo se um salto anterior estiver vazio; lista vazia afirma ausência,
+entidade omitida recusa. `DatabaseFacts` lê `chat.room_membership` inteira, com limite padrão de 10.000
+linhas por entidade (consulta até 10.001 e recusa excesso, sem truncar). A extensão evita deixar metade
+das políticas do chat inexecutável e usa as chaves já descritas na IR, sem mudar o subconjunto SQL do
+ADR-037 nem inventar RLS para o chat (ADR-031).
 
 Um `record:` seleciona OLD pelo ID validado da entrada, nos fatos persistidos e no tenant corrente.
 Ausente, invisível ou sem concessão produzem a mesma recusa. Criação CRUD usa os campos fornecidos,
@@ -161,11 +176,11 @@ cota, mesmo que também existam políticas limitadas aplicáveis. Não há conta
    integrar os repositórios atuais, mas alteraria expressamente a etapa 3 e o teste 1 do ADR-016. Os
    snapshots preservam esse contrato ao custo de uma autoridade de revisão na borda. Usar read sem
    contar sua transação ou confiar apenas em TTL/NOTIFY não é uma terceira alternativa válida.
-2. **Concessão implícita por `uses`.** Tornaria o exemplo do chat executável, mas concederia leitura de
+2. **Concessão implícita por `uses`.** Tornaria `chat.add_member_by_email` executável, mas concederia leitura de
    registros inteiros e campos pessoais sem uma política revisável, e o escopo dessa autoridade não
    está expresso na IR. Inferir acesso apenas aos campos citados no corpo tampouco cobre métodos
    dinâmicos, retorno do registro e alterações posteriores do código. O preço da escolha explícita é
-   manter o acesso do chat recusado até uma decisão do modelo.
+   manter a leitura adicional desse comando recusada na K18 até uma decisão do modelo.
 3. **Papéis inferidos do login do framework, do SQL, do nome `authenticated` ou da entrada.** Não há
    login do framework nem claim de papel na IR/contexto assinado. Essas inferências concederiam acesso
    sem prova de atribuição. O chamador confiável já é a fronteira prevista para o executor parcial.
@@ -191,6 +206,9 @@ fluxo do repositório. O mantenedor decide o aceite; o ADR permanece proposto.
 - **Transacional a confirmar:** `script/sonda_autorizacao_ruby.rb` aplica os planos existentes como
   migrador, usa login real `vetra_app`, compara Ruby/RLS para as mesmas linhas e conta os BEGIN/COMMIT que o
   pool do runtime executa (logger do Sequel; o `pg_stat_database` publica com atraso e não resolve uma transação isolada). O [guia](../vetra-data.md#sonda-de-entrada-e-autorização-ruby) lista resultados esperados.
+  `script/sonda_autorizacao_chat.rb` compara as três políticas `members` com EXISTS escrito à mão em SQL
+  nas mesmas linhas, por login real `vetra_app`, e confere invalidação após add/remove_member. Sem RLS no
+  chat, essa comparação verifica a concordância do predicado, sem anunciar uma barreira SQL de autorização.
 - **Operacional:** autenticidade/completude dos fatos e papéis e atualidade da autoridade de revisão.
   A dupla conferência detecta mudança durante a avaliação, mas não implementa coordenação distribuída
   nem substitui as garantias transacionais do RLS ou a reautorização da K18.

@@ -44,14 +44,15 @@ vários processos ou muito dado injeta as suas implementações.
   exemplo. Um tenant sem linha de revisão recusa.
 - **Blog e chat (`InProcessAuthority`).** Não têm tenant nem revisão SQL, e este ADR não inventa um. O marcador é uma geração
   **em processo**. O `Runner` a publica depois do commit (ou da falha) de todo comando que usa um repositório `read_write` de uma
-  entidade que alguma política lê, derivado da IR (a entidade da política e os alvos dos seus saltos `exists`). Quando uma
+  entidade que alguma política lê, derivado da IR (a entidade da política, as junções e os alvos dos seus saltos `exists`). Quando uma
   atribuição de papel muda fora do `Runner`, a borda publica. **Escritas feitas por outro processo, ou direto no banco, não movem
   essa geração**, e este ADR não finge que as detecta: a autoridade distribuída é do modo hospedado e dos adaptadores (rodada 6).
 - **Provedor de fatos (`DatabaseFacts`).** Lê, numa `UnitOfWork` própria (pool próprio, mesmo escopo e papel `vetra_app`), as linhas
   que as políticas candidatas percorrem: a entidade principal só pelo `record:` da entrada e as demais inteiras. Como lê com o
   contexto do ator, o RLS dos CRMs filtra os fatos como filtra a operação. Passando do limite de linhas (10.000 por entidade por
   padrão), **recusa** em vez de truncar, porque uma lista incompleta provaria uma ausência falsa. Não guarda cache entre
-  operações; cada operação lê de novo.
+  operações; cada operação lê de novo. Isso inclui a junção inteira `chat.room_membership` e o alvo `chat.user`
+  dos percursos `members` (C16), sem filtrar os vínculos só pelo ator ou sala principal.
 
 Autoridade ausente, divergente ou fora do ar recusa com `data_authorization_snapshot`.
 
@@ -135,6 +136,11 @@ Sem mudança de banco, plano, IR ou dependência. A execução das oito etapas s
 operação, e o de `DatabaseFacts` em tabelas grandes, são da referência e da medição da K20, não uma promessa de produto. O aceite
 do ADR-044 e o deste ADR são do mantenedor; se o do ADR-044 mudar a etapa 3, troca-se o provedor.
 
+Com a emenda C16 ao ADR-044, `chat.read_room` deixa de recusar por predicado sem suporte: o dono com
+vínculo e os demais membros podem ler a sala, e o não membro recusa com `data_authorization_denied`.
+Ler/criar mensagem usa o mesmo vínculo por `room → members`. Escritas na junção entram na publicação
+da geração em processo; add/remove_member invalidam os snapshots anteriores depois do commit.
+
 Uma observação do modelo, fora do escopo: no blog, `crud scope: :author` entra em **todas** as políticas da entidade, inclusive na
 do visitante (`status = 'published'` e `author_id = actor.id`), então o visitante não lê nenhum post. Quem decide é o modelo, não
 o executor; fica registrada para a rodada 6.
@@ -143,7 +149,7 @@ o executor; fica registrada para a rodada 6.
 
 - **Verificável por testes (sem banco):** `test/execution_runner_test.rb` cobre as três saídas de recusa, o zero SQL do pool da
   operação, a exceção de colaborador sem causa, a geração publicada no sucesso e na falha, as primitivas e o limite de linhas.
-- **Transacional a confirmar:** `script/sonda_runner.rb` (26 verificações no PostgreSQL 17 e 18, e na CI) roda um comando de cada
+- **Transacional a confirmar:** `script/sonda_runner.rb` (27 verificações no PostgreSQL 17 e 18, e na CI) roda um comando de cada
   exemplo pelo `Runner` em dois pools de `vetra_app`, conta as duas transações, e exige o contrato de invalidação do ADR-044, §1:
   depois do commit que muda um vínculo o marcador avança e o snapshot antigo é recusado; a revogação durante a admissão recusa pela
   segunda conferência; e a autoridade fora do ar recusa sem transportar a exceção.
