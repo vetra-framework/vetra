@@ -96,6 +96,25 @@ module Vetra
         build(config.dig('entity', 'id'), unit, config.fetch('access'))
       end
 
+      # Leitura da borda confiável para os fatos de autorização (ADR-045), na unidade da própria borda: linhas tipadas e
+      # completas da entidade, no escopo da unidade (tenant e RLS). Passando de limit, recusa em vez de truncar, porque
+      # uma lista incompleta provaria uma ausência falsa.
+      def fact_rows(entity_id, unit:, limit:, ids: nil)
+        reader = @readers.fetch(entity_id) { raise Error.single('data_repository', 'Entidade ou capacidade de repositório não encontrada na IR.') }
+        table = @tables.fetch(entity_id)
+        unit.access(multi_tenant: table['scope'] != 'global') do |db|
+          dataset = db[Sequel.qualify(table['schema'], table['table'])]
+          column = table['tenant_column']
+          dataset = dataset.where(column.to_sym => unit.context.tenant_id) if column
+          dataset = dataset.where(id: ids) if ids
+          rows = dataset.limit(limit + 1).all
+          raise Error.single('data_authorization_snapshot', 'Fatos de autorização ausentes, incompletos, incompatíveis ou obsoletos.') if rows.size > limit
+          rows.map { |row| reader.call(row).to_h.transform_keys(&:to_s).freeze }.freeze
+        end
+      rescue Sequel::DatabaseError => error
+        unit.database_error!(error)
+      end
+
       private
 
       # Por comando, os eventos de emits com a versão, a entidade de origem e os campos do contrato do payload.

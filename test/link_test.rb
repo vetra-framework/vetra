@@ -36,7 +36,7 @@ class LinkTest < GraphTest
         assert_equal expected.implementation_ids, linked.implementation_ids
         assert_empty linked.warnings
         assert_equal name == 'blog' ? 8 : 4, linked.builtin_bindings.size
-        assert linked.builtin_bindings.all? { |binding| binding['executor'] == 'pending' }
+        assert linked.builtin_bindings.all? { |binding| binding.keys.sort == %w[kind name operation] }
         assert linked.frozen?
         refute linked.respond_to?(:call)
         refute linked.respond_to?(:implementations)
@@ -46,6 +46,31 @@ class LinkTest < GraphTest
         assert_raises(FrozenError) { linked.bindings.first['operation']['id'].replace('changed') }
         assert_graph_error('binding_missing') { linked.binding_for('command', 'unknown.operation') }
       end
+    end
+  end
+
+  def test_run_implementation_is_the_only_door_to_the_verified_block_and_only_for_ruby_operations
+    with_app do |_root, compiler|
+      compiler.write
+      linked = compiler.link
+      host = Object.new
+      seen = nil
+      host.define_singleton_method(:fail!) { |*| }
+      input = Object.new
+      posts = Object.new
+      posts.define_singleton_method(:find!) { |id| seen = id; :found }
+      input.define_singleton_method(:post_id) { 'abc' }
+      assert_equal :found, linked.run_implementation('query', 'blog.find_post', host: host, input: input, arguments: [posts])
+      assert_equal 'abc', seen
+      # Um hospedeiro que redefine instance_exec não consegue extrair o bloco verificado.
+      greedy = Object.new
+      greedy.define_singleton_method(:instance_exec) { |*, &block| block }
+      greedy.define_singleton_method(:fail!) { |*| }
+      assert_equal :found, linked.run_implementation('query', 'blog.find_post', host: greedy, input: input, arguments: [posts])
+      assert_graph_error('implementation_not_ruby') do
+        linked.run_implementation('command', 'blog.create_post', host: host, input: input, arguments: [])
+      end
+      assert_graph_error('binding_missing') { linked.run_implementation('command', 'blog.nao_existe', host: host, input: input, arguments: []) }
     end
   end
 

@@ -53,6 +53,11 @@ transação: fatos resolvidos pela borda confiável e ligados à revisão atual,
 dados e papéis atribuídos pela borda. O avaliador está implementado, com recusa de concessões dependentes de
 `rate_limit:` e de ator de sistema. Despacho e autorização dos acessos continuam na K17/K18.
 
+O [ADR-045](045-borda-interna-e-runner.md), proposto, decide a borda interna que o ADR-044 deixou sem dono: o contrato dos três
+colaboradores (identidade, fatos e autoridade de revisão), as implementações de referência (marcador composto nos CRMs, geração em
+processo em blog e chat, e o seu limite de um processo) e o `Runner` das etapas 1 a 5 e 8, com as primitivas CRUD e de vínculo. As
+duas contagens de transações (a da operação e a da borda) substituem o "zero transações do fluxo".
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -101,6 +106,7 @@ dados e papéis atribuídos pela borda. O avaliador está implementado, com recu
 | [042](042-construcao-dos-registros.md) | Construção dos registros | proposto |
 | [043](043-registro-de-idempotencia-da-operacao.md) | Registro de idempotência da operação | aceito |
 | [044](044-entrada-e-autorizacao-em-ruby.md) | Entrada e autorização em Ruby | proposto |
+| [045](045-borda-interna-e-runner.md) | Borda interna, autoridade de revisão e Runner | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

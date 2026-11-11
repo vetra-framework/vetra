@@ -201,7 +201,7 @@ Os 23 testes de `relation_commands_test.rb` cobrem a geração de inclusão/remo
 contratos de dois IDs tipados, autorização pela entidade dona, repositório customizado, tenant, junção
 implícita, opt-out e colisões com comandos explícitos ou outras operações. Recusam opções inválidas,
 junções sem unicidade, chaves opcionais/incompatíveis, dados obrigatórios adicionais e IR adulterada.
-O link mantém `executor: pending` e preserva artefatos 0.1/0.2/0.3, incluindo retornos estruturados e live
+O link retorna o descritor `builtin` (sem `executor` desde a K17) e preserva artefatos 0.1/0.2/0.3, incluindo retornos estruturados e live
 na 0.3, sem geração retroativa. A 0.3 recusa o requisito e as primitivas de vínculo; 0.7 é recusada como
 MENOR futura. Os quatro exemplos têm revisão de `ir_version` 0.3 → 0.4, sem quebra. O diff cobre adição com
 revisão de permissões, remoção como quebra, troca por Ruby e mudança da relação que altera a primitiva.

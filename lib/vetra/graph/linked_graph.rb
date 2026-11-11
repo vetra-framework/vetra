@@ -21,6 +21,17 @@ module Vetra
           raise Error.single('binding_missing', "Vínculo não encontrado: #{kind} #{id}.")
         end
       end
+
+      # Porta da borda confiável (o Runner, ADR-045): roda o bloco Ruby verificado da operação com o hospedeiro dado.
+      # O bloco continua privado; só esta chamada o executa, e só para uma operação Ruby.
+      def run_implementation(kind, id, host:, input:, arguments:)
+        binding = binding_for(kind, id)
+        unless binding['kind'] == 'ruby'
+          raise Error.single('implementation_not_ruby', "A operação #{id} usa uma primitiva, não um bloco Ruby.")
+        end
+        # O método do BasicObject, e não o do hospedeiro: um instance_exec redefinido por ele devolveria o bloco privado.
+        BasicObject.instance_method(:instance_exec).bind_call(host, input, *arguments, &@implementations.fetch(binding['ref']))
+      end
     end
   end
 end

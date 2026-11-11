@@ -77,7 +77,7 @@ tarefas seguem a ordem da tabela.
 | C13 | Entrada e autorização em Ruby (etapas 2 e 3): ADR-044 proposto e a recusa de operação que depende só de concessão com `rate_limit:` | Codex | concluída | `8a224a1` | Auditada pelo Claude; CI verde; ADR-044 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-c13)) |
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
-| K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | a fazer | — | — |
+| K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | integrada, CI pendente | — | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | a fazer | — | — |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
@@ -1091,3 +1091,57 @@ por repetição e resposta/409. Nenhuma edição em `.github/`, `.claude/`, IR, 
 `ALTER ROLE vetra_app SET idle_in_transaction_session_timeout = '10s';` como administrador, conforme `docs/db-plan.md`.
 
 Auditoria, achados, decisões e CI: pendentes do Claude; sem commit da entrega ainda.
+
+## Entrega da K17 pelo Claude
+
+Base: `f50006c` (`git rev-parse HEAD`), árvore limpa antes da tarefa. Implementação sem commit, branch ou push; árvore entregue para a
+auditoria do Codex, em modo somente leitura.
+
+- **O que mudou.** ADR-045 proposto ([borda interna, autoridade de revisão e Runner](adr/045-borda-interna-e-runner.md)).
+  `lib/vetra/execution/edge.rb` (`Identity`, `FactsRequest`, `Edge`), `facts.rb` (`InProcessAuthority`, `DatabaseAuthority`,
+  `DatabaseFacts`) e `runner.rb` (`Runner`, `Outcome`, `Failure`, `CallHost`, `OperationClock`); `Authorization#fact_plan`,
+  `#policy_entities`, `#scope` e `Predicate#traversed`; `Repositories#fact_rows`; `LinkedGraph#run_implementation`; o descritor
+  `builtin` do linker sem `executor: "pending"` (CLI, cinco testes e quatro guias ajustados, a IR não muda).
+- **Etapas.** 1 a 5 e 8 como passos nomeados; os ganchos `persist` (K18) e `register` (K19) ficam vazios. As recusas 1 a 3 voltam como
+  `Outcome` sem tocar o pool da operação; o que vem depois da etapa 4 levanta, com a unidade desfeita por inteiro.
+- **Verificação.** Suíte 729 testes, 16.661 asserções, 0 falhas, 250/250 diagnósticos (27 testes novos: 26 em
+  `test/execution_runner_test.rb` e 1 em `link_test.rb`). Sonda `script/sonda_runner.rb` (nova, modo 100755) com 26 verificações no
+  PostgreSQL 17.11 e no 18.6: um comando de cada exemplo pelo `Runner` em dois pools de `vetra_app`, as duas contagens de transações,
+  a invalidação depois do commit, a revogação durante a admissão e a autoridade fora do ar. Entrou na CI. Gate, `db:plan` e as
+  sondas afetadas são rodados pelo Claude antes do envio.
+- **O que ficou de fora.** Autorização dos acessos e reautorização do estado final (K18), eventos e idempotência no `Runner` (K19),
+  handlers (C14), `many_to_many` no avaliador (C16, e por isso `chat.read_room` recusa com `data_authorization_predicate`),
+  composição pelo `call`, capacidades além de repositório e `clock`, adaptadores, autoridade distribuída.
+- **Riscos que vejo.** (1) A geração em processo vale para um processo, e há uma janela de microssegundos entre o commit e a
+  publicação; o ADR-045, §3 a assume. (2) `DatabaseFacts` lê inteiras as entidades que as políticas percorrem (limite de 10.000
+  linhas, recusa acima) e não guarda cache: é referência, e a K20 mede. (3) O `Runner` publica também na falha, o que é conservador.
+  (4) Achado do modelo, fora do escopo: no blog, `crud scope: :author` entra em todas as políticas da entidade, inclusive na do
+  visitante, então o visitante não lê nenhum post; está no ADR-045 e vai para a rodada 6.
+
+## Auditoria K17
+
+Implementado pelo Claude sobre `f50006c`; auditado pelo Codex em modo somente leitura, com a árvore conferida por hash antes e depois de
+cada rodada. O Claude rodou a suíte, o gate, `db:plan` e as sondas no PostgreSQL 17.11 e no 18.6, que o sandbox do Codex não alcança.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| `publish!` que levanta exceção escapava do `Runner`: depois do `COMMIT` a geração ficava inalterada e um snapshot anterior continuava válido, e a mensagem do colaborador atravessava a borda; numa `Failure`, a exceção da publicação a mascarava | sim | Ajustar: `Edge#publish!` nunca levanta; a falha torna a confirmação (`Edge#authority`) indisponível, e toda operação seguinte recusa com `data_authorization_snapshot` até uma nova publicação ter sucesso. Testes de recuperação e de não mascarar a `Failure`; ADR-045, §3 |
+| Erro de driver no COMMIT saía cru do `Runner` (a unidade só traduz os retentáveis) | sim | Ajustar: o `Runner` traduz o `Sequel::DatabaseError` de `BEGIN` e `COMMIT` para erro de dados, sem mensagem nem causa; teste com unidade que levanta o erro |
+| `LinkedGraph#run_implementation` devolvia o `Proc` privado a um hospedeiro que redefinisse `instance_exec` | sim | Ajustar: usa `BasicObject.instance_method(:instance_exec).bind_call`; teste com hospedeiro que redefine o método |
+| `Edge#resolve` repropagava um `Data::Error` do provedor com a causa e a mensagem | sim | Ajustar: toda exceção da identidade vira `execution_identity`, sem causa; teste com exceção aninhada |
+| A sonda não provava a ordem commit/publicação (conferia só a geração depois de `run`) nem o desfazer de uma escrita antes do `fail!` | não | Ajustar: um wrapper de autoridade registra, na publicação, o que o pool da operação já viu; um `publish_post` de uma cópia temporária do blog escreve e depois falha. Achado extra do Claude: o casamento `include?('COMMIT')` pegava `READ COMMITTED` do `SET TRANSACTION`, então a ordem passava por engano; as contagens usam a palavra inteira. 26/26 no 17 e no 18 |
+| `situacao-do-projeto.md` contava dois ADRs propostos e dava o despacho como pendente; `fase-0.md` atribuía à K18 obrigações que o repositório já cumpre | não | Ajustar: três propostos (042, 044 e 045), o `Runner` na linha do runtime, a contagem de sondas e o trecho da fase 0 |
+
+**Rodada 2 — devolvida pelo Codex.** Os quatro bloqueantes e os dois não bloqueantes da rodada 1 foram dados como fechados, e restou um.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Publicações concorrentes reabriam a guarda com marcador obsoleto: a publicação A incrementa a geração e suspende antes de retornar; a B falha e torna a confirmação indisponível; a A retorna e reabre a guarda, e um snapshot anterior ao commit da B volta a ser aceito | sim | Ajustar: cada tentativa tira um número antes de publicar, e só uma publicação **iniciada depois** da última falha reabre a confirmação (`Confirmation#begin_publication`, `#published!`, `#failed!`). Teste com threads e barreiras que reproduz a corrida; ADR-045, §3 |
+
+**Rodada 3 — aprovada pelo Codex.** O ajuste fecha o achado da rodada 2: o Codex reproduziu a corrida, procurou outras intercalações (várias falhas,
+sucesso só depois de falha, leitura da guarda no meio) e não achou nenhuma que admita um snapshot anterior ao commit que não conseguiu publicar. Restou um
+achado de forma, não bloqueante: uma linha em branco no fim do quadro (`git diff --check`), ajustada.
+
+**Verificações.** Suíte 729 testes, 16.661 asserções, 0 falhas, 250/250 diagnósticos; sonda do Runner 26/26 no 17 e no 18.

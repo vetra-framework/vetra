@@ -35,6 +35,24 @@ module Vetra
         end
       end
 
+      # Entidades que o percurso da política lê (alvos de cada salto do exists, inclusive aninhados), sem a de partida.
+      # Um salto desconhecido é ignorado aqui: validate! o recusa antes da avaliação.
+      def traversed(tree, entity_id, found = [])
+        case tree['op']
+        when 'and', 'or' then tree.fetch('terms').each { |term| traversed(term, entity_id, found) }
+        when 'not' then traversed(tree.fetch('term'), entity_id, found)
+        when 'exists'
+          tree.fetch('relation').each do |name|
+            link = @entities.fetch(entity_id).fetch('relations').find { |relation| relation['name'] == name }
+            return found unless link && @entities.key?(link.dig('target', 'id'))
+            entity_id = link.dig('target', 'id')
+            found << entity_id
+          end
+          traversed(tree.fetch('where'), entity_id, found)
+        end
+        found
+      end
+
       # NULL usa a lógica de três valores do SQL, inclusive sob NOT e IN.
       def evaluate(tree, entity_id, row, context, snapshot)
         case tree['op']

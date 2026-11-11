@@ -143,7 +143,7 @@ module Vetra
       end
       result.warnings.each { |diagnostic| err.puts(diagnostic) }
       if command == 'graph:link'
-        out.puts("#{command}: OK — #{result.implementation_ids.size} blocos Ruby vinculados; #{result.builtin_bindings.size} descritores de primitivas sem executor; #{result.document.fetch('digest')}")
+        out.puts("#{command}: OK — #{result.implementation_ids.size} blocos Ruby vinculados; #{result.builtin_bindings.size} descritores de primitivas; #{result.document.fetch('digest')}")
       else
         out.puts("#{command}: OK — #{result.document.fetch('nodes').size} nós, #{result.document.fetch('digest')}")
       end

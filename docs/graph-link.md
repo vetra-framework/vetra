@@ -13,7 +13,7 @@ bundle exec bin/vetra graph:link --root examples/blog
 bundle exec bin/vetra graph:link --root examples/mini_crm
 ```
 
-O blog retorna três blocos Ruby vinculados e oito **descritores de primitivas sem executor**;
+O blog retorna três blocos Ruby vinculados e oito **descritores de primitivas**;
 o mini CRM retorna dois blocos e quatro descritores.
 O comando lê somente o `.vetra/graph.json` da aplicação informada; não aceita arquivo alternativo,
 `--sources`, `--format` ou `--fail-on-breaking`. As verificações de fontes são obrigatórias.
@@ -91,9 +91,10 @@ Queries e handlers que declaram um repositório recebem referência ao repositó
 e vinculador, para manter o conjunto da IR e a ordem dos argumentos consistentes.
 
 `graph.bindings` e `binding_for` retornam somente metadados congelados: operação, referência, origem,
-parâmetros e capacidades para Ruby; nome e `executor: "pending"` para primitivas. `graph.document`,
-`graph.warnings` e `graph.builtin_bindings` também são visões de dados. Não há API de execução nem getter
-de `Proc` na unidade vinculada. Os registros/vinculadores internos não são APIs de execução da aplicação.
+parâmetros e capacidades para Ruby; só o nome para primitivas (desde a K17 o descritor não traz `executor`). `graph.document`,
+`graph.warnings` e `graph.builtin_bindings` também são visões de dados. Não há getter
+de `Proc` na unidade vinculada: o bloco só roda por `run_implementation`, a porta da borda confiável que o `Runner`
+(ADR-045) usa, e só para operações Ruby. Os registros/vinculadores internos não são APIs de execução da aplicação.
 
 Blocos só são aceitos quando sua origem pertence à declaração exata de comando, query ou handler.
 Trocar dois `call` no mesmo arquivo não é suficiente para passar: o vínculo verifica o escopo lexical,
@@ -127,8 +128,8 @@ pública opcional, sem prometer um Ruby compilado sem o mecanismo interno de Rac
 operações concorrentes. O critério 11 do ADR-001 cobre os dados do compilador, e está registrado como
 coberto na [matriz da fase 0](fase-0-criterios.md).
 
-As primitivas CRUD e de vínculo de `many_to_many` são **reconhecidas**, mas não têm executor neste incremento.
-As de vínculo exigem IR 0.4 ou posterior e `vetra.relation_commands` e retornam o mesmo descritor `builtin` com `executor: "pending"`.
+As primitivas CRUD e de vínculo de `many_to_many` são reconhecidas e **executadas pelo `Runner`** (K17, [ADR-045](adr/045-borda-interna-e-runner.md)).
+As de vínculo exigem IR 0.4 ou posterior e `vetra.relation_commands` e retornam o mesmo descritor `builtin`, só com `kind`, `operation` e `name`.
 A auditoria do link preserva a ausência de geração nos artefatos 0.1/0.2/0.3, inclusive nas consultas 0.3
 com retornos estruturados e live. Um documento 0.3 com o requisito ou com a primitiva de vínculo é recusado
 antes de avaliar as declarações; os schemas publicados permanecem inalterados.

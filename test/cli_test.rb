@@ -95,7 +95,7 @@ class CLITest < GraphTest
       out, err = StringIO.new, StringIO.new
       assert_equal 0, Vetra::CLI.run(['graph:link', '--root', root], out: out, err: err), err.string
       assert_includes out.string, '3 blocos Ruby vinculados'
-      assert_includes out.string, '8 descritores de primitivas sem executor'
+      assert_includes out.string, '8 descritores de primitivas'
       assert_empty err.string
       assert_equal 2, Vetra::CLI.run(['graph:link', '--root', root, '--sources'], out: StringIO.new, err: StringIO.new)
       assert_equal 2, Vetra::CLI.run(['graph:link', '--root', root, compiler.artifact.to_s], out: StringIO.new, err: StringIO.new)

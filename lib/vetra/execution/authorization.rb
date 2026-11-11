@@ -20,6 +20,10 @@ module Vetra
         @policies = @nodes.values.select { |node| node['kind'] == 'policy' }.freeze
         @input = Input.new(@document)
         @predicate = Predicate.new(@entities, @tables)
+        @policy_entities = @policies.flat_map do |policy|
+          entity_id = policy.dig('entity', 'id')
+          [entity_id, *@predicate.traversed(policy.fetch('predicate'), entity_id)]
+        end.uniq.sort.freeze
         freeze
       end
 
@@ -30,6 +34,25 @@ module Vetra
       def validate_input(operation_id, value)
         @input.validate(operation!(operation_id).dig('input', 'id'), value)
       end
+
+      # Entidades de dados de que a borda precisa para decidir esta operação com os papéis dados: as dos saltos das
+      # políticas candidatas e, com `record:`, a entidade principal (que o avaliador lê pelo ID da entrada).
+      def fact_plan(operation_id, roles)
+        operation = operation!(operation_id)
+        entity_id, action = operation.dig('authorize', 'entity', 'id'), operation.dig('authorize', 'action')
+        assigned = roles | @roles.values.select { |role| role['anonymous'] }.map { |role| role['id'] }
+        targets = @policies.select do |policy|
+          policy.dig('entity', 'id') == entity_id && policy['actions'].include?(action) && assigned.include?(policy.dig('role', 'id'))
+        end.flat_map { |policy| @predicate.traversed(policy.fetch('predicate'), entity_id) }
+        { principal: operation.dig('authorize', 'record') ? entity_id : nil, entities: targets.uniq.sort.freeze,
+          record: operation.dig('authorize', 'record') }.freeze
+      end
+
+      # Entidades que alguma política lê: mudar uma delas muda a decisão de outra operação (invalida os fatos).
+      attr_reader :policy_entities
+
+      def scope = @document.dig('app', 'tenant') ? :tenant : :global
+      def operation_ids = @nodes.values.select { |node| %w[command query].include?(node['kind']) }.map { |node| node['id'] }.sort.freeze
 
       # Não chama o call, a unidade, o pool ou os repositórios. current_revision é da borda confiável.
       def check(operation_id, input:, context:, snapshot:, current_revision:, fields: nil)

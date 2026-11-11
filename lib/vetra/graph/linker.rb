@@ -90,7 +90,7 @@ module Vetra
         unless crud || relation
           fail!('builtin_implementation', 'Primitiva desconhecida ou incompatível com a operação.', node)
         end
-        { 'kind' => 'builtin', 'operation' => Data.reference(node['kind'], node['id']), 'name' => name, 'executor' => 'pending' }
+        { 'kind' => 'builtin', 'operation' => Data.reference(node['kind'], node['id']), 'name' => name }
       end
     end
   end

@@ -57,7 +57,7 @@ class RelationCommandsTest < GraphTest
       %w[add_member remove_member].each do |name|
         binding = linked.binding_for('command', "chat.#{name}")
         assert_equal 'builtin', binding['kind']
-        assert_equal 'pending', binding['executor']
+        assert_equal %w[kind name operation], binding.keys.sort
         assert binding.frozen?
         refute_includes linked.implementation_ids, "chat.#{name}#call"
       end
@@ -132,7 +132,7 @@ class RelationCommandsTest < GraphTest
       edit(root, 'app/domains/chat/room_membership.rb') { |text| text.sub('belongs_to :room', 'belongs_to :space, entity: :room').sub('belongs_to :user', 'belongs_to :person, entity: :user').sub(':room_id, :user_id', ':space_id, :person_id') }
       document = compiler.write.document
       assert_equal ['chat.spaces'], node(document, 'command', 'chat.add_member')['uses'].map { |reference| reference['id'] }
-      assert_equal 'pending', compiler.link.binding_for('command', 'chat.add_member')['executor']
+      assert_equal %w[kind name operation], compiler.link.binding_for(%q(command), %q(chat.add_member)).keys.sort
     end
   end
 
@@ -144,7 +144,7 @@ class RelationCommandsTest < GraphTest
       junction = node(document, 'entity', 'crm.lead_watcher')
       assert junction['relations'].all? { |relation| relation['same_tenant'] }
       assert junction['indexes'].any? { |index| index['unique'] && index['fields'] == %w[company_id lead_id user_id] }
-      assert_equal 'pending', compiler.link.binding_for('command', 'crm.remove_watcher')['executor']
+      assert_equal %w[kind name operation], compiler.link.binding_for(%q(command), %q(crm.remove_watcher)).keys.sort
     end
   end
 

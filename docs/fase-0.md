@@ -487,9 +487,9 @@ precisa conceder a ação pela política do dono; a mera declaração da relaç�
 Desde a IR 0.4, o grafo exige `vetra.relation_commands` ao gerar esses comandos e registra `implementation: { kind: "builtin", name:
 "many_to_many.add.tags" }` (ou `many_to_many.remove.tags`). O nome da relação e a entidade autorizada
 identificam a junção, os dois lados e as chaves. `generated_from` aponta o dono. O link retorna
-`executor: "pending"`, sem closure Ruby e sem executar operações. O futuro executor deverá autorizar e
-travar o dono, incluir sem duplicar, remover vínculo ausente sem erro e recusar remoção dos alvos indicados
-por `include_on_create`, como o proprietário da sala. Estas são obrigações do descritor, ainda sem execução.
+o descritor `builtin` (sem `executor`, desde a K17), sem closure Ruby e sem executar operações. O `Runner` (ADR-045)
+executa a primitiva pelos métodos do repositório, que já travam o dono, incluem sem duplicar, removem vínculo ausente sem erro e
+recusam a remoção dos alvos indicados por `include_on_create`, como o proprietário da sala; a autorização do acesso é da K18.
 
 As recusas são explícitas:
 

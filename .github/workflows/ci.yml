@@ -170,6 +170,8 @@ jobs:
         run: bundle exec ruby script/sonda_custo_contexto.rb
       - name: Autorização Ruby e RLS concordam nos mesmos casos, sem abrir transação (ADR-044)
         run: bundle exec ruby script/sonda_autorizacao_ruby.rb
+      - name: Runner, borda e primitivas dos três tipos de exemplo, com as duas contagens de transações (ADR-045)
+        run: bundle exec ruby script/sonda_runner.rb
       - name: Registro de idempotência da operação, concorrência, privilégios e purga (ADR-043)
         run: bundle exec ruby script/sonda_idempotencia.rb
       - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)

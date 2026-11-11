@@ -242,8 +242,9 @@ reautorização do estado final (etapa 6 do ADR-016). O avaliador abaixo produz 
 integra a autorização nos acessos. O isolamento disponível no repositório é o contexto da unidade e o RLS
 dos planos dos CRMs, nos limites do ADR-037; a aplicação continua responsável por autorizar as chamadas,
 inclusive administração de vínculos.
-A emissão para a outbox e o relay estão descritos abaixo; os handlers reais, o histórico, o executor das oito
-etapas e a execução dos descritores builtin são entregas posteriores.
+A emissão para a outbox e o relay estão descritos abaixo. O `Runner` das etapas 1 a 5 e 8 e a execução das
+primitivas builtin estão em [Executar uma operação](#executar-uma-operação-pelo-runner); os handlers reais, o
+histórico, a reautorização do estado final, os eventos e a idempotência no `Runner` são entregas posteriores.
 
 ## Entrada e autorização antes da unidade
 
@@ -368,6 +369,95 @@ para preservar os mesmos dados. Um erro SQL inesperado faz a verificação falha
 A contagem é a do pool do runtime, o único caminho de uma operação até o banco: o logger do Sequel não pode ver SQL
 algum durante as recusas, e o controle positivo vê o BEGIN e o COMMIT da unidade. A preparação/resolução dos
 fatos ocorre antes da medição. Não se confunde zero transações da admissão com zero custo da borda.
+
+## Executar uma operação pelo Runner
+
+O `Runner` (K17, [ADR-045](adr/045-borda-interna-e-runner.md), proposto) despacha as etapas 1 a 5 e 8 do ADR-016 sobre o
+grafo vinculado. Ele junta a **borda** (identidade, fatos e autoridade de revisão), o avaliador do ADR-044 e a unidade.
+
+```ruby
+require 'vetra/execution'
+
+linked  = Vetra::Graph::Compiler.new(root: root).link
+catalog = Vetra::Data::Repositories.new(linked.document)
+
+# Dois pools de vetra_app: o da operação e o da borda, que lê os fatos fora dele.
+operation_db = Vetra::Data.connect(url)
+edge_db      = Vetra::Data.connect(url)
+
+authority = Vetra::Execution::DatabaseAuthority.new(db: edge_db)      # CRMs (revisão SQL + geração da identidade)
+# authority = Vetra::Execution::InProcessAuthority.new                 # blog e chat (um processo)
+facts = Vetra::Execution::DatabaseFacts.new(
+  catalog: catalog, authority: authority,
+  unit: Vetra::Data::UnitOfWork.new(edge_db, issuer: issuer)          # scope: :global em blog e chat
+)
+edge = Vetra::Execution::Edge.new(
+  identity: ->(credentials) { Vetra::Execution::Identity.new(tenant_id: ..., actor_id: ..., roles: [...]) },
+  facts: facts, authority: authority
+)
+runner = Vetra::Execution::Runner.new(
+  linked: linked, catalog: catalog, edge: edge,
+  unit: Vetra::Data::UnitOfWork.new(operation_db, issuer: issuer),
+  unit_options: { statement_timeout: 5_000, lock_timeout: 1_000 }      # C15
+)
+
+outcome = runner.run('crm.win_lead', { lead_id: id }, credentials: credentials)
+outcome.ok? ? outcome.value : outcome.diagnostics
+```
+
+**`Outcome`.** As etapas 1 a 3 devolvem um `Outcome` com `status` `:ok`, `:unresolved` (identidade não resolvida; o código HTTP é do adaptador),
+`:invalid` (entrada fora do contrato, 422) ou `:denied` (política, escopo, contexto ou fatos obsoletos, 403), com `diagnostics` e
+`code`. Nenhuma delas toca o pool da operação. O que acontece depois da etapa 4, inclusive o `fail!` do `call`
+(`Vetra::Execution::Failure`, com `field` e `reason` como dados), os conflitos e os timeouts da C15, **levanta**, com a unidade
+desfeita por inteiro; a K19 traduz para 422, 409 e 500. Uma operação que o grafo não tem levanta `data_execution_operation`.
+
+**A borda.** `Edge.new(identity:, facts:, authority:)` recebe três objetos chamáveis. A identidade vem sempre da borda: o `Runner`
+nunca lê tenant, ator ou papéis da entrada, e uma identidade com tenant numa aplicação global (ou sem tenant numa aplicação de
+tenant) é recusada pelo contexto. Exceção de um colaborador vira recusa com código próprio (`execution_identity`,
+`data_authorization_snapshot`), sem causa e sem a mensagem do provedor.
+
+**A autoridade de revisão.** `DatabaseAuthority` devolve o marcador `[revisão de vetra.authz_revisions, geração da identidade]`,
+lido numa só instrução em autocommit pelo pool da borda; `identity_changed!` publica a geração quando um papel muda fora do banco.
+`InProcessAuthority` é uma geração em memória que o `Runner` publica **depois do commit, ou da falha**, de todo comando que usa um
+repositório `read_write` de uma entidade lida por alguma política. Ela vale para **um** processo: escritas de outro processo, ou
+direto no banco, não a movem. `DatabaseFacts` lê o marcador antes dos fatos, lê as linhas que as políticas candidatas percorrem
+com o contexto do ator (o RLS filtra como filtra a operação) e **recusa**, em vez de truncar, passando de 10.000 linhas por
+entidade.
+
+**Capacidades e primitivas.** O `call` recebe, na ordem dos parâmetros, um repositório ligado à unidade ou o relógio da operação
+(o instante da unidade); `uuid`, `random` e capacidades externas recusam com `execution_capability` até terem executor. A entrada
+chega como um `Data` com todos os campos do contrato (o opcional ausente é `nil`), e o `call` só tem `fail!` além das capacidades.
+`crud.create|read|update|delete` e `many_to_many.add|remove.<relação>` rodam pelos métodos do repositório. O descritor `builtin` do
+linker não traz mais `executor: "pending"`, e o bloco Ruby só roda por `LinkedGraph#run_implementation`, a porta do `Runner`.
+
+**O que ainda não existe.** A autorização dos acessos do repositório e a reautorização do estado final (K18), os eventos do
+`emits` e a idempotência (K19), os handlers de sistema (C14), a composição de comandos pelo `call` e os adaptadores. O
+`many_to_many` das políticas do chat continua recusado pelo avaliador (C16): `chat.read_room` recusa com
+`data_authorization_predicate`. Um comando composto não empresta a autoridade de transição de outro (ADR-039).
+
+### Duas contagens de transações
+
+O ADR-044 lê o teste 1 do ADR-016 como **zero transações da operação**. A sonda conta as duas pontas pelo logger de cada pool: a
+operação recusada nas etapas 1 a 3 não abre `BEGIN` no pool da operação, e a borda abre a sua transação para ler os fatos, que
+**não** é zero. Nenhum relatório diz "zero transações do fluxo".
+
+### Sonda do Runner
+
+```sh
+DATABASE_URL=postgres://administrador@localhost/postgres \
+  bundle exec ruby script/sonda_runner.rb
+```
+
+Exige o bootstrap ADR-036, os dois `ALTER ROLE` do `vetra_app` (C15) e, quando necessária, `VETRA_APP_PASSWORD`. Cria um banco por
+exemplo, aplica a cadeia como `vetra_migrator` e abre dois pools de `vetra_app`. São **26 verificações**, no 17 e no 18:
+
+| Exemplo | Verificações |
+|---|---|
+| CRM com revendas (tenant, RLS) | `update_lead` (crud) com uma transação na operação e a da borda; consulta em transação somente leitura; `win_lead` (call Ruby) e a segunda tentativa como `Failure` desfeita; ator sem vínculo recusado com zero transações na operação; entrada inválida e identidade não resolvida sem SQL; papel errado na borda recusado; revogação durante a admissão pega pela segunda conferência; autoridade fora do ar recusa sem a exceção; marcador avança e o snapshot antigo é recusado depois do commit da revogação; geração da identidade invalida o snapshot; pool sem contexto residual |
+| Blog (global, geração em processo) | `create_post` e `publish_post` com uma geração publicada depois de cada commit; consulta sem publicar; visitante recusado; `Failure` desfeita que ainda publica; snapshot antigo recusado depois de um comando; `delete_post`; a geração só é publicada depois do `COMMIT` e, num comando que escreve e depois falha (cópia temporária do blog), depois do `ROLLBACK`, com a escrita desfeita |
+| Chat (global) | `create_room` cria a sala e o vínculo do dono pela primitiva e publica a geração; `read_room` recusa pelo `many_to_many` (C16) sem transação da operação; papel desconhecido recusado |
+
+`VETRA_SONDA_DEBUG=1` imprime, por chamada, o estado do `Outcome` e as duas contagens, nunca valores.
 
 ## Emissão de eventos
 

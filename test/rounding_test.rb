@@ -213,7 +213,7 @@ class RoundingTest < GraphTest
       assert_equal document, compiler.validate_file(compiler.artifact, sources: true).document
       linked = compiler.link
       assert_equal document, linked.document
-      assert_equal 'pending', linked.binding_for('command', 'chat.add_member')['executor']
+      assert_equal %w[kind name operation], linked.binding_for(%q(command), %q(chat.add_member)).keys.sort
       assert_equal bytes, compiler.artifact.binread
       refute Vetra::Graph::Diff.new.compare(document, compiler.build.document).breaking?
     end
