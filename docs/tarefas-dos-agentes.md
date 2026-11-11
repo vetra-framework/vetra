@@ -79,7 +79,7 @@ tarefas seguem a ordem da tabela.
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
-| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
+| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | em andamento | — | Sobre `1481c92`; a árvore é do Claude até a entrega para a auditoria do Codex |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
