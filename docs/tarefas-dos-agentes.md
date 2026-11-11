@@ -79,7 +79,7 @@ tarefas seguem a ordem da tabela.
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
-| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
+| K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
@@ -1241,3 +1241,9 @@ variante do chat.
 
 **Verificações.** Suíte 768 testes, 17.128 asserções, 0 falhas, 251/251 diagnósticos; sonda dos acessos 21/21, e as sondas do Runner (27), do chat (30),
 de repositórios (72) e de autorização Ruby (68) verdes no 17 e no 18.
+
+**CI.** A [execução 43053053477](https://github.com/vetra-framework/vetra/actions/runs/43053053477) do commit `6304b3f` passou nos cinco jobs **na segunda tentativa**, com a sonda dos acessos em 21/21 no 17 e no 18.
+Na primeira, o job `db:plan (PostgreSQL 17)` falhou no passo da sonda de escopo (`sonda_escopo.rb`, ADR-041: "medição do escopo interrompida (NoMethodError)"), que não usa
+`Vetra::Data` nem `Vetra::Execution`, passou no PostgreSQL 18 da mesma execução e no 17 local (4/4), e passou na repetição: oscilação da medição na CI, sem causa
+identificada, porque a sonda só imprime a classe do erro. Fica anotada como risco: se voltar, a sonda deve imprimir o local do erro. O aceite do ADR-046 é do mantenedor; a
+próxima tarefa é a K19 (Claude), o fechamento transacional.
