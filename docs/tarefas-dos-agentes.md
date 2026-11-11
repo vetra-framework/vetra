@@ -78,7 +78,7 @@ tarefas seguem a ordem da tabela.
 | P5 | Replanejamento da fase B (marco): plano revisado, parecer do Codex e decisão, antes da K17 | Claude | concluída | — | Plano em [plano-persistencia.md](plano-persistencia.md#replanejamento-da-fase-b-p5); primeira rodada devolvida pelo Codex, segunda aprovada ([parecer](#parecer-do-codex-sobre-o-replanejamento-da-fase-b-p5)); a C15 é a próxima |
 | C15 | Limites da unidade (fase B): `statement_timeout`, `lock_timeout` e isolamento por operação, e os limites de sessão que protegem o `xmin` | Codex | concluída | `a5b339d` | Auditada pelo Claude, sonda 17/18 e CI verde; a K17 é a próxima ([auditoria](#auditoria-c15)) |
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
-| C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
+| C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | a fazer | — | — |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | a fazer | — | — |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
@@ -1167,3 +1167,6 @@ chave NULL ou órfã, percursos com mais de um salto e dois `many_to_many` na me
 
 **Verificações.** Suíte 738 testes, 0 falhas, 250/250 diagnósticos; gate sem diferenças; `db:plan` sem mudanças nos quatro exemplos; sonda de
 autorização do chat 30/30, a do Runner 27/27 e a de autorização Ruby 68/68, no 17 e no 18.
+
+**CI.** A [execução 43035403713](https://github.com/vetra-framework/vetra/actions/runs/43035403713) do commit `8fb069f` passou nos cinco jobs, com a sonda de autorização do chat em 30/30 e a do Runner em
+27/27 no 17 e no 18. A próxima tarefa é a K18 (Claude): autorização nos acessos dos repositórios, coletor de fatos na unidade e reautorização do estado final.
