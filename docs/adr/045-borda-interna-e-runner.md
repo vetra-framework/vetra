@@ -63,16 +63,17 @@ Autoridade ausente, divergente ou fora do ar recusa com `data_authorization_snap
 | # | Etapa | No `Runner` |
 |---|---|---|
 | 1 | Resolver | `Edge#resolve`; falha vira `Outcome(:unresolved)` |
-| 2 | Validar | `Authorization#validate_input`; falha vira `Outcome(:invalid)` (422 na K19) |
-| 3 | Autorizar | provedor de fatos e `Authorization#check`; recusa vira `Outcome(:denied)` (403 na K19) |
+| 2 | Validar | `Authorization#validate_input`; falha vira `Outcome(:invalid)` (422) |
+| 3 | Autorizar | provedor de fatos e `Authorization#check`; recusa vira `Outcome(:denied)` (403) |
 | 4 | Abrir | `UnitOfWork#transaction` ou `#read`, com o contexto e os limites da C15 (`unit_options`) |
 | 5 | Executar | o `call` verificado ou a primitiva, só com as capacidades de `uses` |
-| 6 | Persistir | gancho `persist`, vazio (K18) |
-| 7 | Registrar | gancho `register`, vazio (K19) |
+| 6 | Persistir | reautorização do estado final (K18, [ADR-046](046-autorizacao-dos-acessos-e-estado-final.md)) |
+| 7 | Registrar | eventos do `emits` e resultado da idempotência (K19, [ADR-047](047-fechamento-transacional-do-runner.md)) |
 | 8 | Confirmar | o commit; depois dele, ou da falha, a publicação da geração |
 
 As etapas 1 a 3 devolvem um `Outcome` e **não tocam o pool da operação**. O que acontece depois da etapa 4 (`Failure` do `fail!`,
-conflito, timeout, erro inesperado) **levanta**, com a unidade já desfeita por inteiro; a K19 traduz para 422, 409 e 500. Uma
+conflito, timeout, erro inesperado) termina com a unidade já desfeita por inteiro: `run!` o **levanta**, e `run` o devolve como `Outcome` com o
+status do ADR-016 (422, 409, 500; ADR-047). Uma
 operação que o grafo não tem é erro de programação (`data_execution_operation`), não um `Outcome`.
 
 A geração em processo é publicada **também na falha** depois da etapa 4: o desfecho de um commit que falhou no meio é incerto, e
@@ -131,8 +132,8 @@ transição de outro** (ADR-039). O `Runner` desta entrega não expõe composiç
 
 ## Consequências
 
-Sem mudança de banco, plano, IR ou dependência. A execução das oito etapas segue incompleta: sem reautorização do estado final
-(K18), sem eventos nem idempotência (K19), sem handlers (C14) e sem adaptadores (rodada 6). O custo da leitura de fatos por
+Sem mudança de banco, plano, IR ou dependência. A execução das oito etapas ficou completa nas etapas 1 a 8 pelas K18 e K19; falta o histórico e a
+auditoria (etapa 7 do ADR-016), os handlers (C14) e os adaptadores (rodada 6). O custo da leitura de fatos por
 operação, e o de `DatabaseFacts` em tabelas grandes, são da referência e da medição da K20, não uma promessa de produto. O aceite
 do ADR-044 e o deste ADR são do mantenedor; se o do ADR-044 mudar a etapa 3, troca-se o provedor.
 

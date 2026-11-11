@@ -190,7 +190,7 @@ class RunnerProbe < VetraDataProbe
     check('crm: win_lead (call Ruby) conclui o lead e uma segunda tentativa vira Failure com a transação desfeita') do
       first, = measured(@runner, 'crm.win_lead', { lead_id: @lead }, manager.call(@m1))
       failed = begin
-        @runner.run('crm.win_lead', { lead_id: @lead }, credentials: manager.call(@m1))
+        @runner.run!('crm.win_lead', { lead_id: @lead }, credentials: manager.call(@m1))
         nil
       rescue Vetra::Execution::Failure => error
         error
@@ -290,7 +290,7 @@ class RunnerProbe < VetraDataProbe
     check('blog: a segunda publicação vira Failure, desfaz tudo e ainda publica a geração (resultado do commit não presumido)') do
       generation = @authority.call
       failed = begin
-        @runner.run('blog.publish_post', { post_id: post }, credentials: identity)
+        @runner.run!('blog.publish_post', { post_id: post }, credentials: identity)
         nil
       rescue Vetra::Execution::Failure => error
         error
@@ -324,7 +324,7 @@ class RunnerProbe < VetraDataProbe
                                               edge: edge_with(observed, @authority))
         clear_logs
         failed = begin
-          runner.run('blog.publish_post', { post_id: post }, credentials: identity)
+          runner.run!('blog.publish_post', { post_id: post }, credentials: identity)
           nil
         rescue Vetra::Execution::Failure => error
           error

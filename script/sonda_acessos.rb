@@ -32,7 +32,7 @@ class AccessProbe < RunnerProbe
   def count(sql, params = []) = sql_value(sql, params).first['n'].to_i
 
   def refused_with(runner, operation, input, identity)
-    runner.run(operation, input, credentials: identity)
+    runner.run!(operation, input, credentials: identity)
     nil
   rescue Vetra::Data::Error => error
     error

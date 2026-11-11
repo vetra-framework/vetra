@@ -277,7 +277,7 @@ class ExecutionGuardTest < GraphTest
     room, _user, tables = chat_fixture(owner: @actor)
     runner = build_runner('chat', tables)
     identity = Vetra::Execution::Identity.new(actor_id: @actor, roles: ['chat.authenticated'])
-    error = assert_raises(Vetra::Data::Error) { runner.run('chat.add_member_by_email', { room_id: room[:id], email: 'ana@probe.invalid' }, credentials: identity) }
+    error = assert_raises(Vetra::Data::Error) { runner.run!('chat.add_member_by_email', { room_id: room[:id], email: 'ana@probe.invalid' }, credentials: identity) }
     assert_equal 'data_authorization_denied', error.code
     assert_includes @ops_db.sqls, 'ROLLBACK'
     refute(@ops_db.sqls.any? { |sql| sql.start_with?('INSERT') })
@@ -313,7 +313,7 @@ class ExecutionGuardTest < GraphTest
     runner = build_runner('blog', tables)
     before = @authority.call
     error = assert_raises(Vetra::Data::Error) do
-      runner.run('blog.update_post', { id: mine[:id], author_id: @other }, credentials: Vetra::Execution::Identity.new(actor_id: @actor, roles: ['blog.autor']))
+      runner.run!('blog.update_post', { id: mine[:id], author_id: @other }, credentials: Vetra::Execution::Identity.new(actor_id: @actor, roles: ['blog.autor']))
     end
     assert_equal 'data_authorization_final', error.code
     assert_includes @ops_db.sqls, 'ROLLBACK'

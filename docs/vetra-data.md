@@ -2,7 +2,7 @@
 
 O Vetra Data abre unidades de trabalho PostgreSQL pelo Sequel, como `vetra_app`, e emite o contexto assinado
 validado pelas funções dos planos atuais. O contrato está no [ADR-039](adr/039-unidade-de-trabalho-e-repositorios.md).
-Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O `Runner` (K17 e K18) despacha as operações com a borda e a guarda dos acessos; os eventos, a idempotência e os handlers ainda não existem nele.
+Os repositórios são gerados da IR e vinculados às capacidades e à unidade. O `Runner` (K17, K18 e K19) despacha as operações com a borda, a guarda dos acessos e o fechamento transacional (eventos, idempotência e repetição); os handlers ainda não existem nele.
 `Vetra::Execution` valida a entrada e avalia a autorização antes da unidade, conforme o
 [ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md); a aplicação dessas decisões ao despacho e aos
 acessos dos repositórios está no `Runner` (K17) e na guarda dos acessos (K18, ADR-046).
@@ -151,7 +151,7 @@ Todos respondem `retryable? == true`, sem SQL, valores, mensagem nem causa do dr
 A classificação é comum aos repositórios, à emissão de eventos, à idempotência e às falhas no commit. Timeout,
 serialização e deadlock **condenam a unidade inteira**, mesmo quando o corpo resgata o erro após `compose`:
 novos acessos são recusados e o encerramento desfaz tudo, inclusive em saídas por `return`/`throw`.
-A camada não repete operações. A repetição, o mapeamento para 409 e a resposta do executor pertencem à K19.
+A camada de dados não repete operações. A repetição, o mapeamento para 409 e a resposta do executor são do `Runner` ([ADR-047](adr/047-fechamento-transacional-do-runner.md)).
 As demais exceções de SQL direto por `access` continuam propagando como antes; os repositórios as saneiam.
 
 ## Repositórios e registros
@@ -243,7 +243,7 @@ responsável por autorizar as chamadas. **Sob o `Runner`**, a guarda do [ADR-046
 autoriza cada acesso e o estado final (veja [Autorização dos acessos](#autorização-dos-acessos-pelo-runner)).
 A emissão para a outbox e o relay estão descritos abaixo. O `Runner` das etapas 1 a 5 e 8 e a execução das
 primitivas builtin estão em [Executar uma operação](#executar-uma-operação-pelo-runner); os handlers reais, o
-histórico, os eventos e a idempotência no `Runner` são entregas posteriores.
+histórico e a auditoria são entregas posteriores.
 
 ## Entrada e autorização antes da unidade
 
@@ -433,8 +433,8 @@ outcome.ok? ? outcome.value : outcome.diagnostics
 **`Outcome`.** As etapas 1 a 3 devolvem um `Outcome` com `status` `:ok`, `:unresolved` (identidade não resolvida; o código HTTP é do adaptador),
 `:invalid` (entrada fora do contrato, 422) ou `:denied` (política, escopo, contexto ou fatos obsoletos, 403), com `diagnostics` e
 `code`. Nenhuma delas toca o pool da operação. O que acontece depois da etapa 4, inclusive o `fail!` do `call`
-(`Vetra::Execution::Failure`, com `field` e `reason` como dados), os conflitos e os timeouts da C15, **levanta**, com a unidade
-desfeita por inteiro; a K19 traduz para 422, 409 e 500. Uma operação que o grafo não tem levanta `data_execution_operation`.
+(`Vetra::Execution::Failure`, com `field` e `reason` como dados), os conflitos e os timeouts da C15, termina com a unidade
+desfeita por inteiro: `run` o devolve como `Outcome` (422, 409, 500...) e `run!` o levanta ([ADR-047](adr/047-fechamento-transacional-do-runner.md)). Uma operação que o grafo não tem levanta `data_execution_operation`.
 
 **A borda.** `Edge.new(identity:, facts:, authority:)` recebe três objetos chamáveis. A identidade vem sempre da borda: o `Runner`
 nunca lê tenant, ator ou papéis da entrada, e uma identidade com tenant numa aplicação global (ou sem tenant numa aplicação de
@@ -460,8 +460,7 @@ invalidam snapshots. O provedor lê a junção inteira, dentro do limite de 10.0
 excesso). `chat.read_room`, `chat.read_message` e `chat.create_message` admitem membros da sala; o dono precisa do vínculo
 como os demais. Add/remove_member publicam a geração depois do commit e invalidam fatos anteriores.
 
-**O que ainda não existe.** Os eventos do
-`emits` e a idempotência (K19), os handlers de sistema (C14), a composição de comandos pelo `call` e os adaptadores.
+**O que ainda não existe.** Os handlers de sistema (C14), o histórico e a auditoria, a composição de comandos pelo `call` e os adaptadores.
 Um comando composto não empresta a autoridade de transição de outro (ADR-039).
 
 ### Duas contagens de transações
@@ -536,6 +535,61 @@ Mesmos requisitos da sonda do Runner. São **21 verificações**, no 17 e no 18:
 | Chat (sem RLS) | `my_rooms` só com as salas do membro; a sala nova lida na mesma operação que escreveu o vínculo (os fatos antigos são descartados); `room_page` com as mensagens da sala e a sala alheia recusada sem transação da operação; `add_member_by_email` recusado no corpo sem gravar; `add_member` e `remove_member` mudando o que o membro novo lê; não dono não administra membros; `create_room` com o vínculo do dono e o estado final reautorizado |
 | Blog (sem RLS) | o autor lê e altera o post; passar o post a outro autor recusado no estado final, desfeito, com a geração publicada; criar em nome de outro recusado na admissão; o post alheio não é lido |
 | CRM com revendas (RLS) | troca de revenda recusada e desfeita (teste 4 do ADR-016); alteração na própria revenda; lead de outro tenant inalcançável; o vendedor lê e não apaga; o ator de sistema executa o comando dos `calls` sem ler fatos, não alcança outro tenant nem comando fora dos `calls` |
+
+## Fechamento do Runner: eventos, idempotência, status e repetição
+
+O fechamento (K19, [ADR-047](adr/047-fechamento-transacional-do-runner.md), proposto) completa as etapas 4 e 7 do ADR-016.
+
+```ruby
+outcome = runner.run('blog.publish_post', { post_id: id }, credentials: credentials, idempotency_key: 'chave-do-adaptador')
+outcome.status        # :ok, :unresolved, :invalid, :denied, :not_found, :failed, :conflict ou :error
+outcome.http_status   # 200, 401, 422, 403, 404, 422, 409 ou 500
+outcome.retryable?    # o cliente pode repetir (lock_timeout, statement_timeout, repetições esgotadas)
+outcome.replayed?     # o valor é o JSON guardado, sem executar o call
+outcome.attempts      # quantas vezes a operação foi tentada
+runner.run!(...)      # levanta o erro de dados em vez de mapeá-lo (testes e diagnóstico)
+runner.serialize('blog.publish_post', outcome.value) # a forma JSON que o registro guarda: só os campos do contrato de saída
+```
+
+**Eventos.** O `call` nunca grava um evento: depois da reautorização do estado final, o `Runner` grava os de `emits` com o payload projetado do
+registro devolvido, na unidade; se o retorno não é o registro da entidade dos eventos, a unidade é desfeita (`data_event`).
+
+**Idempotência.** O hash da entrada e o resultado guardado vêm do **contrato** (campos declarados, na forma canônica dos eventos, com os microssegundos dos
+instantes), e não do que o `call` devolveu por inteiro: um campo fora do contrato nunca é gravado, e um valor que não tem os campos obrigatórios do contrato
+desfaz a unidade (`data_idempotency_result`, 500). Um número não inteiro dentro de um campo JSON da entrada não tem forma canônica, e a chave é recusada
+(`:invalid`, `data_idempotency_input`). A chave é reivindicada na etapa 4, dentro da unidade, e o resultado é guardado na etapa 7, na mesma transação; a repetição
+devolve o JSON guardado, sem executar, escrever nem emitir. Uma consulta, uma chave fora do formato e um comando cuja saída leva campo pessoal
+(direto ou em `record` e `collection`) recusam a chave antes da etapa 4 (`:invalid`): o resultado não pode ser guardado em claro. Chave
+reutilizada com outra entrada ou outro principal é `:failed` (422).
+
+| Origem | status |
+|---|---|
+| `fail!`, chave reutilizada | `:failed` (422) |
+| registro que some no corpo | `:not_found` (404) |
+| recusa de acesso no corpo (`data_authorization_*`) | `:denied` (403) |
+| unicidade, chave estrangeira | `:conflict` (409) |
+| `lock_timeout`, deadlock ou serialização que esgotou as repetições | `:conflict` (409), retentável |
+| `statement_timeout` | `:error` (500), retentável |
+| `data_idempotency_result`, outro erro de dados, exceção inesperada | `:error` (500) |
+
+**Repetição.** Falha de serialização e deadlock repetem a operação inteira, a partir da etapa 3 e depois do rollback, até 3 vezes (50, 100 e
+200 ms, com variação aleatória; `sleeper:` e `random:` são injetáveis), reivindicando a chave de novo. Só acontece quando nenhuma capacidade
+em `uses` declara `retry_safe: false` e o comando não declara `unsafe_effect`; senão a falha sai como `:conflict` retentável. Os eventos e as
+escritas de uma tentativa desfeita não existem: não há evento duplicado.
+
+### Sonda do fechamento
+
+```sh
+DATABASE_URL=postgres://administrador@localhost/postgres \
+  bundle exec ruby script/sonda_fechamento.rb
+```
+
+Mesmos requisitos da sonda do Runner. São **13 verificações**, no 17 e no 18: o evento do `emits` com o payload do registro; `fail!` (422) e o acesso
+negado (403) sem evento nem transação; a chave guardando o resultado e a repetição sem executar nem emitir; a chave reutilizada (422); a chave
+recusada antes de qualquer transação para uma consulta, uma chave ruim e uma saída pessoal; e, com **duas transações concorrentes de verdade**
+em comandos de uma cópia temporária do blog, a falha de serialização e o deadlock repetidos com sucesso, sem evento duplicado, e a falha de
+serialização num comando com `unsafe_effect` voltando como 409 retentável sem repetir. No CRM com revendas, o evento do `emits` no tenant do
+contexto e a recusa da chave para a saída com o e-mail do lead.
 
 ## Emissão de eventos
 
@@ -616,7 +670,7 @@ relay.work('crm.notify_sales') { |delivery| mailer.deliver(delivery.payload, key
 ## Idempotência da operação
 
 `Vetra::Data::Idempotency` ([ADR-043](adr/043-registro-de-idempotencia-da-operacao.md)) é da borda confiável, dentro da unidade
-de trabalho (etapas 4 e 7 do ADR-016); o `call` da aplicação nunca o recebe. O executor da K19 a liga ao adaptador.
+de trabalho (etapas 4 e 7 do ADR-016); o `call` da aplicação nunca o recebe. O `Runner` a liga ao adaptador, por `run(..., idempotency_key:)`.
 
 ```ruby
 work.transaction(tenant_id: tenant.id, actor_id: actor.id, op_id: operation_id, cmd: 'crm.create_lead') do |unit|
@@ -640,7 +694,7 @@ end
   construído à mão e uma segunda conclusão são `data_idempotency_state`, e o `UPDATE` exige `result IS NULL` e o mesmo principal. O
   resultado é JSON de até 64 KiB **no banco** (`octet_length(result::text)`, sobre o `jsonb` normalizado, com chaves repetidas reduzidas e
   números reescritos): o `CHECK` decide a fronteira, e Ruby só impõe o limite adicional de 1 MiB ao payload serializado.
-  Enquanto a cifra do ADR-013 não existe, um resultado com campo pessoal não deve ser guardado em claro (a K19 o recusa).
+  Enquanto a cifra do ADR-013 não existe, um resultado com campo pessoal não deve ser guardado em claro (o `Runner` o recusa antes da etapa 4).
 - **Purga.** A aplicação nunca apaga chaves. `Relay#purge_idempotency(retention_hours: 24, batch: 1000)` apaga, em lotes, a partir de um corte fixado uma vez no relógio do PostgreSQL, as chaves de
   adaptador mais velhas que o prazo e, numa aplicação com outbox, as de evento cuja entrega já não existe (nem em `deliveries` nem em
   `dead_deliveries`) e que também passaram do prazo. `vetra idempotency:purge [--retention-hours 24] [--batch 1000]` faz o mesmo pela

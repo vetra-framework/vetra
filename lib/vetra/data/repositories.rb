@@ -87,6 +87,19 @@ module Vetra
         end.freeze
       end
 
+      # Etapa 7 (K19): grava os eventos que o comando da unidade declara em `emits`, a partir do registro que ele devolveu. O `call`
+      # nunca os grava. Falha fechada: se o retorno não é o registro da entidade de que todos os eventos declarados partem, não há
+      # como projetar o payload, e a unidade é desfeita.
+      def emit_declared!(unit, result)
+        declared = @emits.fetch(unit.context.cmd, [])
+        return [].freeze if declared.empty?
+        entity_id = @types.key(result.class)
+        unless entity_id && declared.all? { |emit| emit['entity'] == entity_id }
+          raise Error.single('data_event', 'O comando devolve outra coisa que o registro da entidade dos eventos que declara.'), cause: nil
+        end
+        emit!(unit, result)
+      end
+
       def record_type(entity_id)
         @types.fetch(entity_id) { raise Error.single('data_repository', 'Entidade ou capacidade de repositório não encontrada na IR.') }
       end

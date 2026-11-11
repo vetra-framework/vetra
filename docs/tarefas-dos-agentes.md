@@ -80,7 +80,7 @@ tarefas seguem a ordem da tabela.
 | K17 | Executor I (fase B): borda interna com ADR-045, `Runner`, capacidades e primitivas CRUD e de vínculo | Claude | concluída | `074c75c` | Auditada pelo Codex em três rodadas (quatro bloqueantes e uma corrida corrigidos); ADR-045 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k17)) |
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
-| K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | em andamento | — | Sobre `08c9d5f`; a árvore é do Claude até a entrega para a auditoria do Codex |
+| K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | integrada, CI pendente | — | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
 
@@ -1247,3 +1247,80 @@ Na primeira, o job `db:plan (PostgreSQL 17)` falhou no passo da sonda de escopo 
 `Vetra::Data` nem `Vetra::Execution`, passou no PostgreSQL 18 da mesma execução e no 17 local (4/4), e passou na repetição: oscilação da medição na CI, sem causa
 identificada, porque a sonda só imprime a classe do erro. Fica anotada como risco: se voltar, a sonda deve imprimir o local do erro. O aceite do ADR-046 é do mantenedor; a
 próxima tarefa é a K19 (Claude), o fechamento transacional.
+
+## Entrega da K19 pelo Claude
+
+Base: `57c5057` (`git rev-parse HEAD`), árvore limpa antes da tarefa. Implementação sem commit, branch ou push; árvore entregue para a
+auditoria do Codex, em modo somente leitura.
+
+- **O que mudou.** ADR-047 proposto ([fechamento transacional do Runner](adr/047-fechamento-transacional-do-runner.md)). `Runner` reescrito em
+  `lib/vetra/execution/runner.rb`: `run` devolve sempre um `Outcome` (status, `http_status`, `retryable?`, `replayed?`, `attempts`) e `run!` levanta; o
+  `register` (etapa 7) grava os eventos do `emits` e conclui a idempotência na mesma unidade; a chave é reivindicada na etapa 4, e a repetição de
+  resultado devolve o JSON guardado sem executar; a repetição por serialização e deadlock (até 3, espera crescente, só sem `unsafe_effect` nem
+  `retry_safe: false`). `Repositories#emit_declared!` e `#serialize_result`. Para o `database_errors.rb`, o campo do SQLSTATE passou a ser o inteiro 67
+  (o valor de `PG::PG_DIAG_SQLSTATE`), sem exigir a gema `pg` num ambiente só de mocks.
+- **Decisões do ADR-047.** `data_idempotency_result` é 500 (limite do servidor, não erro do cliente); `lock_timeout` e `statement_timeout` não são repetidos
+  pelo Runner e voltam retentáveis; a chave é recusada antes da etapa 4 para uma consulta, uma chave ruim e um comando cuja saída leva campo pessoal
+  (como todo comando do CRM devolve o `lead`, com e-mail pessoal, nenhum deles aceita chave por enquanto); o valor de uma repetição é o JSON guardado.
+- **Verificação.** Suíte 794 testes, 17.352 asserções, 0 falhas, 254/254 diagnósticos (26 testes novos em `test/execution_closing_test.rb`; os que esperavam exceção de
+  `run` passaram a `run!`). Sonda `script/sonda_fechamento.rb` (nova, modo 100755) com 13 verificações no PostgreSQL 17.11 e no 18.6, com **duas transações
+  concorrentes de verdade** (serialização e deadlock repetidos com sucesso, sem evento duplicado; `unsafe_effect` sem repetir). As sondas anteriores seguem
+  verdes nos dois (acessos 21, Runner 27, chat 30, autorização Ruby 68, Vetra Data 23, repositórios 72, outbox 36, relay 38, idempotência 83, limites 15).
+  Entrou na CI. Gate e `db:plan` são rodados pelo Claude antes do envio.
+- **O que ficou de fora.** A origem `event` da idempotência e o runner dos handlers (C14), o histórico e a auditoria (rodada 6), a cifra do ADR-013 (que
+  liberaria a chave nos comandos de saída pessoal e o evento com campo pessoal), contadores de `rate_limit:`.
+- **Riscos que vejo.** (1) A espera entre repetições bloqueia a thread do chamador (o `sleeper` é injetável). (2) A repetição recomeça na etapa 3, então a
+  autorização é refeita a cada tentativa. (3) `run` engole o erro inesperado num `Outcome` sem mensagem: quem depura usa `run!`. (4) O valor de uma repetição
+  (JSON) difere do valor de uma execução (registro Ruby): `Runner#serialize` dá a mesma forma. (5) Nenhum comando do CRM aceita chave enquanto a cifra não existe.
+
+## Auditoria K19
+
+Implementado pelo Claude sobre `57c5057`; auditado pelo Codex em modo somente leitura, com a árvore conferida por hash antes e depois de cada
+rodada. O Claude rodou a suíte, o gate, `db:plan` e as sondas no PostgreSQL 17.11 e no 18.6, que o sandbox do Codex não alcança.
+
+**Rodada 1 — devolvida pelo Codex.**
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| Um resultado pessoal podia ser guardado em claro: a verificação antes da etapa 4 olhava só o contrato **declarado**, e um comando que declara `post` mas devolve `comment` concluía a chave com o e-mail | sim | Ajustar: `register` confere o que o `call` de fato devolveu (`Repositories#personal_result?`) antes de `complete!`, e recusa com `execution_idempotency_personal` (500, porque o contrato mentiu), desfazendo a unidade; teste |
+| `Kernel#loop` engolia um `StopIteration` levantado pelo corpo: `run` e `run!` devolviam `[]` depois do rollback | sim | Ajustar: o laço de repetição é um `while true`; teste (`:error` em `run`, a exceção em `run!`) |
+| O serializador recusava `Float`, então o JSON guardado (com `1.5`) não voltava pelo mesmo `serialize_result`: o adaptador não serializava igual execução e repetição | sim | Ajustar: `Float` finito é aceito (só vem do JSON guardado); NaN e infinito recusam; teste de ida e volta |
+| Uma chave com codificação quebrada (`"\xFF"` em UTF-8, ou UTF-16) fazia o `match?` levantar e a chave ruim virava 500 | sim | Ajustar: a chave precisa ser ASCII-compatível e válida antes do `match?`; teste com quatro chaves ruins |
+| `attempts` voltava 1 num erro inesperado ou numa recusa depois de uma repetição | não | Ajustar: o contador sobe até o resgate; teste |
+| O teste que se anunciava como o do 403 no corpo só construía o Runner do chat | não | Ajustar: executa `chat.add_member_by_email`, confere 403, `ROLLBACK` e nenhum `INSERT` |
+| ADR-045, guia e situação ainda diziam que o que vem depois da etapa 4 "levanta" e que eventos e idempotência no Runner estavam pendentes | não | Ajustar |
+
+**Rodada 2 — devolvida pelo Codex.** O `while`, a chave com codificação quebrada, o `attempts`, o teste do 403 e a maior parte dos textos foram dados como fechados, e restaram três
+bloqueantes e um ajuste, dois deles com a mesma raiz: serializar o que o `call` devolveu, e não o que o contrato declara.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| O resultado pessoal ainda escapava: declarado `post`, o `call` devolvia `{outer: [{author_email: ...}]}`, que a detecção por tipo de registro não via, e o e-mail era guardado em claro | sim | Ajustar, pela raiz: o resultado guardado é o JSON do valor **segundo o contrato de saída declarado** (só os campos declarados, recursivamente), então um campo pessoal que o contrato não declara nunca é gravado; um valor sem os campos obrigatórios desfaz a unidade (`data_idempotency_result`, 500). Saem `personal_result?` e `Repositories#serialize_result`; `Runner#serialize` ganha o `operation_id`; testes (outra entidade, hash só com o campo pessoal, campo extra) |
+| O hash da entrada perdia os microssegundos (`JSON.generate` de um `Time`): `.000001Z` e `.999999Z` davam o mesmo hash, e a segunda entrada recebia replay em vez de 422 | sim | Ajustar: o hash vem do JSON **do contrato de entrada**, na forma canônica dos eventos (`iso8601(6)`); teste que compara os hashes |
+| Uma entrada com `Float` num campo JSON falhava com chave (500): `Graph::Canonical` o recusa | sim | Ajustar: a chave é recusada antes da etapa 4 como `:invalid` (`data_idempotency_input`), e `Idempotency#canonical` também traduz o `Graph::Error`; a entrada sem fração segue aceita; teste |
+| O guia ainda dizia que eventos e idempotência não existem, e o ADR-045 que `persist` está vazio | não | Ajustar |
+
+**Rodada 3 — devolvida pelo Codex.** A serialização por contrato fechou a projeção, os microssegundos e o `Float` da entrada; restaram três bloqueantes
+e um ajuste, todos no serializador novo.
+
+| Achado do Codex | Bloqueia | Decisão do Claude |
+|---|---|---|
+| A projeção não conferia tipos nem `nullable`: `title: {author_email: ...}` num campo de texto era guardado, e `title: nil` e um enum inválido também | sim | Ajustar: cada campo escalar é conferido contra o tipo declarado (texto, id, enum com os valores, inteiro, booleano, decimal, dinheiro, instante, data) e o nulo contra `nullable`; o que não confere desfaz a unidade (`data_idempotency_result`). O framework confia na declaração de privacidade do contrato, e o ADR-047 diz isso |
+| `serialize` do resultado de uma repetição levantava `NoMethodError` (`getutc` numa String): o adaptador não usava o mesmo serializador para execução e repetição | sim | Ajustar: instantes, datas, decimais e dinheiro já em forma JSON passam se têm o formato canônico (um texto qualquer num campo de instante não passa); `serialize` é idempotente; teste |
+| `contract_json` ignorava `collection: true` no contrato (`chat.my_rooms` devolvia `:ok` com `[]` e `serialize` o recusava) | sim | Ajustar: o contrato com coleção vira lista, recusando o que não é lista; teste |
+| ADR-045 (Consequências) ainda dizia que faltavam a reautorização, os eventos e a idempotência | não | Ajustar |
+
+**Rodada 4 — devolvida pelo Codex.** Cinco achados bloqueantes, todos do mesmo rigor que faltava à conferência de tipos que eu tinha escrito à mão: `money` só conferia a
+presença de `amount` e `currency`; `id` aceitava `7` e um e-mail; `decimal` não conferia finitude, precisão nem escala (e `NaN.00` não voltava pelo serializador); as
+expressões de instante e data aceitavam `2026-99-99T99:99:99Z`, `2026-02-31` e um `DateTime`; e `!field['required']` liberava nulo num campo `nullable: false` e introduzia `null`
+num opcional ausente.
+
+| Decisão do Claude |
+|---|
+| Ajustar, pela raiz e de uma vez: a conferência escalar passa a ser a **mesma** `Values.coerce` que o framework usa nas entradas (UUID, escala e precisão, dinheiro, instante e data de verdade, enum, nulidade), seguida de `event_value`, em vez de expressões regulares próprias. O nulo obedece só a `nullable`; o opcional ausente é omitido e o obrigatório ausente desfaz a unidade. O JSON canônico de uma repetição volta igual. Teste com cada valor do achado e a ida e volta; ADR-047, §2 |
+
+**Rodada 5 — aprovada pelo Codex.** Nenhum achado novo: o Codex reproduziu cada valor da rodada 4 com a conferência do framework e não achou outro tipo de campo que escape.
+A suíte integral não rodou no sandbox dele (sem escrita em `/tmp`); as sondas PostgreSQL ele as revisou só por leitura, e o Claude as executou.
+
+**Verificações.** Suíte 794 testes, 17.352 asserções, 0 falhas, 254/254 diagnósticos; sonda do fechamento 13/13, e as sondas dos acessos (21), do Runner (27), do chat (30), de
+autorização Ruby (68), de Vetra Data (23), de repositórios (72), da outbox (36), do relay (38), da idempotência (83) e dos limites (15) verdes no 17 e no 18.

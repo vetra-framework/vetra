@@ -125,7 +125,7 @@ module Vetra
 
       def canonical(input)
         Graph::Canonical.dump(JSON.parse(JSON.generate(input)))
-      rescue JSON::GeneratorError, JSON::ParserError, TypeError
+      rescue JSON::GeneratorError, JSON::ParserError, TypeError, Graph::Error
         raise Error.single('data_idempotency_input', 'A entrada da operação deve ser JSON para ter chave de idempotência.'), cause: nil
       end
 

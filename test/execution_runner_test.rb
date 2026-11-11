@@ -188,7 +188,7 @@ class ExecutionRunnerTest < GraphTest
   def test_fail_rolls_back_everything_and_still_publishes_because_the_commit_outcome_is_not_assumed
     @ops_rows = -> { [@row.merge(status: 'published')] }
     before = @authority.call
-    error = assert_raises(Vetra::Execution::Failure) { run_as(@identity, 'blog.publish_post', post_id: @post_id) }
+    error = assert_raises(Vetra::Execution::Failure) { @runner.run!('blog.publish_post', { post_id: @post_id }, credentials: @identity) }
     assert_equal 'status', error.field
     assert_equal 'execution_failure', error.code
     refute_includes error.diagnostics.map(&:message).join, error.reason
@@ -269,7 +269,7 @@ class ExecutionRunnerTest < GraphTest
     runner, edge, authority = flaky_runner
     authority.failing = true
     @ops_rows = -> { [@row.merge(status: 'published')] }
-    error = assert_raises(Vetra::Execution::Failure) { runner.run('blog.publish_post', { post_id: @post_id }, credentials: @identity) }
+    error = assert_raises(Vetra::Execution::Failure) { runner.run!('blog.publish_post', { post_id: @post_id }, credentials: @identity) }
     assert_nil error.cause
     refute edge.available?
   end
@@ -282,7 +282,7 @@ class ExecutionRunnerTest < GraphTest
     end
     runner = Vetra::Execution::Runner.new(linked: @linked, catalog: @catalog, edge: @edge,
                                           unit: failing.new(@ops_db, scope: :global, limits: false))
-    error = assert_raises(Vetra::Data::Error) { runner.run('blog.update_post', { id: @post_id, title: 'Outro' }, credentials: @identity) }
+    error = assert_raises(Vetra::Data::Error) { runner.run!('blog.update_post', { id: @post_id, title: 'Outro' }, credentials: @identity) }
     assert_equal 'data_database', error.code
     assert_nil error.cause
     refute_includes error.full_message, 'segredo'
@@ -328,7 +328,7 @@ class ExecutionRunnerTest < GraphTest
       runner = Vetra::Execution::Runner.new(linked: linked, catalog: Vetra::Data::Repositories.new(linked.document), edge: @edge,
                                             unit: Vetra::Data::UnitOfWork.new(@ops_db, scope: :global, limits: false))
       publish_row!
-      error = assert_raises(Vetra::Data::Error) { runner.run('blog.find_post', { post_id: @post_id }, credentials: @identity) }
+      error = assert_raises(Vetra::Data::Error) { runner.run!('blog.find_post', { post_id: @post_id }, credentials: @identity) }
       assert_equal 'execution_capability', error.code
       assert_includes ops_sqls, 'ROLLBACK'
     end

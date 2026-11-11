@@ -46,7 +46,7 @@ orçamento é do mantenedor.
 O [ADR-043](043-registro-de-idempotencia-da-operacao.md), aceito, decide o registro de idempotência da operação:
 a tabela `vetra.idempotency` com chave única `NULLS NOT DISTINCT` (que vale também no contexto global), o principal como parte da
 chave, o teto de 64 KiB do resultado, a retenção por origem (24 horas para o adaptador, enquanto a entrega existir para o evento)
-e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executor é da K19.
+e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executor é do [ADR-047](047-fechamento-transacional-do-runner.md).
 
 O [ADR-044](044-entrada-e-autorizacao-em-ruby.md), proposto, define entrada e autorização em Ruby antes da
 transação: fatos resolvidos pela borda confiável e ligados à revisão atual, `uses` sem concessão implícita de
@@ -61,6 +61,10 @@ duas contagens de transações (a da operação e a da borda) substituem o "zero
 O [ADR-046](046-autorizacao-dos-acessos-e-estado-final.md), proposto, decide a autorização de cada acesso dos repositórios por uma
 guarda instalada pelo `Runner` (ação, registro e campos, com fatos lidos na própria unidade), a reautorização do estado final antes do
 commit e o ator de sistema, autorizado pelos `calls` do seu handler.
+
+O [ADR-047](047-fechamento-transacional-do-runner.md), proposto, fecha as oito etapas: os eventos do `emits` na etapa 7, a chave de
+idempotência reivindicada na etapa 4 e concluída na 7 (com a repetição do resultado em JSON), o status do ADR-016 para cada falha (422, 403,
+404, 409, 500, com a indicação de resposta retentável) e a repetição por serialização e deadlock, só quando a operação é segura para repetir.
 
 ## Escritos
 
@@ -112,6 +116,7 @@ commit e o ator de sistema, autorizado pelos `calls` do seu handler.
 | [044](044-entrada-e-autorizacao-em-ruby.md) | Entrada e autorização em Ruby | proposto |
 | [045](045-borda-interna-e-runner.md) | Borda interna, autoridade de revisão e Runner | proposto |
 | [046](046-autorizacao-dos-acessos-e-estado-final.md) | Autorização dos acessos, estado final e ator de sistema | proposto |
+| [047](047-fechamento-transacional-do-runner.md) | Fechamento transacional do Runner | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

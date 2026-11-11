@@ -7,9 +7,12 @@ module Vetra
     module DatabaseErrors
       module_function
 
+      # PG::PG_DIAG_SQLSTATE ('C' do libpq), sem exigir a gema pg: um ambiente só com mocks não a carrega.
+      SQLSTATE_FIELD = 67
+
       def sqlstate(error)
         wrapped = error.wrapped_exception
-        wrapped.respond_to?(:result) ? wrapped.result&.error_field(PG::PG_DIAG_SQLSTATE) : nil
+        wrapped.respond_to?(:result) ? wrapped.result&.error_field(SQLSTATE_FIELD) : nil
       end
 
       def translate(error)
