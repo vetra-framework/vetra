@@ -81,7 +81,7 @@ tarefas seguem a ordem da tabela.
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
-| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | a fazer | — | — |
+| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | em andamento | — | Sobre `c2be39e`; a árvore é do Codex até a entrega para a auditoria do Claude |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
 
 ### Parecer do Codex sobre o plano da rodada 5
