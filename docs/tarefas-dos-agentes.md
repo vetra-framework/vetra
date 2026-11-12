@@ -81,7 +81,7 @@ tarefas seguem a ordem da tabela.
 | C16 | `many_to_many` no avaliador de autorização (fase B), para o `members` do chat | Codex | concluída | `8fb069f` | Auditada pelo Claude, sonda 17/18 e CI verde; emenda ao ADR-044 (proposto); a K18 é a próxima ([auditoria](#auditoria-c16)) |
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
-| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | integrada, CI pendente | — | Auditada pelo Claude, sonda 17/18; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
+| C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | integrada, CI pendente | `0627646` | Auditada pelo Claude, sonda 17/18; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | a fazer | — | — |
 
 ### Parecer do Codex sobre o plano da rodada 5
@@ -1366,3 +1366,7 @@ ocorrências não é um histórico durável); o timeout só interrompe o que é 
 não é a `<handler>:<event_id>` literal do plano, e sim um digest, para caber nos 255 caracteres com qualquer id de handler.
 
 **Verificações.** Suíte 808 testes, 17.476 asserções, 0 falhas, 259/259 diagnósticos; sonda dos handlers 12/12, do fechamento 13/13, do relay 38/38 e do Runner 27/27, no 17 e no 18.
+
+**CI.** A [execução 43098019518](https://github.com/vetra-framework/vetra/actions/runs/43098019518) do commit `0627646` ficou presa em `queued` no GitHub, sem nenhum job iniciado por mais de sete
+horas; o cancelamento, o cancelamento forçado e o reenvio foram recusados pela API (a execução consta como já em andamento), e o `ci.yml` não tem disparo manual. Não há resultado de CI para o
+`0627646` isolado: a conferência é a execução do commit de registro seguinte, que contém o mesmo código. A tarefa só passa a `concluída` depois dessa execução.
