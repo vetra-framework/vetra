@@ -819,13 +819,10 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o [quadro dos agentes](tarefas-dos-agentes.md).
 O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
 
-1. [x] Persistência, rodada 5, **fechada**: o executor parcial do ADR-016 (K14 a K20, C11 a C16, com a decisão da política de escopo, o ator de sistema, a idempotência, a autorização em Ruby, os
-   limites da unidade, o `Runner` das oito etapas e os handlers de sistema), planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial)
-   e registrada no quadro. As decisões que ela deixou com o mantenedor estão na seção 3 (a saída da `vt_system`, o ADR-005, o gate de 10%, o aceite dos ADRs propostos e o teste 6 do ADR-023) e não bloqueiam a rodada 6.
-2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:
+1. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:
    - **As cinco famílias que o DSL ainda recusa nos exemplos da proposta** (critério 7, parcial por desenho):
      `auth`, a UI, `realtime`, a consulta sem `returns` e sem `authorize`, e o escopo por vínculo sem o `has_many`
-     inverso. Nenhuma está na rodada 5, e cada uma depende de algo diferente: `auth` não tem ADR de autenticação; a UI
+     inverso. Nenhuma entrou nas rodadas 5 e 6, e cada uma depende de algo diferente: `auth` não tem ADR de autenticação; a UI
      tem o ADR-018 aceito e espera a implementação e a sua representação no grafo; `realtime` espera o distribuidor do
      live; a consulta sem `returns` e sem `authorize` **já foi decidida como recusada** (seção 3, 2026-11-03), e só um
      novo aceite do mantenedor a reabre; o escopo por vínculo sem o inverso ainda não tem desenho e **pode ser
@@ -835,16 +832,16 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
      0.7 e um ADR); e as famílias da seção 5 sem destino ainda, como a moeda por tenant e as políticas por atributo
      do ator além de `id`, que esperam um ADR.
 
-   O critério 6 depende de existir um servidor de produção. Cada família vira tarefa ao planejar a rodada 6 e as
-   seguintes, e as que podem ser antecipadas entram antes se o mantenedor assim priorizar. Já estão implementados a
+   O critério 6 depende de existir um servidor de produção. Cada família vira tarefa ao planejar uma rodada
+   futura (a 6 não as incluiu), e as que podem ser antecipadas entram antes se o mantenedor assim priorizar. Já estão implementados a
    escala por moeda de `money`, as exposições do ADR-007, os comandos explícitos de membros do chat, o `created_at`
    implícito (IR 0.2), as consultas do chat com coleções e contratos compostos (IR 0.3) e o live de `room_page`, a
    geração automática dos comandos de vínculo (C1, ADR-032), `rounding:` em `currency` (C3, ADR-033, IR 0.5) e
    `rate_limit:` em `can` (C4, ADR-034, IR 0.6) e a recusa no compilador de campos e predicados de enum que colidem
    com métodos do registro `Data` (C12).
-3. [ ] Persistência, rodada 6 (planejada em 2026-11-12, com o parecer do Codex aprovado na segunda rodada;
+2. [ ] Persistência, rodada 6 (planejada em 2026-11-12, com o parecer do Codex aprovado na segunda rodada;
    [plano](plano-persistencia.md#rodada-6-superfícies-executáveis-planejada-em-2026-11-12) e [quadro](tarefas-dos-agentes.md#rodada-6-2026-11-12)):
-   superfícies **experimentais** sobre o executor parcial. Ordem: K22 (documentação alinhada), K23 (contrato da identidade e da borda pública),
-   K24 (adaptador HTTP como app Rack, sem dependência nova), C17 (contadores de `rate_limit:`), K25 (incompatibilidade do `crm.win_lead`), K26 (CLI e job),
+   superfícies **experimentais** sobre o executor parcial. A K22 (documentação alinhada) e a K23 (contrato da identidade e da borda pública) estão feitas (seção 1);
+   faltam, nesta ordem: K24 (adaptador HTTP como app Rack, sem dependência nova), C17 (contadores de `rate_limit:`), K25 (incompatibilidade do `crm.win_lead`), K26 (CLI e job),
    C18 (webhook) e K27 (ponta a ponta por servidor real). **Reescopo:** a cifra dos campos pessoais, o histórico, a auditoria e a conformidade integral com o ADR-016
    passam à rodada 7 (com a declaração de titular como dependência); o distribuidor do live, a fase contract (`vetra.instances` e `vetra.schema_state`) e o modo hospedado em Rails, à rodada 8
