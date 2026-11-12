@@ -66,7 +66,8 @@ module Vetra
         alias to_s inspect
       end
 
-      Outcome.const_set(:HTTP, { ok: 200, unresolved: 401, invalid: 422, denied: 403, not_found: 404, failed: 422, conflict: 409, error: 500 }.freeze)
+      # `rate_limited` (429) é o status da taxa excedida (ADR-034); o `Runner` ainda não o produz (os contadores são da C17), e o adaptador já o traduz.
+      Outcome.const_set(:HTTP, { ok: 200, unresolved: 401, invalid: 422, denied: 403, not_found: 404, failed: 422, conflict: 409, rate_limited: 429, error: 500 }.freeze)
 
       # Recusa interna das etapas 1 a 3, convertida em Outcome por `run`.
       class Refusal < StandardError
@@ -302,7 +303,17 @@ module Vetra
         end
       end
 
+      # Ter a forma do contrato não basta: o valor precisa **serializar** (um texto binário num campo `json` passa pelo contrato e falha ao virar JSON).
+      def ensure_serializable!(json, error_code)
+        JSON.generate(json)
+        nil
+      rescue JSON::GeneratorError, EncodingError
+        json_shape!(nil, error_code)
+      end
+
       def json_shape!(_value, error_code)
+        # Declaração literal do código, para o catálogo de diagnósticos (a cobertura só reconhece `Error.single` com texto literal).
+        raise Error.single('execution_output', 'A saída da operação não tem a forma do contrato declarado, ou não serializa.'), cause: nil if error_code == 'execution_output'
         message = error_code == 'data_idempotency_result' ? 'O resultado guardado deve ser JSON válido de até 64 KiB, nos campos do contrato.' : 'A entrada não tem a forma do contrato.'
         raise Error.single(error_code, message), cause: nil
       end
@@ -387,11 +398,17 @@ module Vetra
       # Etapa 7: os eventos do `emits`, a partir do registro devolvido, e o resultado da idempotência, na mesma unidade. O
       # `call` nunca grava um evento nem o registro. Um replay não chega aqui: não repete evento nem escrita.
       def register(unit, operation, result, claim)
+        # A saída é conferida contra o contrato declarado **sempre**, com ou sem chave, antes do commit (ADR-050): um valor que não tem a forma
+        # do contrato desfaz a unidade, e uma resposta nunca diz sucesso sobre um valor inválido (`execution_output`, ou `data_idempotency_result`
+        # quando há chave, que guarda esse mesmo JSON).
+        code = claim ? 'data_idempotency_result' : 'execution_output'
+        json = contract_json(operation.dig('output', 'id'), result, code)
+        ensure_serializable!(json, code)
         @catalog.emit_declared!(unit, result) if operation['emits']&.any?
         return unless claim
         # O resultado guardado é o do contrato declarado (campos declarados, nenhum pessoal: conferido antes da etapa 4), e não o que o
-        # call devolveu por inteiro: um valor que não tem a forma do contrato desfaz a unidade (`data_idempotency_result`).
-        Data::Idempotency.new(unit).complete!(claim, contract_json(operation.dig('output', 'id'), result, 'data_idempotency_result'))
+        # call devolveu por inteiro.
+        Data::Idempotency.new(unit).complete!(claim, json)
       end
 
       # Mapeamento do erro depois da etapa 4 para o status do ADR-016 (ADR-047).

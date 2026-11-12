@@ -69,7 +69,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | concluída | `9b135a5` | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
-| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
+| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | integrada, CI pendente | — | Auditada pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); ADR-050 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k24-pelo-claude), [auditoria](#auditoria-k24)) |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
 | K26 | Adaptadores de CLI e de job, com a política de repetição por superfície | Claude | pendente | — | — |
@@ -1607,3 +1607,43 @@ leitura e por scripts em memória e rodou os 23 testes novos, o gate e a valida�
 guarda protege contra defeito e valor malformado, não contra um resolvedor malicioso) e de o guarda passar a usar só métodos de módulo e objetos nativos depois da leitura. O que o guarda **não** faz continua escrito: não prova autenticidade e não cobre a revogação entre a etapa 3 e o commit.
 
 **CI.** A [execução 43247638415](https://github.com/vetra-framework/vetra/actions/runs/43247638415) do commit `9b135a5` passou nos cinco jobs. Com a K23 a suíte tem 831 testes e 267 códigos de diagnóstico exercitados (contagem local). A próxima tarefa é a K24 (Claude), o adaptador HTTP como aplicação Rack.
+
+## Entrega da K24 pelo Claude
+
+Base: `68cddae`, árvore limpa na `main`. Implementada pelo Claude sem commit, branch nem push. **ADR-050 proposto**; o aceite é do mantenedor.
+
+- **O que mudou.** `lib/vetra/http.rb` e `lib/vetra/http/app.rb` (novos): `Vetra::Http::App` e `Http::Credentials`. `lib/vetra/execution/runner.rb`: `Runner#register` confere a saída contra o contrato **sempre**
+  (`execution_output`) e `Outcome::HTTP` ganha `rate_limited` (429). `test/http_app_test.rb` (26 testes) e dois casos novos em `test/execution_closing_test.rb` (saída inválida sem chave: `ROLLBACK`, nunca `COMMIT`; saída com a forma do contrato que não serializa).
+  [ADR-050](adr/050-adaptador-http.md), o guia `vetra-data.md`, o índice de ADRs, a situação e este quadro.
+- **Requisitos do parecer da rodada 6 que a K24 cobre.** Leitura do corpo limitada independentemente de `Content-Length`; limites de consulta, profundidade e campos; JSON estrito com chaves repetidas recusadas; conflitos entre caminho,
+  consulta e corpo recusados; conversões pelo contrato, sem perda monetária; modelo de credenciais declarado (CSRF no resolvedor, só `application/json`, CORS fechado, `no-store`); resposta estável para negado e inexistente e lista pública
+  de erros; `Outcome` com 429; perfis do `Runner` por rota; testes com `app.call(env)` direto; e a validação da saída antes do commit também sem chave (a lacuna que a K22 expôs).
+- **O que ficou de fora, de propósito.** O orçamento total do pedido com cancelamento, que o parecer da rodada 6 pedia (o adaptador não cancela thread, e o ADR-050, §7 registra a decisão e o que existe no lugar: timeouts do banco por rota, `pool_timeout`, o servidor); o servidor real e a equivalência entre as superfícies (K27); os contadores de taxa (C17); o motivo
+  textual do `fail!` na resposta; a medição da diferença de tempo entre negado e inexistente; OPTIONS.
+- **Verificação.** Os 26 testes novos e os de `execution_closing`, `execution_runner`, `execution_guard` e `handler_runner`; suíte completa, gate e `db:plan` na verificação do push. Nenhuma sonda de banco muda.
+- **Riscos que o Claude vê.** (1) A conferência da saída antes do commit é um custo novo em toda operação sem chave (uma serialização por operação); não foi medido. (2) O 404 igual para negado e inexistente não esconde diferença de tempo. (3) O
+  resolvedor que usa cookie de sessão precisa implementar a proteção contra CSRF; o adaptador só reduz a superfície (JSON, sem CORS). (4) Nenhum exemplo declara uma rota HTTP com chave obrigatória, então essa regra só tem teste direto.
+
+
+## Auditoria K24
+
+Implementada pelo Claude sobre `68cddae`; auditada pelo Codex em modo somente leitura em **cinco rodadas** (quatro devolvidas, a quinta aprovada). O sandbox do Codex não alcança o PostgreSQL nem grava temporários: ele reproduziu os ataques por `app.call(env)` em memória, com o
+`Runner` real e `Sequel.mock`, e rodou os testes que não pedem temporários e o gate. A quinta rodada só saiu depois de o limite de uso do Codex voltar (a primeira tentativa falhou por isso, sem resultado). O Claude rodou a suíte completa (858 testes, 0 falhas, `rake` com status 0, 269/269 códigos).
+
+| Achado do Codex | Rodada | Bloqueia | Decisão |
+|---|---|---|---|
+| Uma saída com a forma do contrato, mas que não serializa (texto binário num campo `json`), confirmava o commit e só falhava ao virar JSON | 1 | sim | Ajustar: `Runner#ensure_serializable!` confere o `JSON.generate` antes do commit, com os dois códigos |
+| Um POST vazio, sem `Content-Type` ou com `text/plain`, contornava a exigência de JSON (a mitigação de CSRF do ADR) | 1 | sim | Ajustar: todo comando exige `application/json`, mesmo sem corpo; `Credentials` leva `Origin` e `Sec-Fetch-Site` para o resolvedor de sessão recusar outro site; testes |
+| Os ponteiros de erro podiam carregar um nome que o cliente escolheu no corpo (`fail! input.secret` devolvia o valor) | 1 | sim | Ajustar: só ponteiros cujos segmentos são campos declarados no grafo (ou `input` e índices) |
+| O orçamento total do pedido, que o plano pedia, não foi entregue | 1 | sim | **Não ajustar, com decisão registrada**: o adaptador não cancela thread nem etapa fora do `Runner` (sem limpeza segura); o ADR-050, §7 e o plano dizem o que existe no lugar (timeouts do banco por rota, `pool_timeout`, o servidor) e que o mantenedor pode reabrir. A segunda rodada aceitou a justificativa (não bloqueante) |
+| A indisponibilidade dos fatos virava 404 `not_found`, sem `Retry-After` | 1, 2, 3, 4 | sim | Ajustar em três voltas: 503 retentável para `data_authorization_snapshot`; depois para falha de conexão, timeout e limites; depois sem `data_access_denied` (SQLSTATE 42501) na lista de negações; por fim o inventário completo do Codex: 403 ou 404 só para decisão de autorização, 503 para indisponibilidade, e 500 para defeito (predicado incompatível, contexto incoerente) |
+| `execution_output` quebrava o gate de diagnósticos (o código era dinâmico, e os testes forjavam `x` e `outro`) | 1, 2 | sim | Ajustar: declaração literal em `json_shape!`, códigos de teste do catálogo. **Erro do Claude**: o script de verificação do push filtrava a saída e não via as linhas do coletor nem o status do `rake`; já corrigido (ele confere o status), e a CI é a barreira que pegaria |
+| HEAD era executado e devolvia corpo; depois, só a resposta de sucesso perdia o corpo | 1, 2 | sim | Ajustar: HEAD só onde o grafo o declara, sem corpo e com o `content-length` do GET em **toda** resposta, inclusive as recusas; teste com um grafo compilado com HEAD |
+| O limite de campos do JSON valia só na raiz | 1 | não | Ajustar: conta todos os níveis, inclusive listas |
+| Os testes de saída não serializável não provam o rollback integrado | 4 | não | Ajustar o texto: o ADR diz que o teste cobre `ensure_serializable!` e que o `ROLLBACK` integrado é o da saída inválida |
+| A situação ainda listava a validação da saída antes do commit como ausente; o guia omitia o 503 | 4 | não | Ajustar |
+| `pretty_print` imprimia a credencial | 5 | não | Ajustar: `pp` também sai redigido, com teste |
+| Limitação do ambiente do Codex: suíte completa e PostgreSQL não rodam no sandbox dele | 1 a 5 | não | Sem ação: a verificação do push roda a suíte |
+
+O que a auditoria **não** mudou, e o ADR-050 registra: o orçamento total sem cancelamento, a diferença de tempo entre negado e inexistente (não medida), o motivo textual do `fail!` fora da resposta e o 404 igual só nas operações que apontam um registro.
+\n

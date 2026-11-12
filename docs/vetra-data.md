@@ -748,6 +748,14 @@ identidade cuja geração foi substituída (`Edge#identity_current?`). O visitan
 UUID derivado do nonce por HMAC, estável e não escolhido pelo cliente. `InProcessAuthority` e a geração em memória valem para um processo: um adaptador de vários processos chama
 `Execution.require_shared_authority!(edge)`, que recusa subir sem uma autoridade que declare `shared?`.
 
+## Adaptador HTTP
+
+`Vetra::Http::App` (`require 'vetra/http'`, ADR-050 proposto, experimental) é uma aplicação Rack sem dependência nova: `call(env)` traduz um pedido para o `Runner` a partir das rotas `http` da IR e nunca levanta.
+Caminho, consulta e corpo JSON viram a entrada do contrato, com leitura limitada do corpo, JSON estrito (sem chave repetida, `NaN` nem aninhamento além de 8 níveis), conflitos entre as fontes recusados e tipos
+`integer` e `boolean` do caminho e da consulta convertidos pelo contrato. Só a credencial (`Authorization`, `Cookie` e os cabeçalhos configurados) vai ao resolvedor de identidade; `Idempotency-Key` é a chave. A saída vira um
+vocabulário público fixo (401, 422, 404 para negado e inexistente nas operações com registro, 403, 409, 429, 500, e 503 para indisponibilidade da infraestrutura), sem texto interno, com `Cache-Control: no-store` e sem CORS. `runners:` dá um perfil de timeouts por rota. O orçamento
+total do pedido é do servidor; o adaptador não cancela thread. `Runner#register` agora confere a saída contra o contrato antes do commit também sem chave de idempotência.
+
 ## Ponta a ponta e medição do executor
 
 `script/sonda_ponta_a_ponta.rb` roda os quatro exemplos **como estão** pelo `Runner`, sem cópia temporária nem fixture: nos dois CRMs, a emissão do

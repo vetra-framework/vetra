@@ -75,6 +75,11 @@ pública: um guarda que recusa ator de sistema, ator ou papel inválidos e tenan
 geração foi substituída), o visitante como identidade anônima estável, emitida e verificada, e a recusa de subir em vários processos sem
 uma autoridade de revisão compartilhada.
 
+O [ADR-050](050-adaptador-http.md), proposto, define o adaptador HTTP experimental: uma aplicação Rack sem dependência nova que traduz o pedido para o
+`Runner` (entrada com limites, JSON estrito, conflitos recusados, chave de idempotência por cabeçalho), entrega só a credencial ao resolvedor de identidade, traduz as
+saídas para um vocabulário público fixo (404 igual para negado e inexistente nas operações com registro, 429 e `Retry-After`) e passa a conferir a saída contra o contrato
+antes do commit, também sem chave de idempotência.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -128,6 +133,7 @@ uma autoridade de revisão compartilhada.
 | [047](047-fechamento-transacional-do-runner.md) | Fechamento transacional do Runner | proposto |
 | [048](048-execucao-dos-handlers-de-sistema.md) | Execução dos handlers de sistema | proposto |
 | [049](049-identidade-da-borda-publica.md) | Identidade da borda pública | proposto |
+| [050](050-adaptador-http.md) | Adaptador HTTP | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

@@ -230,9 +230,18 @@ class ExecutionClosingTest < GraphTest
     end
   end
 
+  def test_an_output_that_has_the_contract_shape_but_does_not_serialize_is_refused_before_the_commit
+    runner = blog
+    ['execution_output', 'data_idempotency_result'].each do |code|
+      assert_nil runner.__send__(:ensure_serializable!, { 'meta' => { 'texto' => 'ok' } }, code)
+      assert_equal code, assert_raises(Vetra::Data::Error) { runner.__send__(:ensure_serializable!, { 'meta' => "\xFF".b }, code) }.code
+      assert_equal code, assert_raises(Vetra::Data::Error) { runner.__send__(:ensure_serializable!, { 'meta' => ["\xFE".dup.force_encoding('UTF-8')] }, code) }.code
+    end
+  end
+
   def test_the_outcome_maps_every_status_to_its_http_code_and_hides_its_value
     statuses = Vetra::Execution::Runner::Outcome::HTTP
-    assert_equal({ ok: 200, unresolved: 401, invalid: 422, denied: 403, not_found: 404, failed: 422, conflict: 409, error: 500 }, statuses)
+    assert_equal({ ok: 200, unresolved: 401, invalid: 422, denied: 403, not_found: 404, failed: 422, conflict: 409, rate_limited: 429, error: 500 }, statuses)
     outcome = Vetra::Execution::Runner::Outcome.new(status: :ok, value: { secret: 1 })
     assert_equal 1, outcome.attempts
     refute outcome.replayed?
@@ -348,6 +357,13 @@ class ExecutionClosingTest < GraphTest
         statements = sqls
         assert_includes statements, 'ROLLBACK'
         refute(statements.any? { |sql| sql.start_with?('UPDATE "vetra"."idempotency"') }, 'um valor fora do contrato nunca é guardado')
+        # Sem chave a saída também é conferida antes do commit (ADR-050): antes ela terminava `ok` e só a serialização a recusava, depois.
+        @seen.clear
+        keyless = runner.run('blog.publish_post', { post_id: post_id }, credentials: admin)
+        assert_equal [:error, 'execution_output'], [keyless.status, keyless.code], "#{post_id} sem chave"
+        statements = sqls
+        assert_includes statements, 'ROLLBACK'
+        refute_includes statements, 'COMMIT', 'uma saída fora do contrato nunca é confirmada'
       end
     end
   end

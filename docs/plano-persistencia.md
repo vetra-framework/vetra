@@ -66,7 +66,7 @@ Cada tarefa segue o protocolo (implementação sem commit, auditoria cruzada, de
   erros com cabeçalhos de cache que as impedem de ser guardadas.
 - **Erros públicos (K24).** Resposta estável para registro inexistente ou invisível (404, sem diferenciar por diagnóstico interno), lista explícita de erros públicos sem valores, SQL, causas nem credenciais, e `Outcome` ganha o status de
   taxa excedida (429, com `Retry-After`), sem consulta ao banco pelo adaptador.
-- **Tempo e custo (K24).** Perfis do `Runner` por rota, sem mutação compartilhada, e orçamento total que cobre o resolvedor, os fatos, as esperas de pool e de serialização, com cancelamento e limpeza seguros; o desfecho incerto de
+- **Tempo e custo (K24).** Perfis do `Runner` por rota, sem mutação compartilhada. O orçamento total com cancelamento (resolvedor, fatos, esperas de pool e de serialização) **não foi entregue pelo adaptador**, por decisão registrada no ADR-050, §7 (interromper essas etapas fora do `Runner` não tem limpeza segura; o teto é do banco, do `pool_timeout` e do servidor), e o mantenedor pode reabri-la; o desfecho incerto de
   um timeout durante o COMMIT é documentado, e a recuperação é pela mesma chave **quando uma chave válida foi aceita**; sem ela (a idempotência das rotas HTTP atuais é opcional, e o `Runner` recusa chave para saída pessoal), um timeout depois de um possível commit deixa o resultado incerto e não autoriza repetição automática segura.
 - **Retentabilidade (K24, K26, C18).** A política é por superfície e distingue a negação efetiva da indisponibilidade da infraestrutura (sempre recusando o acesso), com repetição limitada, falha definitiva e a resposta ao provedor; `retryable?`
   sozinho não decide.
