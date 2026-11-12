@@ -70,7 +70,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | concluída | `9b135a5` | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | concluída | `45defb7` | Auditada pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); ADR-050 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k24-pelo-claude), [auditoria](#auditoria-k24)) |
-| C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
+| C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | em andamento | — | Sobre `dcb1d9b`; a árvore pertence ao Codex até a auditoria do Claude |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
 | K26 | Adaptadores de CLI e de job, com a política de repetição por superfície | Claude | pendente | — | — |
 | C18 | Adaptador de webhook, com assinatura sobre os bytes originais e chave derivada (ADR proposto) | Codex | pendente | — | — |
