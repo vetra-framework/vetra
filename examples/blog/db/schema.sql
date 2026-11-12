@@ -4,6 +4,7 @@
 -- vetra:base 0002_expand sha256=983ac2efaf8a561d95b84c247fb28e9de4ef0a9d16b4d8991c4d13d152a1aeec
 -- vetra:base 0003_expand sha256=e529f9ef1d68262bb0c167e21c2a7d446fda0efc955afba973506a00032f4919
 -- vetra:base 0004_expand sha256=4952f9873d87773d64794e7ae60171700950171b8bf30e3a32f26e0123a4b23a
+-- vetra:base 0005_expand sha256=5dc5d43dd9c93a1ac443d2276bd02f9bebbd9d63ba8d5ac4d1d14f52879fe350
 
 ALTER SCHEMA public OWNER TO vetra_owner;
 
@@ -270,6 +271,140 @@ $_$;
 
 ALTER FUNCTION vetra.outbox_maintain(ahead integer, retention integer) OWNER TO vetra_owner;
 
+CREATE FUNCTION vetra.reserve_rate_limit(text) RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $_$
+DECLARE
+token text := $1;
+admission_namespace text;
+tenant uuid;
+actor uuid;
+policies jsonb;
+policy jsonb;
+lock_key bigint;
+instant timestamp with time zone;
+cutoff timestamp with time zone;
+used bigint;
+cap bigint;
+window_seconds bigint;
+wait_seconds bigint := 0;
+first_at timestamp with time zone;
+  parts text[];
+  payload_bytes bytea;
+  payload jsonb;
+  key_secret bytea;
+  key_not_before timestamp with time zone;
+  supplied bytea;
+  expected bytea;
+  issued bigint;
+  expires bigint;
+  now_epoch numeric := EXTRACT(EPOCH FROM pg_catalog.transaction_timestamp());
+  difference integer := 0;
+  uuid_pattern text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+BEGIN
+  IF token IS NULL OR pg_catalog.octet_length(token) = 0 OR pg_catalog.octet_length(token) > 8192 THEN
+    RETURN NULL;
+  END IF;
+  parts := pg_catalog.string_to_array(token, '.');
+  IF pg_catalog.cardinality(parts) <> 4 OR parts[1] <> 'r1'
+     OR parts[2] !~ '^[A-Za-z0-9_-]{1,64}$' OR parts[3] !~ '^[A-Za-z0-9_-]+$'
+     OR parts[4] !~ '^[A-Za-z0-9_-]{43}$' THEN
+    RETURN NULL;
+  END IF;
+  SELECT k.secret, k.not_before INTO key_secret, key_not_before FROM "vetra_private"."keys" k
+    WHERE k.kid = parts[2] AND k.status IN ('active', 'verify_only')
+      AND k.not_before <= pg_catalog.transaction_timestamp();
+  IF key_secret IS NULL THEN RETURN NULL; END IF;
+  supplied := pg_catalog.decode(pg_catalog.translate(parts[4], '-_', '+/') || '=', 'base64');
+  expected := "vetra_private"."hmac"(pg_catalog.convert_to(parts[1] || '.' || parts[2] || '.' || parts[3], 'UTF8'), key_secret, 'sha256');
+  IF pg_catalog.octet_length(supplied) <> 32 THEN RETURN NULL; END IF;
+  FOR i IN 0..31 LOOP
+    difference := difference | (pg_catalog.get_byte(supplied, i) # pg_catalog.get_byte(expected, i));
+  END LOOP;
+  IF difference <> 0 OR pg_catalog.rtrim(pg_catalog.translate(pg_catalog.encode(supplied, 'base64'), '+/', '-_'), '=') <> parts[4] THEN
+    RETURN NULL;
+  END IF;
+  payload_bytes := pg_catalog.decode(pg_catalog.translate(parts[3], '-_', '+/') || pg_catalog.repeat('=', (4 - pg_catalog.length(parts[3]) % 4) % 4), 'base64');
+  IF pg_catalog.rtrim(pg_catalog.translate(pg_catalog.replace(pg_catalog.encode(payload_bytes, 'base64'), E'\n', ''), '+/', '-_'), '=') <> parts[3] THEN
+    RETURN NULL;
+  END IF;
+  payload := pg_catalog.convert_from(payload_bytes, 'UTF8')::jsonb;
+  IF pg_catalog.jsonb_typeof(payload) IS DISTINCT FROM 'object'
+     OR NOT (payload ? 'tenant_id') OR (payload->'tenant_id' <> 'null'::jsonb AND pg_catalog.jsonb_typeof(payload->'tenant_id') IS DISTINCT FROM 'string')
+     OR pg_catalog.jsonb_typeof(payload->'actor_id') IS DISTINCT FROM 'string'
+     OR pg_catalog.jsonb_typeof(payload->'op_id') IS DISTINCT FROM 'string'
+     OR ((payload->>'tenant_id') IS NOT NULL AND (payload->>'tenant_id') !~ uuid_pattern) OR (payload->>'actor_id') !~ uuid_pattern
+     OR (payload->>'op_id') !~ uuid_pattern
+     OR pg_catalog.jsonb_typeof(payload->'cmd') IS DISTINCT FROM 'string'
+     OR pg_catalog.char_length(payload->>'cmd') NOT BETWEEN 1 AND 255
+     OR pg_catalog.jsonb_typeof(payload->'iat') IS DISTINCT FROM 'number'
+     OR pg_catalog.jsonb_typeof(payload->'exp') IS DISTINCT FROM 'number'
+     OR (payload->>'iat') !~ '^[0-9]{1,12}$' OR (payload->>'exp') !~ '^[0-9]{1,12}$' THEN
+    RETURN NULL;
+  END IF;
+  IF payload ? 'operator_id' AND (pg_catalog.jsonb_typeof(payload->'operator_id') IS DISTINCT FROM 'string'
+     OR (payload->>'operator_id') !~ uuid_pattern) THEN RETURN NULL; END IF;
+  issued := (payload->>'iat')::bigint;
+  expires := (payload->>'exp')::bigint;
+  IF expires < issued OR expires > issued + 120 OR now_epoch < issued - 5 OR now_epoch > expires
+     OR key_not_before > pg_catalog.to_timestamp(issued::double precision) THEN
+    RETURN NULL;
+  END IF;
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN RETURN NULL; END IF;
+  admission_namespace := payload->>'namespace';
+  tenant := (payload->>'tenant_id')::uuid;
+  actor := (payload->>'actor_id')::uuid;
+  policies := payload->'policies';
+  IF admission_namespace IS NULL OR pg_catalog.char_length(admission_namespace) NOT BETWEEN 1 AND 255
+     OR pg_catalog.jsonb_typeof(policies) IS DISTINCT FROM 'array'
+     OR pg_catalog.jsonb_array_length(policies) NOT BETWEEN 1 AND 1000 THEN RETURN NULL; END IF;
+  IF (SELECT count(DISTINCT value->>'id') FROM pg_catalog.jsonb_array_elements(policies))
+     <> pg_catalog.jsonb_array_length(policies) THEN RETURN NULL; END IF;
+  FOR policy IN SELECT value FROM pg_catalog.jsonb_array_elements(policies) LOOP
+    IF pg_catalog.jsonb_typeof(policy->'id') IS DISTINCT FROM 'string'
+       OR pg_catalog.char_length(policy->>'id') NOT BETWEEN 1 AND 255
+       OR (policy->>'limit') IS NULL OR (policy->>'limit') !~ '^[1-9][0-9]{0,15}$'
+       OR (policy->>'window_seconds') IS NULL OR (policy->>'window_seconds') !~ '^[1-9][0-9]{0,15}$'
+       OR (policy->>'limit')::bigint > 9007199254740991
+       OR (policy->>'window_seconds')::bigint > 9007199254740991 THEN RETURN NULL; END IF;
+  END LOOP;
+  -- Ordem das próprias chaves de trava: colisões só serializam contadores independentes.
+  FOR lock_key IN
+    SELECT DISTINCT pg_catalog.hashtextextended(pg_catalog.jsonb_build_array(admission_namespace, value->>'id', tenant, actor)::text, 0) AS key
+      FROM pg_catalog.jsonb_array_elements(policies) ORDER BY key
+  LOOP
+    PERFORM pg_catalog.pg_advisory_xact_lock(lock_key);
+  END LOOP;
+  -- Depois de todas as esperas: VOLATILE + READ COMMITTED relê admissões já confirmadas.
+  instant := pg_catalog.clock_timestamp();
+  FOR policy IN SELECT value FROM pg_catalog.jsonb_array_elements(policies) LOOP
+    cap := (policy->>'limit')::bigint;
+    window_seconds := (policy->>'window_seconds')::bigint;
+    cutoff := instant - window_seconds * interval '1 second';
+    SELECT count(*) INTO used FROM vetra.rate_limit r
+      WHERE r.namespace = admission_namespace AND r.policy_id = policy->>'id'
+        AND r.tenant_id IS NOT DISTINCT FROM tenant AND r.actor_id = actor AND r.admitted_at > cutoff;
+    IF used >= cap THEN
+      -- Se o limite diminuiu, é preciso vencer used-cap+1 admissões, não só a mais antiga.
+      SELECT r.admitted_at INTO first_at FROM vetra.rate_limit r
+        WHERE r.namespace = admission_namespace AND r.policy_id = policy->>'id'
+          AND r.tenant_id IS NOT DISTINCT FROM tenant AND r.actor_id = actor AND r.admitted_at > cutoff
+        ORDER BY r.admitted_at, r.id OFFSET (used - cap) LIMIT 1;
+      wait_seconds := greatest(wait_seconds, 1, ceil(EXTRACT(EPOCH FROM (first_at - cutoff)))::bigint);
+    END IF;
+  END LOOP;
+  IF wait_seconds > 0 THEN RETURN wait_seconds; END IF;
+  INSERT INTO vetra.rate_limit (namespace, policy_id, tenant_id, actor_id, admitted_at)
+    SELECT admission_namespace, value->>'id', tenant, actor, instant FROM pg_catalog.jsonb_array_elements(policies);
+  RETURN 0;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END
+$_$;
+
+ALTER FUNCTION vetra.reserve_rate_limit(text) OWNER TO vetra_owner;
+
 CREATE TABLE public.comments (
     approved boolean DEFAULT false NOT NULL,
     author_email text NOT NULL,
@@ -457,6 +592,28 @@ ALTER TABLE vetra.outbox ALTER COLUMN seq ADD GENERATED ALWAYS AS IDENTITY (
     CACHE 1
 );
 
+CREATE TABLE vetra.rate_limit (
+    id bigint NOT NULL,
+    namespace text NOT NULL,
+    policy_id text NOT NULL,
+    tenant_id uuid,
+    actor_id uuid NOT NULL,
+    admitted_at timestamp(6) with time zone DEFAULT clock_timestamp() NOT NULL
+);
+
+ALTER TABLE ONLY vetra.rate_limit FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE vetra.rate_limit OWNER TO vetra_owner;
+
+ALTER TABLE vetra.rate_limit ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME vetra.rate_limit_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 CREATE TABLE vetra.relay_checkpoints (
     name text NOT NULL,
     next_xid8 xid8 NOT NULL,
@@ -508,6 +665,9 @@ ALTER TABLE ONLY vetra.outbox
 ALTER TABLE ONLY vetra.outbox_default
     ADD CONSTRAINT outbox_default_pkey PRIMARY KEY (created_at, xid8, seq);
 
+ALTER TABLE ONLY vetra.rate_limit
+    ADD CONSTRAINT rate_limit_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY vetra.relay_checkpoints
     ADD CONSTRAINT relay_checkpoints_pkey PRIMARY KEY (name);
 
@@ -530,6 +690,10 @@ CREATE INDEX vt_outbox_relay ON ONLY vetra.outbox USING btree (xid8, seq);
 CREATE INDEX outbox_default_xid8_seq_idx ON vetra.outbox_default USING btree (xid8, seq);
 
 CREATE INDEX vt_idempotency_purge ON vetra.idempotency USING btree (origin, created_at);
+
+CREATE INDEX vt_rate_limit_counter ON vetra.rate_limit USING btree (namespace, policy_id, tenant_id, actor_id, admitted_at, id);
+
+CREATE INDEX vt_rate_limit_purge ON vetra.rate_limit USING btree (admitted_at, id);
 
 CREATE UNIQUE INDEX vt_keys_active ON vetra_private.keys USING btree (status) WHERE (status = 'active'::text);
 
@@ -556,6 +720,8 @@ ALTER TABLE vetra.outbox ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE vetra.outbox_default ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE vetra.rate_limit ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE vetra.relay_checkpoints ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vt_dead_deliveries_relay ON vetra.dead_deliveries TO vetra_relay USING (true) WITH CHECK (true);
@@ -578,6 +744,12 @@ CREATE POLICY vt_outbox_owner ON vetra.outbox TO vetra_owner USING (true) WITH C
 
 CREATE POLICY vt_outbox_relay ON vetra.outbox FOR SELECT TO vetra_relay USING (true);
 
+CREATE POLICY vt_rate_limit_owner ON vetra.rate_limit TO vetra_owner USING (true) WITH CHECK (true);
+
+CREATE POLICY vt_rate_limit_purge ON vetra.rate_limit FOR DELETE TO vetra_relay USING (true);
+
+CREATE POLICY vt_rate_limit_relay ON vetra.rate_limit FOR SELECT TO vetra_relay USING (true);
+
 CREATE POLICY vt_relay_checkpoints_owner ON vetra.relay_checkpoints TO vetra_owner USING (true) WITH CHECK (true);
 
 CREATE POLICY vt_relay_checkpoints_relay ON vetra.relay_checkpoints TO vetra_relay USING (true) WITH CHECK (true);
@@ -596,6 +768,9 @@ GRANT ALL ON FUNCTION vetra.current_tenant() TO vetra_app;
 
 REVOKE ALL ON FUNCTION vetra.outbox_maintain(ahead integer, retention integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION vetra.outbox_maintain(ahead integer, retention integer) TO vetra_relay;
+
+REVOKE ALL ON FUNCTION vetra.reserve_rate_limit(text) FROM PUBLIC;
+GRANT ALL ON FUNCTION vetra.reserve_rate_limit(text) TO vetra_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.comments TO vetra_app;
 
@@ -645,5 +820,7 @@ GRANT INSERT(op_id) ON TABLE vetra.outbox TO vetra_app;
 GRANT INSERT(cmd) ON TABLE vetra.outbox TO vetra_app;
 
 GRANT INSERT(payload) ON TABLE vetra.outbox TO vetra_app;
+
+GRANT SELECT,DELETE ON TABLE vetra.rate_limit TO vetra_relay;
 
 GRANT SELECT,UPDATE ON TABLE vetra.relay_checkpoints TO vetra_relay;

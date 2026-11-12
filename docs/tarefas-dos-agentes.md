@@ -70,7 +70,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | concluída | `9b135a5` | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | concluída | `45defb7` | Auditada pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); ADR-050 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k24-pelo-claude), [auditoria](#auditoria-k24)) |
-| C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | em andamento | — | Sobre `dcb1d9b`; a árvore pertence ao Codex até a auditoria do Claude |
+| C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | integrada, CI pendente | — | Auditada pelo Claude (uma rodada, sem bloqueante; achados de documentação ajustados); sondas 22 novas e 17 relacionadas no 17 e no 18; ADR-051 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c17-pelo-codex), [auditoria](#auditoria-c17)) |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
 | K26 | Adaptadores de CLI e de job, com a política de repetição por superfície | Claude | pendente | — | — |
 | C18 | Adaptador de webhook, com assinatura sobre os bytes originais e chave derivada (ADR proposto) | Codex | pendente | — | — |
@@ -1649,3 +1649,28 @@ O que a auditoria **não** mudou, e o ADR-050 registra: o orçamento total sem c
 \n
 
 **CI.** A [execução 43284015204](https://github.com/vetra-framework/vetra/actions/runs/43284015204) do commit `45defb7` passou nos cinco jobs. Com a K24 a suíte tem 858 testes e 269 códigos de diagnóstico exercitados (contagem local, com `rake` de status 0). A próxima tarefa é a C17 (Codex), os contadores de `rate_limit:`.
+
+## Entrega da C17 pelo Codex
+
+Base: `b40ec20`, árvore limpa na `main`. Implementada pelo Codex sem commit, branch nem push. **ADR-051 proposto**; o aceite é do mantenedor.
+
+- **O que mudou.** `lib/vetra/sql/rate_limit.rb` (tabela, função `reserve_rate_limit` e guardas), `lib/vetra/data/rate_limit.rb` (o colaborador de reserva, com pool próprio), `lib/vetra/data/context_issuer.rb` (`issue_rate_limit`, domínio `r1`), `lib/vetra/data/relay.rb` e `lib/vetra/cli.rb`
+  (`rate_limit:purge`), `lib/vetra/execution/{authorization,edge,runner}.rb` (a decisão informa as políticas limitadas; `Edge#reserve_rate_limit`; a etapa 3 reserva uma vez por chamada; `Outcome#retry_after`), `lib/vetra/http/app.rb` (`Retry-After` do banco e `data_rate_limit_unavailable`
+  em 503), o plano `0005_expand` do blog, o retrato (gerado pelo Claude), `test/execution_rate_limit_test.rb`, `test/rate_limit_storage_test.rb` e ajustes de testes, `script/sonda_rate_limit.rb` (22 verificações) e o [ADR-051](adr/051-contadores-duraveis-de-limite-de-taxa.md).
+- **Decisões do Codex** (no ADR): admissões com carimbo do relógio do banco (e não balde fixo nem memória); travas consultivas ordenadas pela chave de trava; reserva durável num pool separado da unidade; envelope `r1` assinado pela borda, para que o login da aplicação não escolha
+  ator, limite nem janela (blog e chat são globais, e `current_actor()` no banco exige tenant); a admissão vale uma vez por chamada do `Runner`; a continuidade entre builds não é mantida se as declarações são reordenadas.
+- **O que o Codex não pôde fazer** (o sandbox dele não alcança o PostgreSQL): gerar o retrato, conferir os planos no banco e rodar a sonda. O Claude gerou o retrato (`db:plan --snapshot`), confirmou os quatro `--check` no 17 e no 18 e rodou a sonda nova e as 17 relacionadas nos dois servidores.
+
+## Auditoria C17
+
+Implementada pelo Codex sobre `b40ec20`; auditada pelo Claude por leitura do diff completo (ADR, SQL, runtime, runner, adaptador, CLI, sonda e documentos) e por execução: 22/22 da sonda nova e todas as relacionadas (idempotência, ponta a ponta, plano incremental e aditivo, migração,
+RLS, contexto assinado, repositórios, outbox, relay, runner, acessos, fechamento, handlers, autorização Ruby) no PostgreSQL 17.11 e 18.6, os quatro `--check` e a suíte completa (877 testes, `rake` com status 0, 270/270 códigos).
+
+| Achado do Claude | Bloqueia | Decisão |
+|---|---|---|
+| Nenhum defeito na SQL, na reserva ou no runner: a janela, a reserva conjunta atômica, a atomicidade com a trava ordenada, a falha fechada, os privilégios e o 429/503 foram reproduzidos pela sonda, inclusive com 32 conexões | não | Sem ação |
+| O corpo da função é derivado de `Context.legacy_body` por `.sub` encadeados sem conferir que cada troca ocorreu: se o corpo do contexto mudar, uma troca vira no-op sem aviso | não | Não ajustar agora: a guarda de rotinas confere o hash do corpo gerado, e a sonda tem a verificação de que um token `v1` não reserva e a de adulteração, que pegariam o enfraquecimento; fica como risco |
+| Textos que ainda diziam que o `rate_limit:` não tem contadores: README, a seção 5 da situação, o ADR-044 (§ de recusa) e o ADR-046 | não | Ajustar (o Claude, na integração): o README e a situação dizem o que existe e o que falta; os ADRs 044 e 046 ganham a linha `Implementação posterior` apontando o ADR-051, sem mudar o texto |
+| O custo da reserva (uma transação a mais, HMAC, travas, contagem e inserção por política) não foi medido | não | Registrado como não medido no ADR e na situação; a K27 mede a latência da superfície |
+| A sonda e o retrato dependem do banco, que o sandbox do Codex não alcança | não | Feito pelo Claude, como previsto no plano |
+| `sonda_rate_limit.rb` precisava entrar na CI | não | Ajustar: passo novo em `.github/workflows/ci.yml` (o Codex não edita `.github/`) |

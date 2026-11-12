@@ -45,23 +45,19 @@ module Vetra
       def issue(tenant_id:, op_id:, cmd:, actor_id: nil, system_actor: nil, operator_id: nil)
         context = Context.new(scope: :tenant, tenant_id: tenant_id, actor_id: actor_id, system_actor: system_actor,
                               op_id: op_id, cmd: cmd, operator_id: operator_id)
-        time = @clock.call
-        issued = time.is_a?(Time) ? time.to_i : time
-        unless issued.is_a?(Integer) && (0..999_999_999_999).cover?(issued) && issued + @ttl <= 999_999_999_999
-          raise Error.single('data_context', 'Relógio do contexto deve fornecer segundos não negativos de até 12 dígitos.')
-        end
-        # O ator de sistema (ADR-024, §4) leva system_actor no lugar de actor_id: o banco exige exatamente um dos dois.
         identity = context.system_actor? ? { system_actor: context.system_actor } : { actor_id: context.actor_id }
-        payload = { tenant_id: context.tenant_id, **identity, op_id: context.op_id,
-                    cmd: context.cmd, iat: issued, exp: issued + @ttl }
-        payload[:operator_id] = context.operator_id if context.operator_id
-        message = "v1.#{@kid}.#{encode(JSON.generate(payload))}"
-        value = "#{message}.#{encode(OpenSSL::HMAC.digest('SHA256', @secret, message))}"
-        # Os limites de claims acima já cabem no teto do banco; mantém a guarda explícita do protocolo.
-        if value.bytesize > 8192
-          raise Error.single('data_context', 'Contexto assinado excede o limite do protocolo.')
+        payload = { tenant_id: context.tenant_id, **identity, op_id: context.op_id, cmd: context.cmd }
+        sign(payload, 'v1', operator_id: context.operator_id)
+      end
+
+      # Somente a borda confiável chama: os descritores vêm da decisão sobre a IR, nunca da entrada pública.
+      # Domínio separado do contexto v1: um token da unidade não pode reservar taxa, e vice-versa.
+      def issue_rate_limit(context:, namespace:, policies:)
+        unless context.is_a?(Context) && context.actor_id && !context.system_actor?
+          raise Error.single('data_authorization_context', 'A admissão limitada exige ator confiável, inclusive para o visitante.')
         end
-        Token.new(value)
+        sign({ tenant_id: context.tenant_id, actor_id: context.actor_id, op_id: context.op_id, cmd: context.cmd,
+               namespace: namespace, policies: policies }, 'r1')
       end
 
       def inspect
@@ -70,6 +66,23 @@ module Vetra
       alias to_s inspect
 
       private
+
+      def sign(payload, prefix, operator_id: nil)
+        time = @clock.call
+        issued = time.is_a?(Time) ? time.to_i : time
+        unless issued.is_a?(Integer) && (0..999_999_999_999).cover?(issued) && issued + @ttl <= 999_999_999_999
+          raise Error.single('data_context', 'Relógio do contexto deve fornecer segundos não negativos de até 12 dígitos.')
+        end
+        payload = payload.merge(iat: issued, exp: issued + @ttl)
+        payload[:operator_id] = operator_id if operator_id
+        message = "#{prefix}.#{@kid}.#{encode(JSON.generate(payload))}"
+        value = "#{message}.#{encode(OpenSSL::HMAC.digest('SHA256', @secret, message))}"
+        # Os limites de claims acima já cabem no teto do banco; mantém a guarda explícita do protocolo.
+        if value.bytesize > 8192
+          raise Error.single('data_context', 'Contexto assinado excede o limite do protocolo.')
+        end
+        Token.new(value)
+      end
 
       def encode(value)
         [value].pack('m0').tr('+/', '-_').delete('=')

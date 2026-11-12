@@ -237,14 +237,16 @@ class ExecutionAuthorizationTest < GraphTest
     assert_denied('data_authorization_context', check(engine, 'blog.read_comment', { id: id(11) }, roles: ['blog.admin'], example: 'blog', ctx: ctx, facts: facts))
   end
 
-  def test_rate_limited_grant_is_refused_but_an_applicable_unlimited_grant_still_permits
+  def test_rate_limited_grant_returns_descriptors_and_an_unlimited_grant_dispenses_them
     engine = evaluator('blog')
     input = { post_id: id(10), author_name: 'Visitante', author_email: 'user@example.test', body: 'Olá' }
     result = check(engine, 'blog.create_comment', input, example: 'blog', facts: {})
-    assert_denied('data_authorization_rate_limit', result)
+    assert result.allowed?
+    assert_equal [{ 'id' => 'blog.visitor.permission_3', 'limit' => 5, 'window_seconds' => 60 }], result.rate_limits
     result = check(engine, 'blog.create_comment', input, example: 'blog', facts: {}, roles: ['blog.admin'])
     assert result.allowed?
     assert_equal ['blog.admin.permission_2'], result.policy_ids
+    assert_empty result.rate_limits
   end
 
   def test_chat_owner_commands_are_authorized_but_uses_does_not_grant_read_to_users
@@ -441,7 +443,7 @@ class ExecutionAuthorizationTest < GraphTest
     assert_denied('data_authorization_fields', check(engine, 'crm.read_lead', { id: id(10) }, fields: [:unknown], example: 'mini_crm', roles: ['crm.gerente']))
   end
 
-  def test_limited_grants_cannot_supply_fields_missing_from_unlimited_grants
+  def test_limited_grants_supply_missing_fields_and_require_admission
     engine = modified_engine do |doc, policy|
       policy['fields'] = ['name']
       limited = Marshal.load(Marshal.dump(policy))
@@ -451,7 +453,9 @@ class ExecutionAuthorizationTest < GraphTest
       doc['requires'] = doc['requires'].uniq.sort
       doc['nodes'] << limited
     end
-    assert_denied('data_authorization_rate_limit', check(engine, 'crm.update_lead', { id: id(10), name: 'Outro', email: nil }, example: 'mini_crm', roles: ['crm.gerente']))
+    result = check(engine, 'crm.update_lead', { id: id(10), name: 'Outro', email: nil }, example: 'mini_crm', roles: ['crm.gerente'])
+    assert result.allowed?
+    assert_equal ['crm.gerente.permission_extra'], result.rate_limits.map { |policy| policy['id'] }
     assert check(engine, 'crm.update_lead', { id: id(10), name: 'Outro' }, example: 'mini_crm', roles: ['crm.gerente']).allowed?
   end
 
@@ -582,6 +586,7 @@ class ExecutionAuthorizationTest < GraphTest
     result = engine.check('crm.win_lead', input: { lead_id: id(10) }, context: system_context('crm.win_lead'))
     assert result.allowed?
     assert_equal ['calls:crm.notify_sales'], result.policy_ids
+    assert_empty result.rate_limits
     assert_equal({ 'lead_id' => id(10) }, result.input)
     # Fora dos calls, handler desconhecido ou nó que não é handler: recusa, com o mesmo código.
     assert_denied('data_authorization_system_actor', engine.check('crm.update_lead', input: { id: id(10), name: 'Nome' }, context: system_context('crm.update_lead')))

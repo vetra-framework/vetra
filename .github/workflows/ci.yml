@@ -196,6 +196,8 @@ jobs:
         run: bundle exec ruby script/medir_saidas_vt_system.rb
       - name: Registro de idempotência da operação, concorrência, privilégios e purga (ADR-043)
         run: bundle exec ruby script/sonda_idempotencia.rb
+      - name: Contadores de limite de taxa, janela móvel, reserva conjunta, concorrência, privilégios e purga (ADR-051)
+        run: bundle exec ruby script/sonda_rate_limit.rb
       - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)
         env:
           VETRA_MEDICAO_SEGUNDOS: '0.3'

@@ -3,6 +3,7 @@
 - Status: proposto
 - Data: 2026-11-10
 - Depende de: ADR-003, ADR-005, ADR-016, ADR-020, ADR-021, ADR-022, ADR-024 (§4), ADR-034 e ADR-037
+- Implementação posterior: a recusa de concessão limitada (`data_authorization_rate_limit`) deu lugar à reserva de contadores do [ADR-051](051-contadores-duraveis-de-limite-de-taxa.md) (C17); o texto abaixo não muda
 
 ## Contexto
 

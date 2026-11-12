@@ -16,7 +16,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   `vetra_app` passa a exigir `transaction_timeout` e `idle_in_transaction_session_timeout` no bootstrap). Entrada e autorização em Ruby estão implementadas na C13
   ([ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)): contratos estritos com `Values`, papéis,
   escopo por vínculo, registro referenciado e campos, sem abrir unidade, com fatos e revisão resolvidos pela
-  borda confiável. `uses` não concede leitura implícita; limite de taxa sem contadores e contexto de sistema
+  borda confiável. `uses` não concede leitura implícita; limite de taxa sem reserva configurada e contexto de sistema
   recebem recusa explícita (o ator de sistema passou a ser admitido pelos `calls` na K18). Sonda de concordância Ruby/RLS executada no PostgreSQL 17 e 18 (68/68). A integração no despacho e nos acessos foi entregue na K17/K18. A operação tem o registro de idempotência (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito):
   tabela `vetra.idempotency`, API e purga (o executor a usa desde a K19). O contexto assinado tem o ator de sistema de um handler (K15, ADR-024, §4), com custo que pede decisão
   do mantenedor. O compilador recusa campos e predicados de grupos de enum que colidem com
@@ -44,8 +44,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 42 aceitos (001 a 041 e 043) e oito propostos (042, 044, 045, 046, 047, 048, 049 e 050), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
-| Testes do compilador, dados e exemplos | 858 testes e 17.870 asserções, sem falhas; 269/269 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
+| ADRs | 42 aceitos (001 a 041 e 043) e nove propostos (042, 044, 045, 046, 047, 048, 049, 050 e 051), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
+| Testes do compilador, dados e exemplos | 877 testes e 18.170 asserções, sem falhas; 270/270 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Entrada e autorização Ruby (C13) | 27 testes/760 asserções novos sem banco, com os quatro grafos e os caminhos da sonda por mock. Contratos estritos, lógica SQL de NULL, papéis, vínculo/revenda/tenant, campos, revisão e recusas específicas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças e gate sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (68/68) e na CI; a contagem de zero transações é a do pool do runtime. Integrada em `8a224a1`, com a CI verde ([execução 42859941056](https://github.com/vetra-framework/vetra/actions/runs/42859941056)). |
 | Limites da unidade (C15) | 13 testes novos sem banco e a sonda `sonda_limites_unidade.rb`, em modo 100755, com 15 verificações no 17.11 e no 18.6 (verificador recusa 5 combinações e aceita o login real, estouros de `lock_timeout` e `statement_timeout` com rollback total e sem evento, `SERIALIZABLE`/40001, morte do backend por `transaction_timeout` e por transação ociosa com o `xmin` avançando e o relay entregando, restauração dos parâmetros por banco). As sondas `vetra_data` (23), `repositorios` (72), `outbox` (36), `relay` (38), `idempotencia` (83) e `autorizacao_ruby` (68) passam nos dois servidores com o novo bootstrap. Custo medido do verificador: 0,18 ms/op no 17 e 0,11 ms/op no 18 (mediana de 300 leituras), e não os 57 µs do mock. Quatro exemplos em check, validação com fontes e link, `db:plan` sem mudanças e gate sem diferenças. Integrada em `a5b339d`, com a CI verde ([execução 42893712044](https://github.com/vetra-framework/vetra/actions/runs/42893712044)). |
 | Borda interna e Runner (K17) | 26 testes novos sem banco (dois bancos simulados, o da operação e o da borda) e um do linker, mais a sonda `sonda_runner.rb`, em modo 100755, com 26 verificações no 17.11 e no 18.6: um comando de cada exemplo pelo `Runner` em dois pools de `vetra_app`, as duas contagens de transações (zero na operação nas recusas, a da borda não é zero), `Failure` desfeita, invalidação depois do commit, revogação durante a admissão e autoridade fora do ar, mais a ordem commit/publicação e o desfazer de uma escrita antes do `fail!`. Quatro exemplos em check, validação com fontes e link; a IR não muda. Integrada em `074c75c`, com a CI verde ([execução 43023877656](https://github.com/vetra-framework/vetra/actions/runs/43023877656)). |
@@ -63,7 +63,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva (modo 100755) executada no 17 e no 18 e incluída na CI, na matriz do PostgreSQL 17 e 18; auditada (veja o quadro) |
 | Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42282609424](https://github.com/vetra-framework/vetra/actions/runs/42282609424)), modo 100755; integrada em `5c15ebf`; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 32 arquivos `sonda_*.rb` em `script/` (30 na matriz do PostgreSQL 17 e 18 da CI, e dois manuais: `sonda_pooler` e `sonda_adr006`), incluindo a dos handlers (12 verificações, no 17 e no 18), a do fechamento (13 verificações, no 17 e no 18), a dos acessos (21 verificações, no 17 e no 18), a de autorização do chat (30 verificações, no 17 e no 18), a do Runner (27) e a de autorização Ruby (68) e o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Sondas | 33 arquivos `sonda_*.rb` em `script/` (31 na matriz do PostgreSQL 17 e 18 da CI, e dois manuais: `sonda_pooler` e `sonda_adr006`), incluindo a dos handlers (12 verificações, no 17 e no 18), a do fechamento (13 verificações, no 17 e no 18), a dos acessos (21 verificações, no 17 e no 18), a de autorização do chat (30 verificações, no 17 e no 18), a do Runner (27) e a de autorização Ruby (68) e o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
 | Runtime | Unidade de trabalho, emissor HMAC, repositórios gerados da IR, avaliador Ruby das etapas 2/3, borda de referência, `Runner` das oito etapas (K17 e K19, com eventos, idempotência, status e repetição) e a guarda dos acessos (K18) implementados, com carregamento explícito. A C14 liga o relay aos handlers e comandos com identidade de sistema, chaves de evento e timeout total (auditada pelo Claude, com a sonda real no 17 e no 18). Histórico e auditoria das operações seguem na rodada 7; os adaptadores, na rodada 6 |
 
 ## Como manter este arquivo
@@ -87,10 +87,17 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Contadores de `rate_limit:` (C17, [ADR-051 proposto](adr/051-contadores-duraveis-de-limite-de-taxa.md), experimental; implementada pelo Codex): a tabela `vetra.rate_limit` e a função `vetra.reserve_rate_limit(text)` (plano `0005_expand` do blog, o único exemplo
+  com `rate_limit:`), com janela móvel pelo relógio do banco, **reserva conjunta e atômica** de todas as políticas limitadas (travas consultivas ordenadas), **durável fora da transação da operação** (pool próprio da borda, antes de abrir a unidade) e envelope
+  `r1` assinado pela borda (a aplicação não lê, insere nem altera a tabela e não escolhe ator, limite nem janela). `Authorization#decide` informa as políticas limitadas em vez de recusar; o `Runner` reserva na etapa 3, depois de a autorização permitir, **uma vez por
+  chamada** (a repetição interna não recobra; o replay do cliente cobra); uma operação coberta por concessão sem limite não consulta contador. Taxa excedida termina `rate_limited` (429, com `Retry-After` calculado pelo banco), e qualquer falha do contador é 503 retentável,
+  nunca uma admissão. `vetra rate_limit:purge`, pelo `vetra_relay`, apaga o que passou da maior janela. A sonda `sonda_rate_limit.rb` (22 verificações no 17 e no 18, com 32 conexões simultâneas, reserva conjunta em ordens opostas, privilégios, adulteração, purga e falha
+  fechada) e as outras 17 sondas relacionadas passam nos dois servidores. Auditada pelo Claude (veja o quadro). Não medido: o custo da reserva por operação limitada (uma transação, uma verificação HMAC, travas e contagem por política); a continuidade dos contadores
+  quando as declarações são reordenadas não é mantida, e o ADR diz o que o operador faz. Integrada, com a CI pendente.
 - [x] Adaptador HTTP (K24, [ADR-050 proposto](adr/050-adaptador-http.md), experimental): `Vetra::Http::App`, uma aplicação Rack sem dependência nova, traduz o pedido para o `Runner` a partir das rotas `http` da IR (caminho, consulta e
   corpo JSON estrito, com leitura limitada, conflitos recusados e conversão `integer` e `boolean` pelo contrato), entrega só a credencial ao resolvedor de identidade (ADR-049), usa `Idempotency-Key` e traduz as saídas num
   vocabulário público fixo (negado e inexistente iguais nas operações com registro; 429 com `Retry-After`; sem texto interno; `no-store`; sem CORS). `Runner#register` passa a conferir a saída contra o contrato antes do commit também sem
-  chave de idempotência (o `Outcome` ganha `rate_limited`, que a C17 produzirá). 26 testes novos sem servidor nem banco, com o `Runner` real e bancos simulados no ponta a ponta; nenhum exemplo mudou. O orçamento total do pedido é do
+  chave de idempotência (o `Outcome` ganha `rate_limited`, produzido pela implementação da C17, ainda em auditoria). 26 testes novos sem servidor nem banco, com o `Runner` real e bancos simulados no ponta a ponta; nenhum exemplo mudou. O orçamento total do pedido é do
   servidor, e o servidor real e a equivalência entre as superfícies são da K27. Auditado pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); aceite do ADR-050 pendente do mantenedor. Integrada em `45defb7`, com a CI verde ([execução 43284015204](https://github.com/vetra-framework/vetra/actions/runs/43284015204)).
 - [x] Contrato da identidade e da borda pública (K23, [ADR-049 proposto](adr/049-identidade-da-borda-publica.md)): `Execution::PublicIdentity` confere o que o resolvedor da aplicação devolve (nunca ator de sistema; ator UUID, inclusive o do
   visitante; papéis declarados; tenant coerente; geração inteira), com recusa própria que atravessa a borda e o erro de qualquer outra origem genérico; `Identity#generation` e `Edge#identity_current?` fazem o `Runner` recusar com 401
@@ -148,7 +155,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `Vetra::Execution`: valida contratos com os tipos/erros de `Values`, avalia `authorize` por papel, tenant,
   vínculo, registro referenciado e campos e conserva a semântica SQL de NULL. Recebe fatos imutáveis e
   confirmação autoritativa da revisão da borda; fatos incompletos/obsoletos, predicados fora do subconjunto,
-  dependência de `rate_limit:` e contexto de sistema recusam com diagnóstico próprio (nesta entrega; a K18 admitiu o ator de sistema pelos `calls`). `uses` não concede dados
+  dependência de `rate_limit:` sem reserva configurada e contexto de sistema recusam com diagnóstico próprio (nesta entrega; a K18 admitiu o ator de sistema pelos `calls`). `uses` não concede dados
   implicitamente. Modelos, planos, retratos e IR 0.6 preservados. A sonda de concordância com o RLS está em modo 100755, com 68 verificações, executada no 17 e no 18 e na CI; a
   contagem de "zero transações" é a do pool do runtime (o `pg_stat_database` foi descartado, por publicar com atraso). Provedor da borda e despacho são da K17; acessos, NEW e `calls` de sistema são da K18.
   Contratos aninhados existentes são lidos na serialização das saídas de consultas (o `Runner` passou a conferir toda saída antes do commit na K24, com ou sem chave); a IR continua recusando entrada
@@ -661,7 +668,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   contexto de cada comando do CRM com revendas e acrescenta de 0,03 a 0,64 ms por instrução, mas não leva sozinha os comandos abaixo de 25% (o [material da K21](sondas/saidas-da-vt-system.md)
   compara as saídas: papel de banco próprio, função única, as duas ou manter; cada uma tira 18% a 20% das validações e as duas, 36% a 39%); (b) se o resultado inconclusivo com 16 clientes
   (CRM com revendas acima de 25%) reabre o desenho do ADR-005 por ADR novo, nos termos do ADR-023; (c) o orçamento do gate de 10% e o aceite do ADR-042 (construção em 38% a 44%);
-  (d) o aceite dos ADRs 042, 044, 045, 046, 047, 048, 049 e 050; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
+  (d) o aceite dos ADRs 042, 044, 045, 046, 047, 048, 049, 050 e 051; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -695,8 +702,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Políticas por atributo do ator além de `id`
 
 **Runtime**
-- [ ] Execução de `rate_limit:` por permissão: contadores compartilhados, janela móvel, reservas concorrentes
-  e identidade anônima confiável (o emissor existe desde a K23; os contadores são da C17), conforme o ADR-034
+- [ ] Limite de taxa (ADR-051): a continuidade dos contadores quando as declarações são reordenadas, o custo da reserva por operação limitada (não medido), o agendamento da purga e o limite por origem (do hospedeiro)
 - [ ] Executor completo do ADR-016: o `Runner` parcial (K17 a K20) cobre as primitivas, os comandos, a autorização dos acessos, os eventos e a idempotência; **faltam** o histórico, a
   auditoria e a cifra dos campos pessoais (rodada 7), a **composição de comandos pelo `call`** (savepoint; o bloco só enxerga `fail!`) e o executor das capacidades determinísticas além de `core.clock`
   (`uuid`, `random`; o `Runner` as recusa com `execution_capability`)), que a conformidade integral com o ADR-016 e o ADR-004 exigem. As capacidades externas já rodam nos handlers, por `HandlerRunner::Effect`,
@@ -846,7 +852,7 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    com métodos do registro `Data` (C12).
 2. [ ] Persistência, rodada 6 (planejada em 2026-11-12, com o parecer do Codex aprovado na segunda rodada;
    [plano](plano-persistencia.md#rodada-6-superfícies-executáveis-planejada-em-2026-11-12) e [quadro](tarefas-dos-agentes.md#rodada-6-2026-11-12)):
-   superfícies **experimentais** sobre o executor parcial. A K22 (documentação alinhada), a K23 (contrato da identidade e da borda pública) e a K24 (adaptador HTTP) estão feitas (seção 1);
-   faltam, nesta ordem: C17 (contadores de `rate_limit:`), K25 (incompatibilidade do `crm.win_lead`), K26 (CLI e job),
+   superfícies **experimentais** sobre o executor parcial. A K22 (documentação alinhada), a K23 (contrato da identidade e da borda pública), a K24 (adaptador HTTP) e a C17 (contadores de `rate_limit:`) estão feitas (seção 1);
+   falta, nesta ordem: K25 (incompatibilidade do `crm.win_lead`), K26 (CLI e job),
    C18 (webhook) e K27 (ponta a ponta por servidor real). **Reescopo:** a cifra dos campos pessoais, o histórico, a auditoria e a conformidade integral com o ADR-016
    passam à rodada 7 (com a declaração de titular como dependência); o distribuidor do live, a fase contract (`vetra.instances` e `vetra.schema_state`) e o modo hospedado em Rails, à rodada 8

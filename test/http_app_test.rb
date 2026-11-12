@@ -254,8 +254,8 @@ class HttpAppTest < GraphTest
     conflict = respond_with(:conflict, retryable: true, diagnostics: [diagnostic('data_conflict')])
     assert_equal [409, 'conflict', '1'], [conflict[0], error_code(conflict), conflict[1]['retry-after']]
     assert_nil respond_with(:conflict, retryable: false)[1]['retry-after']
-    limited = respond_with(:rate_limited)
-    assert_equal [429, 'rate_limited', '1'], [limited[0], error_code(limited), limited[1]['retry-after']]
+    limited = respond_with(:rate_limited, retry_after: 37)
+    assert_equal [429, 'rate_limited', '37'], [limited[0], error_code(limited), limited[1]['retry-after']]
     error = respond_with(:error, retryable: true, diagnostics: [diagnostic('execution_unexpected')])
     assert_equal [500, 'internal_error', '1'], [error[0], error_code(error), error[1]['retry-after']]
   end
@@ -271,11 +271,11 @@ class HttpAppTest < GraphTest
   end
 
   def test_unavailable_facts_are_a_retryable_503_not_a_denial_or_a_missing_record
-    %w[data_authorization_snapshot data_connection data_database data_access_denied data_limits data_context_install data_statement_timeout data_lock_timeout data_serialization data_conflict data_timeout].each do |code|
+    %w[data_rate_limit_unavailable data_authorization_snapshot data_connection data_database data_access_denied data_limits data_context_install data_statement_timeout data_lock_timeout data_serialization data_conflict data_timeout].each do |code|
       unavailable = respond_with(:denied, diagnostics: [diagnostic(code)])
       assert_equal [503, 'unavailable', '1'], [unavailable[0], error_code(unavailable), unavailable[1]['retry-after']], code
     end
-    %w[data_authorization_denied data_authorization_fields data_authorization_final data_authorization_rate_limit data_authorization_context data_authorization_system_actor].each do |code|
+    %w[data_authorization_denied data_authorization_fields data_authorization_final data_authorization_context data_authorization_system_actor].each do |code|
       assert_equal 404, respond_with(:denied, diagnostics: [diagnostic(code)])[0], "#{code} é uma decisão: 404 numa operação com registro"
     end
     %w[data_authorization_predicate data_context data_execution_operation data_input_fields data_repository].each do |code|

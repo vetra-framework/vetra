@@ -104,11 +104,13 @@ class IdempotencyTest < GraphTest
       base, number = FIRST_PLAN.fetch(example)
       plan = Vetra::SQL::Differ.call(base: model(example, base), schema: schema(example), number: number)
       committed = File.read(File.join(PROJECT, 'examples', example, "db/plans/#{number}_expand.sql"))
-      assert_equal committed, plan.render
+      historical = Vetra::SQL::Plan.parse(committed, file: "#{number}_expand.sql")
+      assert_equal historical.steps.first.sql, plan.steps.first.sql
       step = plan.steps.first
       assert_equal sql(example).join("\n"), step.sql
       assert_equal %w[sim], [step.transaction]
-      assert_equal 1, plan.steps.size
+      rate_limit = Vetra::SQL::RateLimit.new(schema(example)).statements
+      assert_equal rate_limit.empty? ? [] : [rate_limit.join("\n")], plan.steps.drop(1).map(&:sql)
     end
   end
 

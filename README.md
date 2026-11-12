@@ -135,7 +135,7 @@ A base definida nos ADRs reúne quatro componentes:
 
 1. **Grafo da Aplicação:** modelo compilado e versionado (IR 0.6), implementado.
 2. **Motor de operações:** comandos e consultas com contratos e autorização, com o `Runner` parcial implementado; faltam os adaptadores de cada superfície, o histórico e a auditoria.
-3. **Motor de autorização:** as políticas e os escopos do grafo avaliados em Ruby (antes da transação, nos acessos e no estado final) e traduzidos em RLS onde o SQL os cobre (os exemplos com tenant); blog e chat só têm a autorização em Ruby, e o limite de taxa ainda não tem contadores.
+3. **Motor de autorização:** as políticas e os escopos do grafo avaliados em Ruby (antes da transação, nos acessos e no estado final) e traduzidos em RLS onde o SQL os cobre (os exemplos com tenant); blog e chat só têm a autorização em Ruby, e o limite de taxa tem contadores duráveis no PostgreSQL (ADR-051 proposto, experimental).
 4. **Vetra Data:** persistência com Sequel e PostgreSQL, isolamento de linhas (RLS) e contexto assinado, implementada, com a outbox, o relay e a idempotência.
 
 Sobre essa base, o projeto prevê consultas reativas, workflows duráveis, recursos de privacidade e auditoria,

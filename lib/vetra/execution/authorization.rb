@@ -3,7 +3,7 @@
 module Vetra
   module Execution
     class Authorization
-      Result = ::Data.define(:allowed, :diagnostics, :input, :policy_ids) do
+      Result = ::Data.define(:allowed, :diagnostics, :input, :policy_ids, :rate_limits) do
         def allowed? = allowed
         def code = diagnostics.first&.code
         def inspect = "#<Vetra::Execution::Authorization::Result allowed=#{allowed?}>"
@@ -79,13 +79,13 @@ module Vetra
             decide(entity_id, action, row, context: context, roles: roles, snapshot: snapshot, fields: requested)
           end
         fresh!(snapshot, context, current_revision)
-        Result.new(allowed: true, diagnostics: [].freeze, input: normalized, policy_ids: policy_ids)
+        Result.new(allowed: true, diagnostics: [].freeze, input: normalized, policy_ids: policy_ids, rate_limits: rate_limits_for(policy_ids))
       rescue Data::Error => error
-        Result.new(allowed: false, diagnostics: error.diagnostics.freeze, input: nil, policy_ids: [].freeze)
+        Result.new(allowed: false, diagnostics: error.diagnostics.freeze, input: nil, policy_ids: [].freeze, rate_limits: [].freeze)
       end
 
       # Decisão sobre uma linha, para uma entidade e uma ação, com os fatos dados (a admissão e, na K18, cada acesso e o
-      # estado final). Levanta Data::Error se recusa; devolve os IDs das políticas sem limite que sustentam a permissão.
+      # estado final). Levanta Data::Error se recusa; devolve os IDs das políticas que sustentam a permissão, sem consultar contadores.
       # `fields` é a lista de campos solicitados, ou um objeto chamável que a devolve (avaliado só depois da avaliação das
       # políticas, para que a recusa de acesso preceda a de campos).
       def decide(entity_id, action, row, context:, roles:, snapshot:, fields:)
@@ -103,10 +103,8 @@ module Vetra
           raise Error.single('data_authorization_fields', 'Concessões aplicáveis não autorizam todos os campos solicitados.')
         end
         unlimited = applicable.reject { |policy| policy.key?('rate_limit') }
-        if unlimited.empty? || !covers?(unlimited, requested)
-          raise Error.single('data_authorization_rate_limit', 'Autorização depende de limite de taxa; contadores ainda não disponíveis.')
-        end
-        unlimited.map { |policy| policy['id'] }.sort.freeze
+        selected = !unlimited.empty? && covers?(unlimited, requested) ? unlimited : applicable
+        selected.map { |policy| policy['id'] }.sort.freeze
       end
 
       # Nomes dos campos da entidade, na ordem da IR: o que uma leitura de registro inteiro solicita.
@@ -122,6 +120,14 @@ module Vetra
       end
 
       private
+
+      def rate_limits_for(ids)
+        ids.filter_map do |id|
+          policy = @nodes[id]
+          next unless policy && policy['rate_limit']
+          { 'id' => id, **policy.fetch('rate_limit').slice('limit', 'window_seconds') }.freeze
+        end.freeze
+      end
 
       def operation!(id)
         operation = @nodes[id]
@@ -155,10 +161,8 @@ module Vetra
           raise Error.single('data_authorization_fields', 'Concessões aplicáveis não autorizam todos os campos solicitados.')
         end
         unlimited = candidates.reject { |policy| policy.key?('rate_limit') }
-        if unlimited.empty? || !covers?(unlimited, requested)
-          raise Error.single('data_authorization_rate_limit', 'Autorização depende de limite de taxa; contadores ainda não disponíveis.')
-        end
-        unlimited.map { |policy| policy['id'] }.sort.freeze
+        selected = !unlimited.empty? && covers?(unlimited, requested) ? unlimited : candidates
+        selected.map { |policy| policy['id'] }.sort.freeze
       end
 
       def system_result(operation, input, context)
@@ -166,7 +170,7 @@ module Vetra
         unless handler && handler['kind'] == 'handler' && Array(handler['calls']).any? { |reference| reference['id'] == operation['id'] }
           raise Error.single('data_authorization_system_actor', 'O comando não está nos calls do handler deste ator de sistema.')
         end
-        Result.new(allowed: true, diagnostics: [].freeze, input: input, policy_ids: ["calls:#{handler['id']}"].freeze)
+        Result.new(allowed: true, diagnostics: [].freeze, input: input, policy_ids: ["calls:#{handler['id']}"].freeze, rate_limits: [].freeze)
       end
 
       def candidates_for(entity_id, action, roles)

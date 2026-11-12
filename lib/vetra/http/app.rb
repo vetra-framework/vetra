@@ -29,13 +29,12 @@ module Vetra
       KEY_PATTERN = /\A[\x21-\x7e]{1,255}\z/
       HEADER_NAME = /\A[A-Za-z0-9-]{1,64}\z/
       MAX_ERRORS = 20
-      # Três classes de recusa na etapa 3. Só uma **decisão** de autorização (a lista abaixo; `data_authorization_rate_limit` é a operação limitada que ainda não tem
-      # contadores) é 403 ou 404. Indisponibilidade (`UNAVAILABLE_CODES`; `data_access_denied` é o SQLSTATE 42501 de falta de permissão **no banco**: nenhuma
+      # Três classes de recusa na etapa 3. Só uma **decisão** de autorização (a lista abaixo) é 403 ou 404. Indisponibilidade (`UNAVAILABLE_CODES`; `data_access_denied` é o SQLSTATE 42501 de falta de permissão **no banco**: nenhuma
       # política chegou a ser avaliada) é 503. Todo o resto (predicado incompatível, contexto incoerente, operação desconhecida, invariante quebrada) é um defeito: 500.
-      DENIAL_CODES = %w[data_authorization_denied data_authorization_fields data_authorization_final data_authorization_rate_limit
+      DENIAL_CODES = %w[data_authorization_denied data_authorization_fields data_authorization_final
                         data_authorization_system_actor data_authorization_context].freeze
       # Falha de infraestrutura (banco, conexão, fatos ilegíveis, timeouts, contenção): retentável, e o acesso segue recusado.
-      UNAVAILABLE_CODES = %w[data_authorization_snapshot data_connection data_database data_access_denied data_limits data_context_install data_statement_timeout
+      UNAVAILABLE_CODES = %w[data_rate_limit_unavailable data_authorization_snapshot data_connection data_database data_access_denied data_limits data_context_install data_statement_timeout
                              data_lock_timeout data_serialization data_conflict data_timeout].freeze
       Route = Struct.new(:id, :verb, :segments, :operation, :kind, :idempotency, :record_targeted, :fields, keyword_init: true)
 
@@ -257,7 +256,7 @@ module Vetra
         when :not_found then [404, { 'error' => { 'code' => 'not_found' } }, {}]
         when :failed then failed(outcome)
         when :conflict then [409, { 'error' => { 'code' => 'conflict' } }, retry_header(outcome)]
-        when :rate_limited then [429, { 'error' => { 'code' => 'rate_limited' } }, { 'retry-after' => '1' }]
+        when :rate_limited then [429, { 'error' => { 'code' => 'rate_limited' } }, { 'retry-after' => [outcome.retry_after || 1, 1].max.to_s }]
         else [500, { 'error' => { 'code' => 'internal_error' } }, retry_header(outcome)]
         end
       end

@@ -134,6 +134,9 @@ antes do commit, também sem chave de idempotência.
 | [048](048-execucao-dos-handlers-de-sistema.md) | Execução dos handlers de sistema | proposto |
 | [049](049-identidade-da-borda-publica.md) | Identidade da borda pública | proposto |
 | [050](050-adaptador-http.md) | Adaptador HTTP | proposto |
+| [051](051-contadores-duraveis-de-limite-de-taxa.md) | Contadores duráveis de limite de taxa | proposto |
+
+O [ADR-051](051-contadores-duraveis-de-limite-de-taxa.md), proposto, liga o limite por permissão à admissão do Runner: reserva conjunta em tabela PostgreSQL, com relógio do banco, envelope assinado e pool próprio da borda. A reserva sobrevive ao rollback da operação; guarda e repetição interna não recobram. A sonda e o retrato no PostgreSQL 17/18 aguardam execução na auditoria da C17.
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

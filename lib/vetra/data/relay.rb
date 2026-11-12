@@ -49,6 +49,7 @@ module Vetra
         @handlers = self.class.handlers(document)
         # Só uma aplicação com outbox tem chaves derivadas de um evento (ADR-043, §5).
         @events = SQL::Outbox.needed?(document)
+        @rate_limit_retention = SQL::RateLimit.retention(document)
         @known = @handlers.values.flatten.uniq.sort.freeze
       end
 
@@ -216,6 +217,28 @@ module Vetra
           end
         end
         totals
+      end
+
+      # Retenção igual à maior janela declarada. Corte único do banco; não há DELETE da aplicação (ADR-051).
+      def purge_rate_limit(batch: 1000)
+        outside_transaction!
+        unless batch.is_a?(Integer) && batch.between?(1, 10_000)
+          raise Error.single('data_relay_limit', 'A purga exige batch entre 1 e 10000.')
+        end
+        return 0 if @rate_limit_retention.zero?
+        cutoff = @db.fetch("SELECT (pg_catalog.clock_timestamp() - ? * interval '1 second')::text AS cutoff", @rate_limit_retention).first.fetch(:cutoff)
+        total = 0
+        loop do
+          deleted = @db.fetch(<<~SQL, cutoff, batch).all.size
+            WITH doomed AS (
+              SELECT id FROM vetra.rate_limit WHERE admitted_at <= CAST(? AS timestamptz)
+               ORDER BY admitted_at, id LIMIT ?)
+            DELETE FROM vetra.rate_limit r USING doomed WHERE r.id = doomed.id RETURNING 1
+          SQL
+          total += deleted
+          break if deleted < batch
+        end
+        total
       end
 
       ORPHAN = <<~SQL.freeze

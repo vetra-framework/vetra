@@ -319,10 +319,10 @@ Create/update CRUD conferem os campos fornecidos pelo cliente, além de qualquer
 leituras/comandos Ruby exigem todos os campos da entidade por padrão. A borda pode fornecer `fields:`
 para uma projeção/acesso efetivo; nunca para esconder um campo fornecido no CRUD.
 
-Uma concessão limitada não autoriza execução enquanto não houver contadores: cobertura que dependa
-dela resulta em `data_authorization_rate_limit`. Cobertura completa por concessões sem limite continua
-permitindo sem consumir cota. No blog, o visitante não cria comentários, enquanto o administrador com
-concessão aplicável sem limite pode criá-los.
+Uma concessão limitada informa os descritores para a reserva da etapa 3 (ADR-051). Sem o colaborador de
+reserva configurado, a execução falha fechada com `data_rate_limit_unavailable`. Cobertura completa por concessões sem limite continua
+permitindo sem consumir cota. No blog, o visitante com ator e reserva configurada pode criar até cinco comentários por minuto; o administrador com
+concessão aplicável sem limite pode criá-los sem consultar contador.
 
 `uses` não concede acesso de dados implícito. Ser dono da sala admite a ação principal de
 `chat.add_member_by_email`; o acesso adicional a `users_read` é recusado no corpo, com `data_authorization_denied`, pela guarda do
@@ -339,7 +339,8 @@ por inferência do corpo Ruby.
 | `data_authorization_denied` | Sem concessão aplicável, registro ausente/invisível ou fora de escopo |
 | `data_authorization_fields` | As concessões não cobrem todos os campos solicitados |
 | `data_authorization_predicate` | Política candidata fora do subconjunto suportado |
-| `data_authorization_rate_limit` | Autorização depende de concessão limitada, sem contadores |
+| `data_rate_limit_unavailable` | Reserva de taxa indisponível; HTTP 503 retentável |
+| `data_rate_limit_exceeded` | Cota excedida; HTTP 429 com espera do banco |
 | `data_authorization_system_actor` | Contexto de sistema exige o caminho por `calls` |
 
 ### Sonda de entrada e autorização Ruby
@@ -502,7 +503,7 @@ lidos **na própria unidade**, e o estado final é reautorizado antes do commit.
 
 **Recusas.** Sem concessão alguma do papel para a ação na entidade, a recusa é explícita (`data_authorization_denied`), **antes de qualquer
 consulta** (a resposta não pode depender de o registro existir) e mesmo numa coleção vazia: é o que acontece com `chat.add_member_by_email`, que usa `users_read` sem política de leitura de `chat.user`, e nada é gravado.
-Campos não cobertos são `data_authorization_fields`; concessão com `rate_limit:` sem contadores, `data_authorization_rate_limit`.
+Campos não cobertos são `data_authorization_fields`; concessão com `rate_limit:` informa a reserva da etapa 3, sem consultar contadores em cada acesso.
 Uma consulta de coleção sem `record:` é admitida pelo papel na etapa 3, sem fatos, e filtrada linha a linha no corpo.
 
 **Fatos e cache.** Os fatos são as entidades que as políticas candidatas percorrem (com as junções), lidas pelo mesmo `fact_rows` do
@@ -760,7 +761,7 @@ total do pedido é do servidor; o adaptador não cancela thread. `Runner#registe
 
 `script/sonda_ponta_a_ponta.rb` roda os quatro exemplos **como estão** pelo `Runner`, sem cópia temporária nem fixture: nos dois CRMs, a emissão do
 evento na etapa 7, o relay e o handler real (`notify_sales`, `notify_seller`) com a chave derivada; no blog e no chat, os comandos de cada papel. Ela confere
-as duas recusas que a rodada assume (`chat.add_member_by_email` e o comentário do visitante, por `rate_limit` sem contador) e imprime a tabela das duas
+as duas recusas que a rodada assume (`chat.add_member_by_email` e o comentário do visitante, sem colaborador de reserva configurado nessa sonda) e imprime a tabela das duas
 contagens de transações por comando ([acima](#duas-contagens-de-transações)). Roda no 17 e no 18, e na CI (26 verificações).
 
 `script/medir_executor.rb` é a medição informativa da K20: latência por comando de referência (um cliente), instruções SQL, validações de contexto contadas
@@ -1019,3 +1020,15 @@ sob demanda no caminho escolhido nem conversão transferida para acessos posteri
 A execução no PostgreSQL 17.11 e 18.6 passa as cinco conferências e mede a construção em 7 a 10 µs por registro, de 40% a 56%
 da consulta (antes da C11, de 136% a 167%): o gate de 10% do ADR-022 não é alcançado ([ADR-042](adr/042-construcao-dos-registros.md)).
 Os limiares dos ADRs 022 e 023 continuam informativos na sonda, sem cumprir o teste de aceitação 6 do ADR-023.
+
+## Admissão por limite de taxa (C17, ADR-051 proposto)
+
+A decisão limitada devolve todas as políticas necessárias. O Runner reserva uma vez na etapa 3, antes de abrir a unidade; guardas e reautorização final não cobram. Concessões sem limite que cobrem a autorização dispensam completamente o contador. Uma repetição interna por serialização/deadlock não recobra; outra chamada do cliente com a mesma chave cobra, inclusive no replay. A reserva confirma em transação própria e conta mesmo se a operação falhar depois.
+
+Configure `Data::RateLimit.new(db: pool_proprio_da_borda, issuer: emissor, document: linked.document)` em `Execution::Edge.new(..., rate_limit: reserva)`. O pool deve vir de `Data.connect`, com login `vetra_app`, `pool_timeout` e timeouts de rede finitos; deve ser separado do pool da unidade. O emissor usa as chaves de contexto provisionadas no banco **também para o blog global** (provisionamento/rotação do ADR-036). O ator é o UUID confiável da Identity, inclusive o anônimo estável do ADR-049. O envelope assinado `r1` vincula ator/tenant, namespace e descritores, sem mudar as rotinas de contexto global existentes.
+
+O banco usa janela móvel e trava conjunta por contador, com `clock_timestamp()`. Taxa excedida termina `:rate_limited`, `retry_after >= 1`, HTTP 429; falha/timeout do contador termina recusa retentável `data_rate_limit_unavailable`, HTTP 503. Falta de ator é recusada antes da consulta. O `HandlerRunner` tem concessão `calls` e não consome limites de políticas.
+
+Só grafos com `vetra.rate_limit` ganham tabela/função; nesta entrega, o blog recebe plano/modelo `0005_expand`, sem mudar a IR 0.6 ou o grafo. `DATABASE_URL` do papel `vetra_relay` e `bundle exec bin/vetra rate_limit:purge --root examples/blog --batch 1000` apagam admissões anteriores à maior janela declarada. Agende a purga fora da aplicação. IDs de política conservados mantêm a cota entre builds; reordenação que muda os IDs **não** mantém continuidade. Trocas de janela/build e deriva do relógio têm os limites documentados no ADR-051.
+
+A sonda é `bundle exec ruby script/sonda_rate_limit.rb`, com banco descartável e papéis de produção. Antes da auditoria, gere o retrato real com `bundle exec bin/vetra db:plan --snapshot --root examples/blog` e confira os quatro exemplos com `db:plan --check`; o sandbox da implementação não alcança PostgreSQL. A sonda precisa passar no 17 e no 18 para validar SQL, corridas e privilégios.

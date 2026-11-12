@@ -25,6 +25,8 @@ module Vetra
         @clock = clock
       end
 
+      def rate_limit_pool?(reservation) = reservation.respond_to?(:uses_database?) && reservation.uses_database?(@db)
+
       def transaction(tenant_id: nil, actor_id: nil, system_actor: nil, op_id:, cmd:, operator_id: nil, read_only: false,
                       statement_timeout: OMITTED_TIMEOUT, lock_timeout: OMITTED_TIMEOUT, isolation: :read_committed, guard: nil)
         if @db.in_transaction?

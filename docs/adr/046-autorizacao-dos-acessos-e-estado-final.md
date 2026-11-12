@@ -3,6 +3,7 @@
 - Status: proposto
 - Data: 2026-11-11
 - Depende de: ADR-016 (etapas 3 e 6), ADR-024 (§4), ADR-037, ADR-039, ADR-044 e ADR-045
+- Implementação posterior: o `rate_limit:` deixou de ficar sem contadores com o [ADR-051](051-contadores-duraveis-de-limite-de-taxa.md) (C17); o texto abaixo não muda
 
 ## Contexto
 

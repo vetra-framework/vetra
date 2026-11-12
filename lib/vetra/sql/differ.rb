@@ -25,6 +25,7 @@ module Vetra
         @outbox, @outbox_storage = outbox.digests, outbox.storage_digests
         # A seção da idempotência (ADR-043) também é reconhecida pelo texto exato do gerador atual.
         @idempotency = Idempotency.new(schema).digests
+        @rate_limit = RateLimit.new(schema).digests
         # Num plano por passo o GRANT só pode tornar uma tabela nova acessível depois de toda a proteção.
         @new_table_grants = @new.reject { |id, _| @old.key?(id) }.values.map do |table|
           "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{relation(table)} TO #{quote('vetra_app')};"
@@ -229,6 +230,28 @@ module Vetra
         @outbox.include?(item['sha256'])
       end
 
+      def rate_limit_item?(item)
+        @rate_limit.include?(item['sha256'])
+      end
+
+      def rate_limit_object?(item)
+        object = item['object'].to_s.delete_prefix('table ').delete_prefix('function ')
+        object.start_with?('vetra.reserve_rate_limit(') || object == 'vetra_rate_limit_routines' ||
+          (object.split('.').first == 'vetra' && [RateLimit::TABLE, RateLimit::INDEX, RateLimit::PURGE_INDEX].include?(object.split('.')[1]))
+      end
+
+      def rate_limit!(old, current)
+        wanted = @initial.steps.zip(current).select { |_, item| rate_limit_item?(item) }
+        if old.any? { |item| rate_limit_object?(item) }
+          unless wanted.any? && wanted.all? { |_, item| old.include?(item) } &&
+                 old.select { |item| rate_limit_object?(item) }.all? { |item| wanted.map(&:last).include?(item) }
+            fail!('db_plan_statement', 'seção do limite de taxa alterada ou removida')
+          end
+        elsif wanted.any?
+          emit(wanted.map { |step, _| step.sql }.join("\n"), existing: false)
+        end
+      end
+
       def idempotency_item?(item)
         @idempotency.include?(item['sha256'])
       end
@@ -293,9 +316,10 @@ module Vetra
         current = @state['statements']
         outbox!(old, current)
         idempotency!(old, current)
+        rate_limit!(old, current)
         deferred_grants = []
         # As políticas de cada tabela são uma unidade: inclusive a troca vt_access -> vt_scope_*.
-        policy_tables = (old + current).select { |item| item['kind'] == 'policy' && !outbox_object?(item) && !idempotency_object?(item) }
+        policy_tables = (old + current).select { |item| item['kind'] == 'policy' && !outbox_object?(item) && !idempotency_object?(item) && !rate_limit_object?(item) }
           .map { |item| item['object'].split('.')[0, 2] }.uniq
         replacements = {}
         policy_tables.each do |path|
@@ -317,7 +341,7 @@ module Vetra
         end
         emitted_policies = []
         @initial.steps.zip(current).each do |step, item|
-          next if outbox_item?(item) || idempotency_item?(item)
+          next if outbox_item?(item) || idempotency_item?(item) || rate_limit_item?(item)
           kind, object = item.values_at('kind', 'object')
           # O bootstrap de revisão é a última seção do plano inicial. Seu LOCK precisa cobrir os triggers,
           # REVOKEs e guardas na mesma transação, não terminar num passo anterior a eles.

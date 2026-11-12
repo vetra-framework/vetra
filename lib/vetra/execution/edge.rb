@@ -76,10 +76,11 @@ module Vetra
     # Exceção de um colaborador nunca atravessa a borda: vira recusa com código próprio e sem causa. Uma publicação que
     # falha não vira erro da operação (o commit já aconteceu), e sim indisponibilidade da confirmação.
     class Edge
-      def initialize(identity:, facts:, authority:)
+      def initialize(identity:, facts:, authority:, rate_limit: nil)
         unless [identity, facts, authority].all? { |collaborator| collaborator.respond_to?(:call) }
           raise Error.single('execution_edge', 'A borda exige identidade, fatos e autoridade de revisão chamáveis.')
         end
+        @rate_limit = rate_limit
         @identity, @facts = identity, facts
         @authority = authority
         @confirmation = Confirmation.new(authority)
@@ -125,6 +126,24 @@ module Vetra
         raise Error.new(error.diagnostics), cause: nil
       rescue StandardError
         raise Error.single('data_authorization_snapshot', 'Fatos de autorização ausentes, incompletos, incompatíveis ou obsoletos.'), cause: nil
+      end
+
+      # A dispensa não chega ao colaborador. A guarda e a reautorização não chamam esta etapa.
+      def reserve_rate_limit(context, policies, operation_unit:)
+        return 0 if policies.empty?
+        unless context.actor_id
+          raise Error.single('data_authorization_context', 'A admissão limitada exige ator confiável, inclusive para o visitante.')
+        end
+        begin
+          unless @rate_limit.respond_to?(:call) && !operation_unit.rate_limit_pool?(@rate_limit)
+            raise Error.single('data_rate_limit_unavailable', 'Não foi possível confirmar a reserva do limite de taxa.')
+          end
+          value = @rate_limit.call(context, policies)
+          return value if value.is_a?(Integer) && value >= 0
+          raise Error.single('data_rate_limit_unavailable', 'Não foi possível confirmar a reserva do limite de taxa.')
+        rescue StandardError
+          raise Error.single('data_rate_limit_unavailable', 'Não foi possível confirmar a reserva do limite de taxa.'), cause: nil
+        end
       end
 
       def publishes?

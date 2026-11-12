@@ -5,7 +5,7 @@
 #
 # K20: os quatro exemplos ponta a ponta pelo executor (Edge, Runner, guarda, fechamento e, nos dois CRMs, a outbox, o relay e
 # o handler de sistema real, com a chave derivada). Inclui as duas recusas que a rodada assume: chat.add_member_by_email
-# (o uses não concede dados) e o comentário do visitante do blog (rate_limit sem contador). No fim, a tabela com as duas
+# (o uses não concede dados) e o comentário do visitante do blog (reserva de taxa não configurada nesta sonda). No fim, a tabela com as duas
 # contagens de transações de cada comando (teste 1 do ADR-016): a da operação e a da borda.
 require_relative 'sonda_handlers'
 
@@ -187,7 +187,7 @@ class EndToEndProbe < HandlersProbe
     author = SecureRandom.uuid
     autor = Vetra::Execution::Identity.new(actor_id: author, roles: ['blog.autor'])
     admin = Vetra::Execution::Identity.new(actor_id: SecureRandom.uuid, roles: ['blog.admin'])
-    visitor = Vetra::Execution::Identity.new
+    visitor = Vetra::Execution::Identity.new(actor_id: SecureRandom.uuid)
     post = nil
 
     check('blog: o autor cria, publica, lê e apaga o próprio post (a publicação usa o relógio e a guarda do estado final)') do
@@ -211,10 +211,10 @@ class EndToEndProbe < HandlersProbe
       outcome = go('blog', @runner, 'blog.publish_post', { post_id: post }, autor)
       !outcome.ok? && outcome.http_status == 422 && rows('SELECT status FROM public.posts WHERE id = $1', [post]).first['status'] == 'published'
     end
-    check('blog: o comentário do visitante é recusado por rate_limit sem contador, e nada é gravado (esperado; os contadores são da rodada 6)') do
+    check('blog: o comentário do visitante é recusado por reserva de taxa não configurada nesta sonda, e nada é gravado (esperado; a sonda da C17 cobre a reserva configurada)') do
       outcome = go('blog', @runner, 'blog.create_comment',
                    { post_id: post, author_name: 'Visitante', author_email: 'v@probe.invalid', body: 'Texto do comentário' }, visitor)
-      !outcome.ok? && outcome.code == 'data_authorization_rate_limit' && count('SELECT count(*) AS n FROM public.comments').zero?
+      !outcome.ok? && outcome.code == 'data_rate_limit_unavailable' && count('SELECT count(*) AS n FROM public.comments').zero?
     end
     check('blog: o administrador comenta e aprova, e o comando aprova só o campo declarado') do
       created = go('blog', @runner, 'blog.create_comment',

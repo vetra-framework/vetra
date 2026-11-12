@@ -75,7 +75,7 @@ module Vetra
         [/\ACREATE OR REPLACE FUNCTION /, 'nenhum', 'catalogo'],
         [/\ACREATE OR REPLACE TRIGGER /, 'ShareRowExclusive', 'catalogo'],
         [/\ADO \$vetra_(context_roles|database_privileges)\$/, 'nenhum', 'catalogo'],
-        [/\ADO \$vetra_(roles|shared_schema|privileges|routines|relay_role)\$/, 'nenhum', 'catalogo'],
+        [/\ADO \$vetra_(roles|shared_schema|privileges|routines|relay_role|rate_limit_routines)\$/, 'nenhum', 'catalogo'],
         [/\ADO \$vetra_tables\$/, 'AccessShare', 'tabela_vazia'],
         [/\ALOCK TABLE /, 'ShareRowExclusive', 'tabela_vazia'],
         [/\ACREATE SCHEMA /, 'nenhum', 'catalogo'],
@@ -121,6 +121,7 @@ module Vetra
           statements.concat(Outbox.new(schema).statements)
           # Depois da outbox (a guarda do papel de manutenção e o USAGE vêm do relay) e antes da segurança (ADR-043).
           statements.concat(Idempotency.new(schema).statements)
+          statements.concat(RateLimit.new(schema).statements)
           statements.concat(Security.new(schema).generate.statements)
           if schema.document.dig('app', 'tenant')
             statements.concat(Authorization.new(schema.document).generate.statements)

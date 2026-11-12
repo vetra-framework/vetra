@@ -50,10 +50,11 @@ module Vetra
     # para repetir (ADR-016; ADR-047).
     class Runner
       # status: :ok, :unresolved (401), :invalid (422), :denied (403), :not_found (404), :failed (422, `fail!` ou chave
-      # reutilizada), :conflict (409) e :error (500). `replayed`: o resultado veio do registro de idempotência (em JSON, sem
+      # reutilizada), :conflict (409), :rate_limited (429) e :error (500). `replayed`: o resultado veio do registro de idempotência (em JSON, sem
       # executar o `call`). `retryable`: o cliente pode repetir. `attempts`: quantas vezes a operação foi tentada.
-      Outcome = ::Data.define(:status, :value, :diagnostics, :replayed, :retryable, :attempts) do
-        def initialize(status:, value: nil, diagnostics: [].freeze, replayed: false, retryable: false, attempts: 1)
+      # `retry_after`: espera em segundos, calculada pelo banco na recusa de taxa.
+      Outcome = ::Data.define(:status, :value, :diagnostics, :replayed, :retryable, :attempts, :retry_after) do
+        def initialize(status:, value: nil, diagnostics: [].freeze, replayed: false, retryable: false, attempts: 1, retry_after: nil)
           super
         end
 
@@ -66,7 +67,7 @@ module Vetra
         alias to_s inspect
       end
 
-      # `rate_limited` (429) é o status da taxa excedida (ADR-034); o `Runner` ainda não o produz (os contadores são da C17), e o adaptador já o traduz.
+      # `rate_limited` (429): taxa excedida, com espera mínima calculada pelo banco (ADR-051).
       Outcome.const_set(:HTTP, { ok: 200, unresolved: 401, invalid: 422, denied: 403, not_found: 404, failed: 422, conflict: 409, rate_limited: 429, error: 500 }.freeze)
 
       # Recusa interna das etapas 1 a 3, convertida em Outcome por `run`.
@@ -138,9 +139,24 @@ module Vetra
         key_input = check_key!(operation, key, normalized)
         check_origin!(key, origin, event, identity)
         # `while`, e não `loop`: o `loop` engoliria um StopIteration levantado pelo corpo e devolveria o rollback como resultado.
+        admitted = false
         while true # rubocop:disable Style/InfiniteLoop
           attempt += 1
-          authorize(operation_id, normalized, context, identity)          # 3
+          decision = authorize(operation_id, normalized, context, identity) # 3
+          unless admitted
+            begin
+              wait = @edge.reserve_rate_limit(context, decision.rate_limits, operation_unit: @unit)
+            rescue Data::Error => error
+              return Outcome.new(status: :denied, diagnostics: error.diagnostics.freeze,
+                                 retryable: error.code == 'data_rate_limit_unavailable', attempts: attempt)
+            end
+            if wait.positive?
+              error = Error.single('data_rate_limit_exceeded', 'Limite de taxa excedido; aguarde antes de repetir.')
+              return Outcome.new(status: :rate_limited, diagnostics: error.diagnostics.freeze, retry_after: [wait, 1].max,
+                                 retryable: true, attempts: attempt)
+            end
+            admitted = true
+          end
           begin
             value, replayed = Thread.handle_interrupt(HandlerTimeout => :never) do
               attempt_unit(operation, identity, context, normalized, key, key_input, origin, event) # 4 a 8

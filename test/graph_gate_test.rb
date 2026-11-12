@@ -88,8 +88,9 @@ class GraphGateTest < GraphTest
     with_repository do |root, compiler, base|
       plans = File.join(compiler.root, 'db/plans')
       assert File.file?(File.join(plans, '0001_inicial.sql'))
-      write(root, 'examples/blog/db/plans/0005_mais.sql', "-- novo\n")
-      write(root, 'examples/blog/db/models/0005_mais.json', "{}\n")
+      next_number = format('%04d', Dir.children(plans).map { |file| file[0, 4].to_i }.max + 1)
+      write(root, "examples/blog/db/plans/#{next_number}_mais.sql", "-- novo\n")
+      write(root, "examples/blog/db/models/#{next_number}_mais.json", "{}\n")
       assert_equal 0, run_gate(root, base).first
       edit(compiler.root, 'db/plans/0001_inicial.sql') { |text| text.sub(/;\n\z/, ";\nCOMMENT ON SCHEMA public IS 'x';\n") }
       edit(compiler.root, 'db/models/0001_inicial.json') { |text| text.sub('"version"', '"version" ') }
@@ -111,7 +112,9 @@ class GraphGateTest < GraphTest
   # Só o último plano é regenerado pela IR: dois planos novos na mesma integração deixariam o do meio sem conferência.
   def test_one_new_plan_per_application_per_integration
     with_repository do |root, compiler, base|
-      %w[0005_a 0006_b].each do |name|
+      last_number = Dir.children(File.join(compiler.root, 'db/plans')).map { |file| file[0, 4].to_i }.max
+      names = [format('%04d_a', last_number + 1), format('%04d_b', last_number + 2)]
+      names.each do |name|
         write(root, "examples/blog/db/plans/#{name}.sql", "-- #{name}\n")
         write(root, "examples/blog/db/models/#{name}.json", "{}\n")
       end
@@ -119,10 +122,13 @@ class GraphGateTest < GraphTest
       assert_equal 1, status
       assert_includes output, 'examples/blog/db/plans tem 2 planos novos'
       # Uma aplicação que a base não tem também entra com um plano só.
-      FileUtils.rm(Dir[File.join(compiler.root, 'db/{plans,models}/000[56]_*')])
+      names.each do |name|
+        FileUtils.rm(File.join(compiler.root, "db/plans/#{name}.sql"))
+        FileUtils.rm(File.join(compiler.root, "db/models/#{name}.json"))
+      end
       FileUtils.cp_r(compiler.root, File.join(root, 'examples/nova'))
       # A cópia entra como aplicação nova com um plano só: sem os planos incrementais do blog (outbox, relay, idempotência).
-      FileUtils.rm(Dir[File.join(root, 'examples/nova/db/{plans,models}/000[234]_*')])
+      FileUtils.rm(Dir[File.join(root, 'examples/nova/db/{plans,models}/*')].reject { |file| File.basename(file).start_with?('0001_') })
       assert_equal 0, run_gate(root, base).first
       write(root, 'examples/nova/db/plans/0002_mais.sql', "-- mais\n")
       status, output = run_gate(root, base)

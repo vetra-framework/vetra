@@ -6,7 +6,7 @@ module Vetra
     def self.run(arguments, out: $stdout, err: $stderr)
       options = { root: Dir.pwd, sources: false, format: nil, fail_on_breaking: false }
       parser = OptionParser.new do |flags|
-        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]\n     vetra db:migrate [--root diretório]\n     vetra outbox:maintain [--root diretório] [--ahead dias] [--retention dias]"
+        flags.banner = "Uso: vetra graph:build|graph:check|graph:link [--root diretório]\n     vetra graph:validate [arquivo] [--root diretório] [--sources]\n     vetra graph:diff ANTERIOR POSTERIOR [--root diretório] [--format text|json] [--fail-on-breaking]\n     vetra db:authz:sql [--root diretório] [--sql-schema nome] [--owner-role nome] [--app-role nome]\n     vetra db:plan [--root diretório] [--snapshot | --check]\n     vetra db:migrate [--root diretório]\n     vetra outbox:maintain [--root diretório] [--ahead dias] [--retention dias]\n     vetra idempotency:purge [--root diretório] [--retention-hours horas] [--batch N]\n     vetra rate_limit:purge [--root diretório] [--batch N]"
         flags.on('--root PATH', 'Raiz da aplicação') { |value| options[:root] = value }
         flags.on('--sources', 'Também verificar manifesto em graph:validate') { options[:sources] = true }
         flags.on('--format FORMAT', %w[text json], 'Formato de graph:diff: text ou json') { |value| options[:format] = value }
@@ -19,18 +19,18 @@ module Vetra
         flags.on('--ahead DAYS', Integer, 'outbox:maintain: dias de partições adiante (padrão 3)') { |value| options[:ahead] = value }
         flags.on('--retention DAYS', Integer, 'outbox:maintain: dias de retenção (padrão 7)') { |value| options[:retention] = value }
         flags.on('--retention-hours HOURS', Integer, 'idempotency:purge: horas de retenção das chaves (padrão 24)') { |value| options[:retention_hours] = value }
-        flags.on('--batch N', Integer, 'idempotency:purge: linhas por lote (padrão 1000)') { |value| options[:batch] = value }
+        flags.on('--batch N', Integer, 'idempotency:purge/rate_limit:purge: linhas por lote (padrão 1000)') { |value| options[:batch] = value }
         flags.on('-h', '--help', 'Mostrar ajuda') { out.puts(flags); return 0 }
         flags.on('--version', 'Mostrar versão do protótipo') { out.puts(VERSION); return 0 }
       end
       args = parser.parse(arguments.dup)
       command = args.shift
-      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan db:migrate outbox:maintain idempotency:purge].include?(command)
+      unless %w[graph:build graph:check graph:validate graph:diff graph:link db:authz:sql db:plan db:migrate outbox:maintain idempotency:purge rate_limit:purge].include?(command)
         err.puts(parser)
         return 2
       end
       # Antes de qualquer retorno: db:plan e outbox:maintain não aceitam as opções da purga.
-      if command != 'idempotency:purge' && (options.key?(:retention_hours) || options.key?(:batch))
+      if (command != 'idempotency:purge' && options.key?(:retention_hours)) || (!%w[idempotency:purge rate_limit:purge].include?(command) && options.key?(:batch))
         raise OptionParser::InvalidArgument, '--retention-hours e --batch exigem idempotency:purge'
       end
       sql_options = options.slice(:schema, :owner_role, :app_role)
@@ -68,6 +68,23 @@ module Vetra
         return 0
       end
       raise OptionParser::InvalidArgument, '--ahead e --retention exigem outbox:maintain' if options.key?(:ahead) || options.key?(:retention)
+      if command == 'rate_limit:purge'
+        unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
+          raise OptionParser::InvalidArgument, 'rate_limit:purge aceita somente --root e --batch'
+        end
+        url = ENV['DATABASE_URL']
+        raise Graph::Error.single('db_database_url', 'Defina DATABASE_URL com o banco alvo e a senha do vetra_relay.') if url.nil? || url.empty?
+        require_relative 'data'
+        document = Graph::Compiler.new(root: options[:root]).read_artifact.document
+        db = Data::Relay.connect(url, max_connections: 1)
+        begin
+          total = Data::Relay.new(db, document: document).purge_rate_limit(batch: options.fetch(:batch, 1000))
+        ensure
+          db.disconnect
+        end
+        out.puts("rate_limit:purge: OK — #{total} admissão(ões) apagada(s)")
+        return 0
+      end
       if command == 'idempotency:purge'
         unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
           raise OptionParser::InvalidArgument, 'idempotency:purge aceita somente --root, --retention-hours e --batch'
@@ -86,7 +103,7 @@ module Vetra
         out.puts("idempotency:purge: OK — #{summary.map { |origin, count| "#{count} chave(s) de #{origin}" }.join(', ')} apagada(s)")
         return 0
       end
-        if command == 'db:migrate'
+      if command == 'db:migrate'
         unless args.empty? && sql_options.empty? && !options[:sources] && !options[:format] && !options[:fail_on_breaking]
           raise OptionParser::InvalidArgument, 'db:migrate aceita somente --root'
         end
