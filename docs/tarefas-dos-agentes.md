@@ -68,7 +68,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 |---|---|---|---|---|---|
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
-| K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
+| K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | concluída | `9b135a5` | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
@@ -1605,3 +1605,5 @@ leitura e por scripts em memória e rodou os 23 testes novos, o gate e a valida�
 
 **O ponto fraco desta tarefa** foi o modelo de ameaça: três rodadas se gastaram em objetos Ruby hostis (subclasses que mentem em `dup`, `nil?`, `is_a?`). A quarta aprovou depois de a documentação fixar o modelo (o resolvedor é código confiável da aplicação, ADR-044, e o
 guarda protege contra defeito e valor malformado, não contra um resolvedor malicioso) e de o guarda passar a usar só métodos de módulo e objetos nativos depois da leitura. O que o guarda **não** faz continua escrito: não prova autenticidade e não cobre a revogação entre a etapa 3 e o commit.
+
+**CI.** A [execução 43247638415](https://github.com/vetra-framework/vetra/actions/runs/43247638415) do commit `9b135a5` passou nos cinco jobs. Com a K23 a suíte tem 831 testes e 267 códigos de diagnóstico exercitados (contagem local). A próxima tarefa é a K24 (Claude), o adaptador HTTP como aplicação Rack.
