@@ -739,6 +739,15 @@ o cancelamento ou usar I/O fora das capacidades escapa da garantia do runtime.
 `script/sonda_handlers.rb` prova os casos no banco descartável com os papéis de produção; a sua execução no 17/18
 tem 12 verificações no 17 e no 18, e na CI. Reprocessamento de `dead`, histórico e auditoria continuam na rodada 7.
 
+## Identidade da borda pública
+
+Uma superfície pública entrega a credencial a um **resolvedor** que a aplicação implementa, e `Execution::PublicIdentity` (ADR-049, proposto) confere o que ele
+devolveu antes de a borda o aceitar: uma `Identity`, nunca de ator de sistema, com ator UUID (o do visitante também), papéis declarados no grafo, tenant coerente com a
+aplicação e geração inteira. `Identity#generation` é a geração da atribuição de papéis lida antes dos papéis; o `Runner` recusa com 401 e `execution_identity_stale` uma
+identidade cuja geração foi substituída (`Edge#identity_current?`). O visitante é uma identidade anônima: `Execution::AnonymousIssuer` emite `a1.<nonce>.<mac>`, e o ator é um
+UUID derivado do nonce por HMAC, estável e não escolhido pelo cliente. `InProcessAuthority` e a geração em memória valem para um processo: um adaptador de vários processos chama
+`Execution.require_shared_authority!(edge)`, que recusa subir sem uma autoridade que declare `shared?`.
+
 ## Ponta a ponta e medição do executor
 
 `script/sonda_ponta_a_ponta.rb` roda os quatro exemplos **como estão** pelo `Runner`, sem cópia temporária nem fixture: nos dois CRMs, a emissão do

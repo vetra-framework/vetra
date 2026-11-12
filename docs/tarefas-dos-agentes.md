@@ -68,7 +68,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 |---|---|---|---|---|---|
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
-| K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | pendente | — | — |
+| K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
@@ -1561,3 +1561,47 @@ existe hoje e o que falta, e duas frases que eram afirmações atuais (a observa
 `docs/vetra-data.md`.
 
 **CI.** A [execução 43227564979](https://github.com/vetra-framework/vetra/actions/runs/43227564979) do commit `9bf46ba` passou nos cinco jobs. A próxima tarefa é a K23 (Claude), o contrato da identidade e da borda pública.
+
+## Entrega da K23 pelo Claude
+
+Base: `53e5185`, árvore limpa na `main`. Implementada pelo Claude sem commit, branch nem push. **ADR-049 proposto**; o aceite é do mantenedor.
+
+- **O que mudou.** `lib/vetra/execution/public_identity.rb` (novo): `PublicIdentity` (guarda do resolvedor), `AnonymousIssuer` (identidade anônima) e `Execution.require_shared_authority!`. `edge.rb`: `Identity#generation`, `Edge#resolve` (o código de um erro só atravessa a borda quando o colaborador é o `PublicIdentity`), `Edge#identity_current?` e `Edge#shared_authority?`. `facts.rb`: `identity_generation_value` e `shared?` nas duas autoridades de referência. `runner.rb`: a etapa 3 recusa com
+  401 e `execution_identity_stale` uma identidade de geração substituída. `test/execution_public_identity_test.rb` (23 testes), [ADR-049](adr/049-identidade-da-borda-publica.md), o guia `vetra-data.md`, o índice de ADRs, a situação e este quadro.
+- **Decisões que o ADR propõe.** (1) O resolvedor devolve só uma `Identity`, e um guarda confere o resultado (falha fechada). (2) O ator de sistema nunca entra por uma superfície pública. (3) A geração da atribuição de papéis viaja na identidade, e uma
+  geração substituída é 401, não 403. (4) O visitante tem ator anônimo, derivado por HMAC de um nonce que a borda guarda; o limite por visitante não contém quem descarta a credencial (limite registrado). (5) A autoridade compartilhada **não** é
+  entregue nesta rodada: o modo de vários processos é recusado por configuração, e o dono da entrega é a rodada 8.
+- **Verificação.** Os 23 testes novos e os de `execution_runner`, `execution_guard`, `handler_runner` e `execution_closing` passam; suíte completa, gate e `db:plan` rodam na verificação do push. Nenhuma sonda de banco muda: a conferência de geração só age quando a
+  identidade traz geração.
+- **O que ficou de fora.** A autoridade compartilhada, a sonda de banco do visitante anônimo (é da K24, com o adaptador HTTP), o limite por origem (do hospedeiro) e a `auth` como DSL.
+- **Riscos que o Claude vê.** (1) A conferência de geração é na etapa 3: uma revogação publicada entre a etapa 3 e o commit **não** é coberta (a reautorização do estado final reutiliza os papéis recebidos e não consulta a geração), a janela que o ADR-044 já aceita para a revisão. (2) O ator anônimo derivado do nonce é
+  estável por credencial, mas a credencial é guardada pelo cliente: roubá-la é assumir o visitante, que tem o mesmo poder de um visitante. (3) O guarda confere forma e declaração, não autenticidade: um resolvedor que copia do pedido valores válidos passa, e a autenticidade segue sendo do resolvedor (ADR-044).
+
+## Auditoria K23
+
+Implementada pelo Claude sobre `53e5185`; auditada pelo Codex em modo somente leitura em **quatro rodadas** (devolvida, devolvida, devolvida, aprovada). O sandbox do Codex não alcança o PostgreSQL nem grava temporários: ele reproduziu os ataques por
+leitura e por scripts em memória e rodou os 23 testes novos, o gate e a validação dos exemplos. O Claude rodou a suíte completa (829 testes, 0 falhas, 267/267 códigos de diagnóstico) depois da primeira correção.
+
+| Achado do Codex | Rodada | Bloqueia | Decisão |
+|---|---|---|---|
+| Um resolvedor podia levantar `IdentityRefusal` com código e mensagem arbitrários, e eles atravessavam a borda | 1 | sim | Ajustar: a classe sai; o guarda troca todo erro do resolvedor pelo genérico, e a borda só preserva o código quando o colaborador é um `PublicIdentity` |
+| O guarda devolvia o objeto original (subclasse com leitores instáveis, textos mutáveis) | 1 | sim | Ajustar: devolve uma identidade canônica, com cópias congeladas dos valores conferidos |
+| A correção com `IdentityRefusal` quebrou o coletor de diagnósticos (262 códigos, não 267) | 1 | sim | Resolvida com a primeira correção (volta a `Error.single`) |
+| O ADR e o comentário diziam que o guarda impede um resolvedor de "repassar campos do pedido": ele confere forma e declaração, não autenticidade | 1 | sim | Ajustar: o texto diz que a autenticidade é do resolvedor (ADR-044) |
+| A reautorização final não cobre a revogação entre a etapa 3 e o commit, e o relatório dizia que cobria | 1 | sim, documental | Ajustar: o limite está no ADR (§3 e Garantia) e aqui |
+| `AnonymousIssuer#verify` levantava `Encoding::CompatibilityError` para credencial em UTF-16 ou UTF-32 | 1 | sim | Ajustar: `ascii_only?` antes de separar, `rescue` de `EncodingError` e teste |
+| A identidade anônima aparecia como pendente na situação e como entregue na entrada nova | 1 | não | Ajustar: o emissor está entregue; a integração é da K24 e da C17 |
+| Um `String` cujo `dup` devolvia outro papel passava trocado (o `Authorization#check` de `approve_comment` passou de negado a permitido) | 2 | sim | Ajustar: cópias nativas (`String.new`, `Array.new`) feitas antes de conferir |
+| Um leitor da identidade que levantava um erro de dados forjado atravessava a borda | 2 | sim | Ajustar: os leitores são lidos dentro do resgate que gera o erro genérico |
+| A documentação dizia 18 testes, e eram 21 | 2 | não | Ajustar: 23 |
+| Uma `generation` ou `system_actor` que mente em `nil?`, `is_a?`, `>=` ou `==` passava, e a geração falsa dava 200 depois de `publish!` | 3 | sim | Ajustar: só `===` de módulo (`NilClass`, `Integer`) depois da leitura |
+| Um colaborador que mente em `is_a?` preservava o seu código na borda | 3 | sim | Ajustar: `PublicIdentity === @identity` |
+| Os testes emitiam códigos fora do catálogo, e isso reprovava `test:diagnostics` | 3 | sim | Ajustar: os testes forjam `data_context`, que é do catálogo |
+| Tenant inválido (42, `:secret`) numa aplicação global passava como ausente | 3 | não | Ajustar: `native_or_invalid` |
+| UUID em UTF-16 ou UTF-8 inválido fazia o guarda levantar em vez de recusar com `execution_identity_actor` | 4 | não | Ajustar: `uuid?` confere a codificação, com teste |
+| As recusas do guarda chamado direto, dentro de um `rescue`, preservam a exceção anterior como causa | 4 | não | Não ajustar: a borda a remove, e o guarda só é chamado pela borda; o ADR diz "sem causa" na borda |
+| Um `String` cujo `ascii_only?` levanta faz `verify` levantar | 4 | não | Não ajustar: exige objeto hostil dentro do resolvedor (que o guarda protege) e não dá poder; o ADR-049 registra o modelo de ameaça do ADR-044 (resolvedor confiável, guarda contra defeito) |
+| Limitação do ambiente do Codex: suíte completa e sondas não rodam no sandbox dele | 1 a 4 | não | Sem ação: a verificação do push roda a suíte |
+
+**O ponto fraco desta tarefa** foi o modelo de ameaça: três rodadas se gastaram em objetos Ruby hostis (subclasses que mentem em `dup`, `nil?`, `is_a?`). A quarta aprovou depois de a documentação fixar o modelo (o resolvedor é código confiável da aplicação, ADR-044, e o
+guarda protege contra defeito e valor malformado, não contra um resolvedor malicioso) e de o guarda passar a usar só métodos de módulo e objetos nativos depois da leitura. O que o guarda **não** faz continua escrito: não prova autenticidade e não cobre a revogação entre a etapa 3 e o commit.

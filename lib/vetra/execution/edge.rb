@@ -4,11 +4,13 @@ module Vetra
   module Execution
     # Identidade resolvida pela borda confiável (ADR-045, §1): quem, em que tenant e com quais papéis. Nada disto vem da
     # entrada do cliente. Sem tenant numa aplicação global; sem papéis, visitante.
-    Identity = ::Data.define(:tenant_id, :actor_id, :roles, :system_actor) do
+    Identity = ::Data.define(:tenant_id, :actor_id, :roles, :system_actor, :generation) do
       # `system_actor` é o handler (ADR-024, §4): um ator de sistema não tem actor_id nem papéis, e a concessão dele é a
-      # lista `calls` do handler.
-      def initialize(tenant_id: nil, actor_id: nil, roles: [], system_actor: nil)
-        super(tenant_id: tenant_id, actor_id: actor_id, roles: roles.is_a?(Array) ? roles.dup.freeze : roles, system_actor: system_actor)
+      # lista `calls` do handler. `generation` é a geração da atribuição de papéis que o resolvedor leu **antes** de ler os
+      # papéis (ADR-049, §3): com ela, o `Runner` recusa uma identidade cujos papéis são de uma geração já substituída.
+      def initialize(tenant_id: nil, actor_id: nil, roles: [], system_actor: nil, generation: nil)
+        super(tenant_id: tenant_id, actor_id: actor_id, roles: roles.is_a?(Array) ? roles.dup.freeze : roles, system_actor: system_actor,
+              generation: generation)
       end
 
       def inspect = '#<Vetra::Execution::Identity [REDACTED]>'
@@ -90,12 +92,31 @@ module Vetra
       def resolve(credentials)
         identity = begin
           @identity.call(credentials)
+        rescue Data::Error => error
+          # Só quando o colaborador é o guarda do Vetra (`PublicIdentity`, que já trocou todo erro do resolvedor pelo genérico) o código
+          # atravessa a borda; o erro de dados de qualquer outro colaborador, inclusive o de um resolvedor, vira o genérico (ADR-045, §1).
+          raise Error.new(error.diagnostics), cause: nil if PublicIdentity === @identity # `===` do módulo: o colaborador não decide se é o guarda
+          nil
         rescue StandardError
           nil
         end
         return identity if identity.is_a?(Identity)
         raise Error.single('execution_identity', 'A borda não resolveu uma identidade para esta operação.'), cause: nil
       end
+
+      # A geração da atribuição de papéis que a identidade carrega ainda é a corrente? Sem geração na identidade, não há o que
+      # conferir. Com geração e uma autoridade que não a lê, ou que falha, a resposta é não: falha fechada (ADR-049, §3).
+      def identity_current?(identity, context = nil)
+        return true if identity.generation.nil?
+        return false unless @authority.respond_to?(:identity_generation_value)
+        identity.generation == @authority.identity_generation_value(context)
+      rescue StandardError
+        false
+      end
+
+      # A autoridade enxerga mudanças de outros processos? As de referência não (ADR-045, §2); um adaptador que declara vários
+      # processos usa isto para recusar o modo distribuído sem uma autoridade compartilhada (ADR-049, §5).
+      def shared_authority? = @authority.respond_to?(:shared?) && @authority.shared?
 
       def snapshot(request)
         @facts.call(request)

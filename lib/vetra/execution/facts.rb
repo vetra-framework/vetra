@@ -17,6 +17,10 @@ module Vetra
 
       def call(_context = nil) = @mutex.synchronize { @generation }
 
+      # A mesma geração, lida como geração da identidade (ADR-049, §3); `shared?` é falso: só vale para um processo.
+      def identity_generation_value(context = nil) = call(context)
+      def shared? = false
+
       # Publica uma nova geração; invalida todo snapshot lido antes.
       def publish!(_context = nil) = @mutex.synchronize { @generation += 1 }
 
@@ -50,6 +54,11 @@ module Vetra
 
       # A borda chama isto quando uma atribuição de papel muda fora do banco.
       def identity_changed!(context = nil) = @identity_generation.publish!(context)
+
+      # A geração da identidade corrente (ADR-049, §3). `shared?`: a revisão SQL é compartilhada entre processos, mas a geração da
+      # identidade só é se quem a guarda declarar `shared?` (a de referência, em memória, não declara).
+      def identity_generation_value(context = nil) = @identity_generation.call(context)
+      def shared? = @identity_generation.respond_to?(:shared?) && @identity_generation.shared?
 
       def inspect = '#<Vetra::Execution::DatabaseAuthority>'
       alias to_s inspect

@@ -70,6 +70,11 @@ O [ADR-048](048-execucao-dos-handlers-de-sistema.md), proposto, liga o relay ao 
 hospedeiro do handler, identidade do tenant do evento, chave derivada de handler/evento/ocorrência também no provedor externo,
 retenção por evento e timeout total de 30 s, com fechamento da unidade antes da recuperação pela lease de 60 s.
 
+O [ADR-049](049-identidade-da-borda-publica.md), proposto, define o contrato entre o resolvedor de identidade da aplicação e a borda
+pública: um guarda que recusa ator de sistema, ator ou papel inválidos e tenant incoerente, a geração coerente dos papéis (401 quando a
+geração foi substituída), o visitante como identidade anônima estável, emitida e verificada, e a recusa de subir em vários processos sem
+uma autoridade de revisão compartilhada.
+
 ## Escritos
 
 | ADR | Título | Status |
@@ -122,6 +127,7 @@ retenção por evento e timeout total de 30 s, com fechamento da unidade antes d
 | [046](046-autorizacao-dos-acessos-e-estado-final.md) | Autorização dos acessos, estado final e ator de sistema | proposto |
 | [047](047-fechamento-transacional-do-runner.md) | Fechamento transacional do Runner | proposto |
 | [048](048-execucao-dos-handlers-de-sistema.md) | Execução dos handlers de sistema | proposto |
+| [049](049-identidade-da-borda-publica.md) | Identidade da borda pública | proposto |
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos

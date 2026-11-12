@@ -44,7 +44,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 
 | Item | Situação |
 |---|---|
-| ADRs | 42 aceitos (001 a 041 e 043) e seis propostos (042, 044, 045, 046, 047 e 048), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
+| ADRs | 42 aceitos (001 a 041 e 043) e sete propostos (042, 044, 045, 046, 047, 048 e 049), com o índice em [adr/README.md](adr/README.md); construção dos registros usa conversão imediata, com o gate de custo aberto |
 | Testes do compilador, dados e exemplos | 808 testes e 17.476 asserções, sem falhas; 259/259 códigos de diagnóstico exercitados, com verificação automática na tarefa da CI |
 | Entrada e autorização Ruby (C13) | 27 testes/760 asserções novos sem banco, com os quatro grafos e os caminhos da sonda por mock. Contratos estritos, lógica SQL de NULL, papéis, vínculo/revenda/tenant, campos, revisão e recusas específicas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças e gate sem diferenças. Sonda em modo 100755, executada no 17.11 e no 18.6 (68/68) e na CI; a contagem de zero transações é a do pool do runtime. Integrada em `8a224a1`, com a CI verde ([execução 42859941056](https://github.com/vetra-framework/vetra/actions/runs/42859941056)). |
 | Limites da unidade (C15) | 13 testes novos sem banco e a sonda `sonda_limites_unidade.rb`, em modo 100755, com 15 verificações no 17.11 e no 18.6 (verificador recusa 5 combinações e aceita o login real, estouros de `lock_timeout` e `statement_timeout` com rollback total e sem evento, `SERIALIZABLE`/40001, morte do backend por `transaction_timeout` e por transação ociosa com o `xmin` avançando e o relay entregando, restauração dos parâmetros por banco). As sondas `vetra_data` (23), `repositorios` (72), `outbox` (36), `relay` (38), `idempotencia` (83) e `autorizacao_ruby` (68) passam nos dois servidores com o novo bootstrap. Custo medido do verificador: 0,18 ms/op no 17 e 0,11 ms/op no 18 (mediana de 300 leituras), e não os 57 µs do mock. Quatro exemplos em check, validação com fontes e link, `db:plan` sem mudanças e gate sem diferenças. Integrada em `a5b339d`, com a CI verde ([execução 42893712044](https://github.com/vetra-framework/vetra/actions/runs/42893712044)). |
@@ -87,6 +87,11 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Contrato da identidade e da borda pública (K23, [ADR-049 proposto](adr/049-identidade-da-borda-publica.md)): `Execution::PublicIdentity` confere o que o resolvedor da aplicação devolve (nunca ator de sistema; ator UUID, inclusive o do
+  visitante; papéis declarados; tenant coerente; geração inteira), com recusa própria que atravessa a borda e o erro de qualquer outra origem genérico; `Identity#generation` e `Edge#identity_current?` fazem o `Runner` recusar com 401
+  (`execution_identity_stale`) papéis de uma geração substituída; `Execution::AnonymousIssuer` emite a credencial anônima (`a1.<nonce>.<mac>`, ator UUID de versão 8 derivado por HMAC, estável e não escolhido pelo cliente);
+  `Execution.require_shared_authority!` recusa o modo de vários processos sem autoridade compartilhada (as de referência declaram `shared?` falso). 23 testes novos sem banco; a IR permanece 0.6 e nenhum exemplo mudou.
+  Auditado pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); aceite do ADR-049 pendente do mantenedor. Integrada, com a CI pendente.
 - [x] Documentação alinhada ao estado real (K22): o README deixa de dizer que a persistência e a execução não existem (diz o que há: compilador, plano de banco, camada de dados, executor parcial, sem servidor nem
   adaptadores), a IR é 0.6, os comandos de banco entram na tabela da CLI, a gemspec descreve o que o pacote traz, o índice de ADRs e o guia da IR não chamam o executor de pendente, e as seções 5 a 7 desta
   situação separam o que é parcial do que falta; a população das sondas é dita com precisão (32 arquivos, 30 na matriz da CI e dois manuais). Só documentação e a descrição da gemspec; nenhum comportamento mudou.
@@ -319,8 +324,8 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `sonda_contexto_assinado.rb` verifica o plano gerado, privilégios e tokens válidos/recusados, rotação e
   mutações da exceção, aplicando os planos com session_user/current_user `vetra_migrator` e sem poderes
   administrativos: 58/58 no PostgreSQL 18.6, e na CI no 17 e 18.
-- [x] ADR-036 aceito em 2026-11-05 pelo Claude, por delegação do mantenedor. A emissão em runtime e o contexto global estão entregues (Vetra Data, ADR-039); a autenticação, a identidade
-  anônima estável da borda pública (o visitante com tenant) e `keys:rotate` continuam pendentes; o visitante global já existe (`sonda_vetra_data`).
+- [x] ADR-036 aceito em 2026-11-05 pelo Claude, por delegação do mantenedor. A emissão em runtime e o contexto global estão entregues (Vetra Data, ADR-039); a autenticação e `keys:rotate` continuam pendentes. A identidade anônima estável tem emissor (`AnonymousIssuer`, K23, ADR-049 proposto); a integração na superfície (a credencial guardada pelo cliente) é da K24, e o limite de
+  taxa por visitante, da C17. O visitante global sem ator já existe (`sonda_vetra_data`).
 
 **RLS e integridade no plano inicial**
 
@@ -651,7 +656,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
   contexto de cada comando do CRM com revendas e acrescenta de 0,03 a 0,64 ms por instrução, mas não leva sozinha os comandos abaixo de 25% (o [material da K21](sondas/saidas-da-vt-system.md)
   compara as saídas: papel de banco próprio, função única, as duas ou manter; cada uma tira 18% a 20% das validações e as duas, 36% a 39%); (b) se o resultado inconclusivo com 16 clientes
   (CRM com revendas acima de 25%) reabre o desenho do ADR-005 por ADR novo, nos termos do ADR-023; (c) o orçamento do gate de 10% e o aceite do ADR-042 (construção em 38% a 44%);
-  (d) o aceite dos ADRs 042, 044, 045, 046, 047 e 048; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
+  (d) o aceite dos ADRs 042, 044, 045, 046, 047, 048 e 049; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -686,7 +691,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 
 **Runtime**
 - [ ] Execução de `rate_limit:` por permissão: contadores compartilhados, janela móvel, reservas concorrentes
-  e identidade anônima confiável, conforme o ADR-034
+  e identidade anônima confiável (o emissor existe desde a K23; os contadores são da C17), conforme o ADR-034
 - [ ] Executor completo do ADR-016: o `Runner` parcial (K17 a K20) cobre as primitivas, os comandos, a autorização dos acessos, os eventos e a idempotência; **faltam** o histórico, a
   auditoria e a cifra dos campos pessoais (rodada 7), a **composição de comandos pelo `call`** (savepoint; o bloco só enxerga `fail!`) e o executor das capacidades determinísticas além de `core.clock`
   (`uuid`, `random`; o `Runner` as recusa com `execution_capability`) e a **validação da saída contra o contrato** antes do commit (sem chave de idempotência o `Runner` devolve `ok` e só a serialização recusa, depois do commit, um valor fora do contrato; com chave, a etapa 7 já o recusa e desfaz), que a conformidade integral com o ADR-016 e o ADR-004 exigem. As capacidades externas já rodam nos handlers, por `HandlerRunner::Effect`,

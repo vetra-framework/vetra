@@ -325,6 +325,11 @@ module Vetra
         request = FactsRequest.new(authorization: @authorization, operation_id: operation_id, context: context,
                                    roles: identity.roles, input: input)
         snapshot = @edge.snapshot(request)
+        # Papéis de uma geração já substituída (ADR-049, §3): a credencial precisa ser resolvida de novo, o que é um 401, e não um 403.
+        unless @edge.identity_current?(identity, context)
+          raise Refusal.new(:unresolved, [Graph::Diagnostic.new(code: 'execution_identity_stale', message: 'Os papéis da identidade são de uma geração substituída.',
+                                                                pointer: '/', severity: :error)])
+        end
         result = @authorization.check(operation_id, input: input, context: context, snapshot: snapshot,
                                       current_revision: @edge.authority)
         raise Refusal.new(:denied, result.diagnostics) unless result.allowed?
