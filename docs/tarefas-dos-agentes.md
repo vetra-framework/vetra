@@ -83,6 +83,7 @@ tarefas seguem a ordem da tabela.
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | concluída | `0627646` | Auditada pelo Claude, sonda 17/18 e CI verde; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | concluída | `6bb96e7` | Auditada pelo Codex (uma rodada, sete achados ajustados) e CI verde; sem mudança em `lib/`, nenhum ADR novo; o teste 6 segue pendente ([entrega](#entrega-da-k20-pelo-claude), [auditoria](#auditoria-k20)) |
+| K21 | Material para a decisão da saída da `vt_system`: protótipo de medição das saídas (papel de banco próprio e função única de contexto) | Claude | integrada, CI pendente | — | Auditada pelo Codex (uma rodada, quatro achados ajustados); sem mudança em `lib/`, nenhum ADR novo; a escolha da saída é do mantenedor ([entrega](#entrega-da-k21-pelo-claude), [auditoria](#auditoria-k21)) |
 
 ### Parecer do Codex sobre o plano da rodada 5
 
@@ -1417,3 +1418,43 @@ Os números do relatório vêm da execução completa anterior a estes ajustes; 
 PgBouncer (a parte do pooler é pulada e dita, como previsto), e a medição curta da CI (30 amostras, 0,5 s por série) terminou sem série vazia. Com a K20 a rodada 5 da persistência fecha. O
 que sobra é do mantenedor: a saída para o custo da `vt_system`, se o resultado inconclusivo com 16 clientes reabre o desenho do ADR-005, o orçamento do gate de 10% e o aceite do ADR-042, o aceite
 dos ADRs 042, 044, 045, 046, 047 e 048, e o contrato do teste 6 do ADR-023, que continua pendente.
+
+## Entrega da K21 pelo Claude
+
+Base: `aff447c`, árvore limpa na `main`. Pedida pelo mantenedor ao escolher "Saída da `vt_system`" depois da K20: **preparar, sem decidir**, a escolha da saída para o custo da `vt_system`. Implementada
+pelo Claude sem commit, branch nem push. **Nenhum arquivo de `lib/` mudou e nenhum ADR é novo**: a decisão é do mantenedor, e o ADR (049, `proposto`) e a implementação só vêm depois dela.
+
+- **O que mudou.** `script/medir_saidas_vt_system.rb` (novo, `SystemExitProbe < ExecutorCostProbe`, 17 conferências): reescreve no lugar as políticas de linha do CRM com revendas em
+  quatro variantes (`atual`, `papel`, `unica`, `papel+unica`), instala `vetra.context()` (o corpo de `is_system_actor()` devolvendo `(tenant, ator, sistema)`) e conta no banco as validações dos
+  quatro comandos de referência da K20, com o custo por chamada de `context()` medido como o de `current_tenant`. `script/medir_executor.rb` muda só para ler a lista de funções por
+  `self.class::FUNCTIONS`. `.github/workflows/ci.yml` ganha um passo curto. [Documento de decisão](sondas/saidas-da-vt-system.md) (novo), uma frase corrigida em [custo-executor.md](sondas/custo-executor.md),
+  situação e este quadro.
+- **Resultados (PostgreSQL 17.11 e 18.6).** Por instrução sobre `leads` o gerente faz 5 validações (3 de tenant, 1 de ator, 1 de sistema), e a conta fecha os 56 do `update_lead`. A `papel` e a `unica`
+  tiram, cada uma, de 18% a 20% das validações de cada comando; as duas juntas, de 36% a 39%. No numerador do percentual da K20 (validações × custo com 16 clientes), a `papel` vale −18% a −20% nas duas
+  versões, e a `unica`, −16% a −18% no 17 e só −3% a −5% no 18 (`context()` saiu mais cara com 16 clientes; **não explicado**). Nenhuma saída leva sozinha o CRM com revendas abaixo de 25%; a projeção
+  das duas juntas sobre os percentuais da K20 dá 21% a 28% no 17. O percentual absoluto desta execução (41% a 60% na variante `atual`) é maior que o da K20 (33% a 45%): o denominador caiu e o custo
+  por chamada subiu; só a contagem é estável. A latência com um cliente não separa as variantes do ruído.
+- **Correção de uma frase da K20.** O relatório da K20 dizia que a função única "ataca as três contagens de uma vez"; a medição mostra que ela só funde o ator na chamada de tenant de cada subconsulta
+  de escopo (−18% a −20%). Corrigida.
+- **Achado de segurança que o material registra.** Com um papel de banco próprio, a política restritiva `vt_tenant` (hoje `TO vetra_app`) **precisa nomear o papel novo**: uma restritiva só vale para os
+  papéis que ela nomeia, e o `vetra_system` com uma permissiva `USING (true)` leria todos os tenants se ela o omitisse.
+- **Verificação.** A sonda passou 17/17 no 17 e no 18, nas execuções reduzida e completa; suíte, gate e `db:plan` sem mudanças (nenhum arquivo de `lib/`, de exemplo ou de plano mudou).
+- **O que ficou de fora.** A implementação de qualquer saída, o plano de migração, o papel `vetra_system` (a variante `papel` só retira a política), a reescrita dos gatilhos, a latência de cada comando
+  com 16 clientes, o `EXPLAIN` em tabelas grandes e a decomposição do custo da própria validação. A escolha, o teste 6 do ADR-023, o limiar de 25% e a decisão (b) sobre o ADR-005 são do mantenedor.
+- **Riscos que o Claude vê.** (1) A reescrita por expressão regular só cobre as formas que o gerador emite hoje (a conferência de visibilidade por variante pega uma reescrita errada nessas formas, não
+  nas futuras). (2) As projeções aritméticas dependem de os percentuais escalarem com a contagem. (3) A `leitura do Claude` no documento é opinião, separada da evidência.
+
+## Auditoria K21
+
+Implementada pelo Claude sobre `aff447c`; auditada pelo Codex em modo somente leitura (uma rodada, devolvida). O sandbox do Codex não alcança o PostgreSQL: ele conferiu a sonda por leitura, a
+sintaxe, o gate, `graph:check`, `graph:validate` e `graph:link` dos quatro exemplos e os dois logs completos (17/17). O Claude reexecutou a sonda (17/17 no 17 e no 18) depois dos ajustes.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| A conferência de visibilidade não provava a restrição por revenda: todos os leads do tenant 1 estavam na revenda com vínculo, e uma política que concedesse todas as revendas ao ator com vínculo ainda passaria | sim | Ajustar: uma revenda do tenant 1 sem vínculo, com 5 leads; a conferência compara os conjuntos de IDs esperados (superusuário) de cada ator em cada variante |
+| O veredito "inconclusivo" da coluna `atual` não batia com os quatro percentuais: pela função `threshold` herdada, a mediana de 35, 38, 33 e 45 é 36,5% e o veredito é "acima"; o "inconclusivo" da K20 era sobre os oito comandos com RLS | sim | Ajustar: o veredito é por população, e o documento diz as duas (quatro comandos: acima; os oito da K20: inconclusivo); a mediana da projeção das duas juntas é 23% |
+| Faltava registrar que a saída A pede adaptar a fábrica de pools: `Data.connect` força `user: 'vetra_app'` e a conferência exige `current_user` e `session_user` iguais a ele (ADR-039) | não | Ajustar: entra nas exigências da saída A |
+| O caso "visitante" da conferência da função única nunca rodava: o emissor recusa a ausência das duas identidades (`data_context`), e o `rescue nil` o descartava em silêncio | não | Ajustar: o caso sai do código e do nome da conferência, com o motivo em comentário |
+| Limitação do ambiente do Codex: suíte com 422 erros por bloqueio de temporários no sandbox; sonda e `db:plan --check` sem PostgreSQL | não | Sem ação: é do sandbox; a suíte do Claude passa e a sonda passou 17/17 |
+
+Os números do documento vêm da execução completa anterior a estes ajustes; os ajustes tocam só as conferências da sonda (e o texto), não a medição.

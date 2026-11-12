@@ -188,6 +188,12 @@ jobs:
           VETRA_MEDICAO_SEGUNDOS: '0.5'
           VETRA_MEDICAO_RODADAS: '1'
         run: bundle exec ruby script/medir_executor.rb
+      - name: Saídas para o custo da vt_system, protótipo de medição informativo (ADR-024, ADR-023)
+        env:
+          VETRA_MEDICAO_AMOSTRAS: '20'
+          VETRA_MEDICAO_SEGUNDOS: '0.5'
+          VETRA_MEDICAO_RODADAS: '1'
+        run: bundle exec ruby script/medir_saidas_vt_system.rb
       - name: Registro de idempotência da operação, concorrência, privilégios e purga (ADR-043)
         run: bundle exec ruby script/sonda_idempotencia.rb
       - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)

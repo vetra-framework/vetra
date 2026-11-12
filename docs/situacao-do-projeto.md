@@ -87,6 +87,12 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Material para a decisão da saída da `vt_system` (K21, [documento](sondas/saidas-da-vt-system.md)): a sonda `medir_saidas_vt_system.rb` (17 conferências no 17 e no 18, e um passo curto
+  na CI) reescreve no lugar as políticas de linha do CRM com revendas em quatro variantes (`atual`, `papel` = papel de banco próprio, `unica` = função única `vetra.context()` e as duas) e conta
+  no banco as validações de contexto dos quatro comandos de referência. Cada saída tira de 18% a 20% das validações e as duas juntas, de 36% a 39%; nenhuma leva sozinha o CRM com revendas
+  para baixo de 25%, e a projeção das duas juntas sobre os percentuais da K20 dá 21% a 28% no 17. O documento traz o que cada saída exige e arrisca (a restritiva `vt_tenant` precisa nomear o
+  papel novo, senão ele leria todos os tenants), a leitura do Claude separada da evidência e o que decidir. Corrige a frase da K20 de que a função única "ataca as três contagens". Protótipo
+  de políticas: nada implementado, nenhum ADR novo, nenhum limiar mudou, teste 6 do ADR-023 pendente. Auditada pelo Codex (uma rodada, quatro achados ajustados); integrada, com a CI pendente.
 - [x] Ponta a ponta e medição do executor (K20, [relatório](sondas/custo-executor.md)): a sonda `sonda_ponta_a_ponta.rb` (26 verificações no 17 e no 18, e na CI) roda os quatro
   exemplos como estão pelo `Runner`, com a outbox, o relay e os handlers reais `notify_sales` e `notify_seller`, e imprime as duas contagens de transações de cada comando (operação e borda,
   teste 1 do ADR-016); inclui as duas recusas assumidas (`chat.add_member_by_email` e o comentário do visitante do blog) e três achados para a rodada 6: `crm.win_lead` não aceita chave
@@ -638,7 +644,8 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5: a rodada 2 do quadro terminou, e a publicação fixa os schemas
   0.4 a 0.6.
 - [ ] Mantenedor decidir, com os números da K20 ([relatório](sondas/custo-executor.md)): (a) a saída para o custo da `vt_system`, que responde por 4 a 13 das 22 a 67 validações de
-  contexto de cada comando do CRM com revendas e acrescenta de 0,03 a 0,64 ms por instrução, mas não leva sozinha os comandos abaixo de 25%; (b) se o resultado inconclusivo com 16 clientes
+  contexto de cada comando do CRM com revendas e acrescenta de 0,03 a 0,64 ms por instrução, mas não leva sozinha os comandos abaixo de 25% (o [material da K21](sondas/saidas-da-vt-system.md)
+  compara as saídas: papel de banco próprio, função única, as duas ou manter; cada uma tira 18% a 20% das validações e as duas, 36% a 39%); (b) se o resultado inconclusivo com 16 clientes
   (CRM com revendas acima de 25%) reabre o desenho do ADR-005 por ADR novo, nos termos do ADR-023; (c) o orçamento do gate de 10% e o aceite do ADR-042 (construção em 38% a 44%);
   (d) o aceite dos ADRs 042, 044, 045, 046, 047 e 048; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
 

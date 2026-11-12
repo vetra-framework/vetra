@@ -119,9 +119,10 @@ class ExecutorCostProbe < ContextCostProbe
   def function_calls
     [@runtime, @edge_db].compact.each { |db| db.run('SELECT pg_stat_force_next_flush()') }
     @connection.exec('SELECT pg_stat_clear_snapshot()')
-    found = @connection.exec("SELECT funcname, sum(calls)::bigint AS n FROM pg_stat_user_functions WHERE schemaname = 'vetra' AND funcname IN (#{FUNCTIONS.map { |f| "'#{f}'" }.join(', ')}) GROUP BY funcname")
+    names = self.class::FUNCTIONS
+    found = @connection.exec("SELECT funcname, sum(calls)::bigint AS n FROM pg_stat_user_functions WHERE schemaname = 'vetra' AND funcname IN (#{names.map { |f| "'#{f}'" }.join(', ')}) GROUP BY funcname")
                        .to_h { |row| [row['funcname'], row['n'].to_i] }
-    FUNCTIONS.to_h { |name| [name, found.fetch(name, 0)] }
+    names.to_h { |name| [name, found.fetch(name, 0)] }
   end
 
   def data_statements(log) = log.count { |statement| statement.match?(DATA_STATEMENT) && !statement.include?('set_config') }
@@ -163,7 +164,7 @@ class ExecutorCostProbe < ContextCostProbe
       before = function_calls
       raise "#{operation} falhou na contagem" unless @runner.run(operation, input, credentials: who, idempotency_key: key.call).ok?
       after = function_calls
-      [FUNCTIONS.to_h { |name| [name, after.fetch(name) - before.fetch(name)] }, data_statements(@ops_log), data_statements(@edge_log)]
+      [self.class::FUNCTIONS.to_h { |name| [name, after.fetch(name) - before.fetch(name)] }, data_statements(@ops_log), data_statements(@edge_log)]
     end
   ensure
     open_pools(@scoped)

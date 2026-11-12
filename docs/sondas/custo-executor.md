@@ -138,10 +138,10 @@ comando do CRM com revendas (`is_system_actor`, uma por instrução sobre tabela
 de 33%–45% para 27%–36%: tira de 6 a 9 pontos percentuais, e **não** leva sozinha todos os comandos para baixo de 25%. A maior parte do custo é
 `current_tenant` e `current_actor`, que a saída da `vt_system` não toca.
 
-**A saída (função única de contexto ou papel de banco próprio) é decisão do mantenedor.** Os números acima são a evidência. A leitura do
-Claude, sem decidir: uma função única de contexto, que valida o token uma vez por instrução e devolve tenant, ator e sistema, ataca as três
-contagens de uma vez, e por isso é a que mexe no que dominou a medição; a saída por papel de banco próprio só tira as 4 a 13 validações de
-sistema. Qualquer das duas exige ADR novo e plano de banco, e nenhuma está implementada.
+**A saída (função única de contexto ou papel de banco próprio) é decisão do mantenedor.** Os números acima são a evidência. A K21 mediu as duas num
+protótipo ([saidas-da-vt-system.md](saidas-da-vt-system.md)): cada uma tira de 18% a 20% das validações (a função única funde só o ator na chamada de tenant de cada subconsulta de
+escopo, e o papel tira as de sistema), as duas juntas de 36% a 39%. A leitura que este relatório tinha, de que a função única "ataca as três contagens de uma vez", estava errada. Qualquer das
+duas exige ADR novo e plano de banco, e nenhuma está implementada.
 
 ### Escrita em `vetra.idempotency` (ADR-043)
 
