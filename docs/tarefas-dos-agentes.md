@@ -69,7 +69,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
 | K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | concluída | `9b135a5` | Auditada pelo Codex em quatro rodadas (três devolvidas, a quarta aprovada); ADR-049 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k23-pelo-claude), [auditoria](#auditoria-k23)) |
-| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | integrada, CI pendente | — | Auditada pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); ADR-050 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k24-pelo-claude), [auditoria](#auditoria-k24)) |
+| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | concluída | `45defb7` | Auditada pelo Codex em cinco rodadas (quatro devolvidas, a quinta aprovada); ADR-050 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-k24-pelo-claude), [auditoria](#auditoria-k24)) |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
 | K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
 | K26 | Adaptadores de CLI e de job, com a política de repetição por superfície | Claude | pendente | — | — |
@@ -1647,3 +1647,5 @@ Implementada pelo Claude sobre `68cddae`; auditada pelo Codex em modo somente le
 
 O que a auditoria **não** mudou, e o ADR-050 registra: o orçamento total sem cancelamento, a diferença de tempo entre negado e inexistente (não medida), o motivo textual do `fail!` fora da resposta e o 404 igual só nas operações que apontam um registro.
 \n
+
+**CI.** A [execução 43284015204](https://github.com/vetra-framework/vetra/actions/runs/43284015204) do commit `45defb7` passou nos cinco jobs. Com a K24 a suíte tem 858 testes e 269 códigos de diagnóstico exercitados (contagem local, com `rake` de status 0). A próxima tarefa é a C17 (Codex), os contadores de `rate_limit:`.
