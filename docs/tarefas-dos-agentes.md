@@ -58,6 +58,49 @@ incorpora o parecer do Codex.
 
 Rodada concluída. Todos os exemplos vão do banco vazio ao plano inicial aplicado por `db:migrate`.
 
+## Rodada 6 (2026-11-12)
+
+Superfícies executáveis, **experimentais e sobre o executor parcial** (sem histórico, auditoria nem cifra, que são da rodada 7): contrato da identidade e da borda pública, adaptadores HTTP, CLI, job e webhook, e os contadores de
+`rate_limit:`. O objetivo, o reescopo em relação ao que a rodada 5 anunciou, os requisitos e o que fica para depois estão no [plano da persistência](plano-persistencia.md#rodada-6-superfícies-executáveis-planejada-em-2026-11-12). O planejamento
+foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer do Codex, aprovado na segunda rodada (abaixo). As tarefas seguem a ordem da tabela; **só uma implementa por vez**.
+
+| ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
+|---|---|---|---|---|---|
+| P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
+| K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | pendente | — | — |
+| K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | pendente | — | — |
+| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
+| C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
+| K25 | Incompatibilidade do `crm.win_lead` e achados de modelo da K20, sem ampliar permissão | Claude | pendente | — | — |
+| K26 | Adaptadores de CLI e de job, com a política de repetição por superfície | Claude | pendente | — | — |
+| C18 | Adaptador de webhook, com assinatura sobre os bytes originais e chave derivada (ADR proposto) | Codex | pendente | — | — |
+| K27 | Ponta a ponta por servidor real, equivalência entre as quatro superfícies e boot recusando IR inválida | Claude | pendente | — | — |
+
+### Parecer do Codex sobre o plano da rodada 6
+
+Pedido em modo somente leitura, sobre `9f0e318`. O Codex **devolveu a primeira versão** (18 achados, 13 bloqueantes) e **aprovou a segunda**, com cinco ressalvas não bloqueantes, todas incorporadas. O sandbox do Codex não alcança o
+PostgreSQL; ele conferiu o plano contra os ADRs, o código do executor e os nós `route` por leitura.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| Prometer as oito etapas sem histórico nem auditoria contradiz a etapa 7 do ADR-016, o ADR-013 e o ADR-007 | sim | Ajustar: os adaptadores são experimentais sobre o executor parcial, sem anunciar as oito etapas; a superfície pública com essas garantias espera a rodada 7 ou uma exceção explícita do mantenedor |
+| `win_lead` exige chave no job e no webhook do mini CRM, e o `Runner` a recusa para saída pessoal | sim | Ajustar: a K25 resolve a incompatibilidade antes da K26 e da C18, sem tirar a chave nem omitir campo só no adaptador |
+| Faltava o contrato da identidade (papéis e geração coerentes, visitante explícito, anônimo estável, `system_actor` fora da entrada pública) | sim | Ajustar: a K23 o entrega antes do HTTP e dos contadores |
+| `InProcessAuthority` e a geração em memória não observam outros processos | sim | Ajustar: a K23 entrega a autoridade compartilhada ou limita a referência a um processo por configuração que recusa o modo distribuído |
+| Os contadores são maiores que "contadores na admissão" (janela móvel, reserva durável fora da unidade, avaliador e guardas, repetições internas, privilégios, purga) | sim | Ajustar: o escopo da C17 está no plano |
+| Ordem e responsáveis: a K24 pode vir antes da C17 (a falta de contadores recusa), a C18 depende do HTTP e a K27 das quatro entregas | não | Ajustar: ordem K23, K24, C17, K25, K26, C18, K27; a divisão Claude/Codex fica |
+| Timeouts e custo anteriores à operação (perfis do `Runner` por rota, orçamento total, COMMIT incerto) | sim | Ajustar: requisito da K24 |
+| Limites da entrada HTTP (corpo, duplicatas, conflitos de caminho, consulta e corpo, conversões) | sim | Ajustar: requisito da K24 |
+| Sessão, CSRF, CORS e cache | sim | Ajustar: requisito da K24 |
+| Erros públicos, enumeração (404) e o status 429 | sim | Ajustar: requisito da K24, com `Outcome` ganhando a taxa excedida |
+| Retentabilidade por superfície (`retryable?` sozinho descartaria jobs e eventos na indisponibilidade) | sim | Ajustar: política por superfície, requisito da K24, da K26 e da C18 |
+| Idempotência ponta a ponta (derivação da chave, retenção, visitantes) e assinatura sobre os bytes originais | sim | Ajustar: requisito da K26 e da C18 |
+| Testes sem socket, equivalência entre superfícies e boot recusando IR inválida | sim | Ajustar: critérios de entrega da K24 e da K27 |
+| Nem todo "achado de modelo" é defeito (o chat não concede `delete` de sala; o comentário público leva e-mail) | não | Ajustar: a K25 separa correção de mudança de produto, sem ampliar permissão |
+| Fatos e deriva documental: 32 arquivos de sonda (30 na matriz), seções 5 a 7, gemspec e índice de ADR desatualizados | não | Ajustar: a K22 cobre tudo isso; os percentuais de contexto são estimativas |
+| Declaração de titular como dependência da cifra; Rails adiado preserva o risco; o que cortar | não | Ajustar: registrado no plano |
+| Segunda rodada: faixa de desempenho misturava populações; "nunca por cabeçalhos" excedia (credenciais verificadas podem viajar em cabeçalho); equivalência positiva se a K25 deixar rotas pendentes; recuperação pela mesma chave só com chave aceita; carimbo de tempo da assinatura do webhook | não | Ajustar: cinco edições no plano |
+
 ## Rodada 5 (2026-11-09)
 
 Persistência, parte 3: um executor **parcial** do ADR-016 (sem histórico, auditoria nem adaptadores, que são da rodada
@@ -1422,7 +1465,7 @@ dos ADRs 042, 044, 045, 046, 047 e 048, e o contrato do teste 6 do ADR-023, que 
 ## Entrega da K21 pelo Claude
 
 Base: `aff447c`, árvore limpa na `main`. Pedida pelo mantenedor ao escolher "Saída da `vt_system`" depois da K20: **preparar, sem decidir**, a escolha da saída para o custo da `vt_system`. Implementada
-pelo Claude sem commit, branch nem push. **Nenhum arquivo de `lib/` mudou e nenhum ADR é novo**: a decisão é do mantenedor, e o ADR (049, `proposto`) e a implementação só vêm depois dela.
+pelo Claude sem commit, branch nem push. **Nenhum arquivo de `lib/` mudou e nenhum ADR é novo**: a decisão é do mantenedor, e o ADR (no próximo número livre, `proposto`) e a implementação só vêm depois dela.
 
 - **O que mudou.** `script/medir_saidas_vt_system.rb` (novo, `SystemExitProbe < ExecutorCostProbe`, 17 conferências): reescreve no lugar as políticas de linha do CRM com revendas em
   quatro variantes (`atual`, `papel`, `unica`, `papel+unica`), instala `vetra.context()` (o corpo de `is_system_actor()` devolvendo `(tenant, ator, sistema)`) e conta no banco as validações dos
@@ -1467,4 +1510,4 @@ checkpoint de 59 s de escrita), e a mediana de uma lista vazia não existe. O Cl
 (`ContextCostProbe#latency`: a janela só fecha depois da primeira amostra de cada cliente, com teto de 10 s entre transações, e a falha vira "série sem amostra"), auditada pelo Codex (um achado
 bloqueante: o teto não limita uma instrução bloqueada dentro da transação, e o pai não tem prazo na leitura; ajustado no texto do comentário, sem mudar o código, porque o `transaction_timeout` do
 `vetra_app` limita essa espera; dois pontos preexistentes, `VETRA_MEDICAO_RODADAS` nulo ou `VETRA_MEDICAO_AMOSTRAS` abaixo de 5, são configuração inválida e não mudam). A
-[execução 43201505871](https://github.com/vetra-framework/vetra/actions/runs/43201505871) do `0526ffa` passou nos cinco jobs. A escolha da saída da `vt_system` é do mantenedor; a K21 não escreve o ADR 049.
+[execução 43201505871](https://github.com/vetra-framework/vetra/actions/runs/43201505871) do `0526ffa` passou nos cinco jobs. A escolha da saída da `vt_system` é do mantenedor; a K21 não escreve o ADR dessa escolha.

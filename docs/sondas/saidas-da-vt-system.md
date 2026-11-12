@@ -142,7 +142,7 @@ com a alternativa medida; abrir ou não esse ADR é a decisão (b) do mantenedor
 
 ## O que decidir (do mantenedor)
 
-1. A saída: **0**, **A**, **B**, **A + B**, ou adiar até a decisão (b) sobre o ADR-005. Depois da escolha, o ADR (049, `proposto`) e a tarefa de implementação com auditoria cruzada são de um
+1. A saída: **0**, **A**, **B**, **A + B**, ou adiar até a decisão (b) sobre o ADR-005. Depois da escolha, o ADR (no próximo número livre, `proposto`) e a tarefa de implementação com auditoria cruzada são de um
    agente; a K21 não escreve nenhum dos dois.
 2. Se **A**: aceitar mudar a decisão 2 do ADR-024, §4, o novo papel no bootstrap do ADR-036 e o segundo pool no `HandlerRunner` do ADR-048.
 3. Se **B**: aceitar a forma nova das políticas de linha (expand/contract) e a guarda de rotinas com a função nova.

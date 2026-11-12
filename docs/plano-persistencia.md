@@ -6,6 +6,93 @@ assinado estão no [ADR-036](adr/036-papeis-e-contexto-assinado.md), também ace
 A rodada 3 levou cada exemplo de um banco vazio ao plano inicial aplicado; a rodada 4 fez esse banco evoluir e ser
 usado pelo Vetra Data; a rodada 5 faz o Vetra Data executar operações com um executor parcial, sem histórico, auditoria nem adaptadores.
 
+## Rodada 6: superfícies executáveis (planejada em 2026-11-12)
+
+Planejada pelo Claude, por delegação do mantenedor, depois de uma reavaliação do projeto inteiro (abaixo), com o parecer do Codex incorporado (primeira rodada devolvida; as mudanças estão nas seções abaixo).
+
+### Reavaliação do projeto (2026-11-12)
+
+- **O que está sólido.** O núcleo declarativo (compilador, IR 0.6, diff e gate de compatibilidade, quatro exemplos), a camada de dados inteira (plano, RLS, contexto assinado, repositórios,
+  outbox, relay, idempotência) e o executor parcial das oito etapas, com 808 testes, 259 códigos de diagnóstico exercitados, 32 arquivos `sonda_*.rb` (30 na matriz do PostgreSQL 17 e 18 da CI e dois manuais) e a CI verde. O protocolo de
+  dois agentes funciona: a auditoria cruzada achou bloqueantes reais em todas as rodadas.
+- **O que ainda não existe, e pesa mais.** (1) **Nenhuma superfície real**: o runtime só é alcançável por sondas, então não há requisição HTTP, comando de terminal, job nem webhook que o exercite, e
+  os critérios 6 e 7 da fase 0 seguem parciais. (2) **O risco de desempenho do núcleo de segurança está aberto há duas rodadas**: o contexto assinado custa de 12% a 19% da latência com um cliente e, em estimativas de duas
+  execuções distintas com 16 clientes (K20: 27% a 45%; K21, variante atual: 34% a 60%), bem mais no CRM com revendas; a
+  construção dos registros fica em 38% a 44% da consulta (gate de 10%), e a decisão é do mantenedor. (3) **Dívida de decisão**: seis ADRs propostos (042, 044 a 048) sustentam código já integrado.
+  (4) **Lacunas funcionais que as sondas da K20 expuseram**: `rate_limit:` sem contadores recusa a operação pública (o comentário do visitante do blog), `crm.win_lead` declara uma chave que a saída pessoal
+  proíbe, o visitante do blog não lê nem o post publicado. (5) **Deriva documental**: o README ainda diz que a persistência e a execução não existem.
+- **A estratégia que o ADR-010 pede.** Provar o Vetra num módulo real, hospedado. Antes do Rails, uma superfície **Rack sem dependência nova** prova o fluxo completo com HTTP de verdade e mostra onde o
+  executor e o grafo ainda falham; o modo hospedado em Rails vem depois, sobre o mesmo adaptador.
+
+### Objetivo e escopo
+
+Ao fim da rodada, cada exposição que os exemplos declaram (`http`, `cli`, `job`, `webhook`) é alcançável por um adaptador que traduz a superfície para o `Runner`, resolve o ator e o tenant por uma credencial verificada (nunca por campos de identidade ou papéis não verificados do corpo, dos cabeçalhos ou dos parâmetros; a credencial em si, como `Authorization` ou o cookie de sessão, pode viajar em cabeçalho), extrai a chave de idempotência, traduz as três saídas de falha (ADR-007, §3) e chama o executor; e o limite de taxa por permissão tem contadores. A IR permanece 0.6.
+
+**Os adaptadores desta rodada são experimentais e rodam sobre o executor parcial.** A etapa 7 do ADR-016 e o ADR-013 exigem histórico, auditoria e (para dado pessoal) cifra gravados junto dos dados, e o ADR-007 exige a
+equivalência também do histórico: nada disso existe até a rodada 7. A rodada **não anuncia** as oito etapas completas nem a conformidade com o ADR-016; os adaptadores servem a uso restrito e a dados
+descartáveis. Expor uma superfície pública com essas garantias depende da rodada 7 ou de uma exceção arquitetural **explícita do mantenedor**. O Claude propõe a exceção só se o mantenedor pedir.
+
+**Reescopo em relação ao que a rodada 5 anunciou.** A rodada 5 reservou para a rodada 6 também a cifra dos campos pessoais, o histórico, a auditoria, o distribuidor do live, a fase contract e o modo hospedado em
+Rails. Esta rodada fica com as superfícies, o contrato de identidade e os contadores, porque (a) as superfícies destravam a evidência (HTTP real, latência ponta a ponta, o critério 6) e não dependem da cifra;
+(b) a cifra, o KMS, o histórico e a auditoria são um conjunto com o maior desconhecido do projeto e merecem rodada própria; (c) o modo hospedado precisa do adaptador pronto. **A conformidade integral com o ADR-016
+passa à rodada 7.**
+
+### Tarefas (uma por vez no checkout compartilhado, nesta ordem)
+
+| ID | Tarefa | Responsável | Depende de |
+|---|---|---|---|
+| K22 | Documentação alinhada ao estado real: README (o runtime existe; IR 0.6), seções 5 a 7 da situação, gemspec e índice de ADRs; população das sondas e das medições dita com precisão | Claude | — |
+| K23 | **Contrato da identidade e da borda pública** (ADR proposto): identidade, papéis e geração de atribuição coerentes; revogação; falha fechada; visitante explícito; identidade anônima estável, emitida e verificada; proibição de `system_actor` na entrada pública; autoridade entre processos (compartilhada ou limitada a um processo, com configuração que impede anunciar suporte distribuído) | Claude | K22 |
+| K24 | Adaptador HTTP como aplicação Rack, sem dependência nova, sobre o contrato da K23: rota da IR para a operação, entrada de caminho, consulta e corpo JSON, perfis do `Runner` por rota, `Outcome` para HTTP, consultas só `GET`; requisitos da seção abaixo; ADR proposto | Claude | K23 |
+| C17 | Contadores de `rate_limit:` (ADR-034), com o escopo da seção abaixo; ADR proposto | Codex | K24 |
+| K25 | Incompatibilidade do `crm.win_lead` (chave exigida pelo job e pelo webhook, saída com e-mail): contrato de saída sem dado pessoal comum às superfícies, ou rotas declaradas pendentes da cifra; a recusa do executor é preservada. Se as rotas ficarem pendentes, a K27 prova a equivalência positiva (execução e replay pelas quatro superfícies) numa fixture descartável com saída não pessoal e quatro exposições, e distingue essa evidência das rotas dos exemplos que permanecerem pendentes | Claude | C17 |
+| K26 | Adaptadores de CLI e de job sobre o mesmo núcleo, com a política de repetição por superfície | Claude | K25 |
+| C18 | Adaptador de webhook: assinatura do provedor sobre os bytes originais, chave derivada do provedor, da conta e do evento, retenção compatível com as reentregas, verificação do carimbo de tempo assinado quando o provedor o oferece (com teste) e a limitação dos provedores sem esse mecanismo, porque assinatura válida e retenção não impedem reapresentar uma requisição capturada depois da purga da chave; ADR proposto | Codex | K24, K25 |
+| K27 | Ponta a ponta por um servidor real nos quatro exemplos, equivalência entre as quatro superfícies, boot recusando IR ausente, adulterada ou incompatível (critério 6), medição da latência da superfície | Claude | K24, C17, K26, C18 |
+
+Cada tarefa segue o protocolo (implementação sem commit, auditoria cruzada, decisão, commit e push, registro). Um ADR novo entra como `proposto`. A K24 pode rodar antes da C17 porque a ausência de contadores
+**recusa** a operação limitada; liberar a operação limitada exige a C17 integrada.
+
+### Requisitos que o parecer do Codex incorporou
+
+- **Identidade (K23).** Campos de identidade ou papéis não verificados, vindos de cabeçalhos, parâmetros ou corpo, nunca atribuem autoridade; só a credencial verificada o faz. Os papéis recebidos vêm da mesma geração de atribuição que a borda lê (um papel antigo não acompanha uma geração nova). O visitante é uma identidade
+  explícita, com identificador anônimo estável, emitido e verificado. `system_actor` não entra por uma superfície pública.
+- **Autoridade entre processos (K23).** `InProcessAuthority` e a geração em memória dos exemplos de referência não observam outros processos; HTTP, CLI e workers separados ultrapassam esse limite. A rodada entrega a autoridade
+  compartilhada ou limita a referência a um processo por uma configuração que recusa o modo distribuído.
+- **Entrada HTTP (K24).** Leitura do corpo limitada independentemente de `Content-Length`; limites de consulta, profundidade e quantidade de campos; JSON inválido, chaves duplicadas e conflitos entre caminho, consulta e corpo
+  recusados; conversões pelo contrato, sem perda monetária; o servidor ou o proxy respondem por cabeçalhos e conexões lentas.
+- **Credenciais e navegador (K24).** O modelo de credenciais é declarado; a proteção contra CSRF é do resolvedor quando há sessão, e o contrato a exige nos testes; CORS fechado por padrão, com origens explícitas; respostas pessoais e
+  erros com cabeçalhos de cache que as impedem de ser guardadas.
+- **Erros públicos (K24).** Resposta estável para registro inexistente ou invisível (404, sem diferenciar por diagnóstico interno), lista explícita de erros públicos sem valores, SQL, causas nem credenciais, e `Outcome` ganha o status de
+  taxa excedida (429, com `Retry-After`), sem consulta ao banco pelo adaptador.
+- **Tempo e custo (K24).** Perfis do `Runner` por rota, sem mutação compartilhada, e orçamento total que cobre o resolvedor, os fatos, as esperas de pool e de serialização, com cancelamento e limpeza seguros; o desfecho incerto de
+  um timeout durante o COMMIT é documentado, e a recuperação é pela mesma chave **quando uma chave válida foi aceita**; sem ela (a idempotência das rotas HTTP atuais é opcional, e o `Runner` recusa chave para saída pessoal), um timeout depois de um possível commit deixa o resultado incerto e não autoriza repetição automática segura.
+- **Retentabilidade (K24, K26, C18).** A política é por superfície e distingue a negação efetiva da indisponibilidade da infraestrutura (sempre recusando o acesso), com repetição limitada, falha definitiva e a resposta ao provedor; `retryable?`
+  sozinho não decide.
+- **Contadores (C17).** Janela móvel, reserva conjunta e consumo mesmo quando a execução posterior falha (ADR-034), com a reserva durável fora da transação reversível da operação; relógio do banco, concorrência, falha fechada,
+  migração, privilégios, purga e continuidade entre builds; integração com o avaliador e com as guardas sem cobrar por linha nem de novo na etapa 6; regra de cobrança nas repetições internas; a dispensa de contador quando concessões sem
+  limite já cobrem a autorização.
+- **Idempotência ponta a ponta (K26, C18).** A chave é exigida conforme o nó `route`, antes do `Runner`; a derivação é estável por provedor, conta, evento e job, sem tentativa nem worker na chave; a retenção cobre as reentregas; os
+  visitantes são isolados entre si (o principal nulo do registro atual não basta). A assinatura do webhook é verificada sobre os bytes originais antes da etapa 1 e vincula a credencial ao tenant. Concorrência, queda depois do commit e
+  perda da resposta são testadas; **não se promete efeito externo exatamente uma vez**.
+- **Testes (K24, K27).** `app.call(env)` direto, sem socket, para rotas opt-in, separação entre HTTP e webhook, entrada, erros e segurança; as quatro superfícies com a mesma identidade e a mesma entrada dão o mesmo estado, os mesmos eventos
+  e o mesmo replay (ADR-007, teste de equivalência); boot recusando IR ausente, adulterada ou incompatível. O servidor da K27 é um servidor de teste mínimo em biblioteca padrão dentro da sonda: nenhuma dependência nova de runtime.
+- **Achados de modelo (K25).** Correção de incompatibilidade é diferente de mudança de produto: onde não há requisito para conceder acesso, a recusa fica (o papel do chat não concede `delete` de sala). A leitura pública do blog e os
+  campos expostos (o comentário inclui e-mail) são revisados explicitamente, sem ampliar permissão só para a sonda passar; mudança intencional vai ao gate com o motivo.
+
+### Decisões do mantenedor que a rodada não espera
+
+A saída para o custo da `vt_system`, se o resultado com 16 clientes reabre o ADR-005, o orçamento do gate de 10%, o aceite dos ADRs propostos e o teste 6 do ADR-023 continuam com o mantenedor e **não bloqueiam** nenhuma tarefa
+desta rodada. O que a rodada propõe em ADR: o contrato de identidade e da borda pública (a `auth` como DSL segue fora) e o formato do limite de taxa. Os percentuais de contexto são **estimativas de execuções distintas**, não latência
+HTTP medida com 16 clientes, e a medição dos registros é a do repositório, sem guarda nem fechamento.
+
+### Fica para a rodada 7 e depois
+
+Cifra dos campos pessoais (ADR-013), histórico, auditoria e a conformidade integral com o ADR-016 (rodada 7); a **declaração de titular (`subject`) e a evolução da IR que ela pede são dependências da cifra** e entram na rodada 7, com o destino da
+retenção (`retention`) esclarecido. Distribuidor do live e fase contract (`vetra.instances`, `vetra.schema_state`) na rodada 8, e o modo hospedado em Rails também; **adiar o Rails preserva o risco de adoção, não o resolve**, e o
+Rack isolado não verifica a transação compartilhada com o Rails (ADR-010). Fora do escopo, sem perda: servidor próprio de produção, fila própria, vários provedores de webhook, streaming e ampliação de permissões; um adaptador injetável e uma
+fixture de assinatura bastam. Sem rodada ainda: `auth`, moeda por tenant e políticas por atributo do ator.
+
 ## Rodada 5: decisões da K13, ator de sistema, idempotência, autorização e executor parcial
 
 ### Objetivo

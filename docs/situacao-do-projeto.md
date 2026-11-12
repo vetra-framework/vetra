@@ -839,7 +839,9 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    geração automática dos comandos de vínculo (C1, ADR-032), `rounding:` em `currency` (C3, ADR-033, IR 0.5) e
    `rate_limit:` em `can` (C4, ADR-034, IR 0.6) e a recusa no compilador de campos e predicados de enum que colidem
    com métodos do registro `Data` (C12).
-3. [ ] Persistência, rodada 6: os adaptadores HTTP, CLI, job e webhook; a cifra dos campos pessoais, o histórico e a
-   auditoria, com o que a conformidade integral com o ADR-016 pede; o distribuidor do live; a fase contract
-   (`vetra.instances` e `vetra.schema_state`); os contadores de `rate_limit:`; e o modo hospedado em Rails. Entra
-   depois da rodada 5 e será planejada ao fim dela, como esta foi
+3. [ ] Persistência, rodada 6 (planejada em 2026-11-12, com o parecer do Codex aprovado na segunda rodada;
+   [plano](plano-persistencia.md#rodada-6-superfícies-executáveis-planejada-em-2026-11-12) e [quadro](tarefas-dos-agentes.md#rodada-6-2026-11-12)):
+   superfícies **experimentais** sobre o executor parcial. Ordem: K22 (documentação alinhada), K23 (contrato da identidade e da borda pública),
+   K24 (adaptador HTTP como app Rack, sem dependência nova), C17 (contadores de `rate_limit:`), K25 (incompatibilidade do `crm.win_lead`), K26 (CLI e job),
+   C18 (webhook) e K27 (ponta a ponta por servidor real). **Reescopo:** a cifra dos campos pessoais, o histórico, a auditoria e a conformidade integral com o ADR-016
+   passam à rodada 7 (com a declaração de titular como dependência); o distribuidor do live, a fase contract (`vetra.instances` e `vetra.schema_state`) e o modo hospedado em Rails, à rodada 8
