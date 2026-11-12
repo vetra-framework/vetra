@@ -92,7 +92,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   no banco as validações de contexto dos quatro comandos de referência. Cada saída tira de 18% a 20% das validações e as duas juntas, de 36% a 39%; nenhuma leva sozinha o CRM com revendas
   para baixo de 25%, e a projeção das duas juntas sobre os percentuais da K20 dá 21% a 28% no 17. O documento traz o que cada saída exige e arrisca (a restritiva `vt_tenant` precisa nomear o
   papel novo, senão ele leria todos os tenants), a leitura do Claude separada da evidência e o que decidir. Corrige a frase da K20 de que a função única "ataca as três contagens". Protótipo
-  de políticas: nada implementado, nenhum ADR novo, nenhum limiar mudou, teste 6 do ADR-023 pendente. Auditada pelo Codex (uma rodada, quatro achados ajustados); integrada, com a CI pendente.
+  de políticas: nada implementado, nenhum ADR novo, nenhum limiar mudou, teste 6 do ADR-023 pendente. Auditada pelo Codex (uma rodada, quatro achados ajustados); integrada em `92a3293`, com a CI verde ([execução 43197363394](https://github.com/vetra-framework/vetra/actions/runs/43197363394)); a correção de uma intermitência da CI achada no caminho, em `0526ffa`, também passou.
 - [x] Ponta a ponta e medição do executor (K20, [relatório](sondas/custo-executor.md)): a sonda `sonda_ponta_a_ponta.rb` (26 verificações no 17 e no 18, e na CI) roda os quatro
   exemplos como estão pelo `Runner`, com a outbox, o relay e os handlers reais `notify_sales` e `notify_seller`, e imprime as duas contagens de transações de cada comando (operação e borda,
   teste 1 do ADR-016); inclui as duas recusas assumidas (`chat.add_member_by_email` e o comentário do visitante do blog) e três achados para a rodada 6: `crm.win_lead` não aceita chave

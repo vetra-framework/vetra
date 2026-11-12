@@ -83,7 +83,7 @@ tarefas seguem a ordem da tabela.
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | concluída | `0627646` | Auditada pelo Claude, sonda 17/18 e CI verde; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
 | K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | concluída | `6bb96e7` | Auditada pelo Codex (uma rodada, sete achados ajustados) e CI verde; sem mudança em `lib/`, nenhum ADR novo; o teste 6 segue pendente ([entrega](#entrega-da-k20-pelo-claude), [auditoria](#auditoria-k20)) |
-| K21 | Material para a decisão da saída da `vt_system`: protótipo de medição das saídas (papel de banco próprio e função única de contexto) | Claude | integrada, CI pendente | — | Auditada pelo Codex (uma rodada, quatro achados ajustados); sem mudança em `lib/`, nenhum ADR novo; a escolha da saída é do mantenedor ([entrega](#entrega-da-k21-pelo-claude), [auditoria](#auditoria-k21)) |
+| K21 | Material para a decisão da saída da `vt_system`: protótipo de medição das saídas (papel de banco próprio e função única de contexto) | Claude | concluída | `92a3293` | Auditada pelo Codex (uma rodada, quatro achados ajustados) e CI verde; sem mudança em `lib/`, nenhum ADR novo; a escolha da saída é do mantenedor ([entrega](#entrega-da-k21-pelo-claude), [auditoria](#auditoria-k21)) |
 
 ### Parecer do Codex sobre o plano da rodada 5
 
@@ -1458,3 +1458,13 @@ sintaxe, o gate, `graph:check`, `graph:validate` e `graph:link` dos quatro exemp
 | Limitação do ambiente do Codex: suíte com 422 erros por bloqueio de temporários no sandbox; sonda e `db:plan --check` sem PostgreSQL | não | Sem ação: é do sandbox; a suíte do Claude passa e a sonda passou 17/17 |
 
 Os números do documento vêm da execução completa anterior a estes ajustes; os ajustes tocam só as conferências da sonda (e o texto), não a medição.
+
+**CI.** A [execução 43197363394](https://github.com/vetra-framework/vetra/actions/runs/43197363394) do commit `92a3293` passou nos cinco jobs, com o passo novo em 17/17 no 17 e no 18.
+
+**Intermitência da CI achada no caminho.** A [execução 43163597209](https://github.com/vetra-framework/vetra/actions/runs/43163597209), do commit de registro da K20 (`aff447c`, só documentação),
+tinha falhado no job do PostgreSQL 17, no passo do escopo por vínculo (K14), com `NoMethodError`: a série de 0,3 s não completou nenhuma transação sob a carga do servidor da CI (o log mostra um
+checkpoint de 59 s de escrita), e a mediana de uma lista vazia não existe. O Claude não tinha conferido essa execução ao registrar a K20; a seguinte, do mesmo código, passou. Corrigida em `0526ffa`
+(`ContextCostProbe#latency`: a janela só fecha depois da primeira amostra de cada cliente, com teto de 10 s entre transações, e a falha vira "série sem amostra"), auditada pelo Codex (um achado
+bloqueante: o teto não limita uma instrução bloqueada dentro da transação, e o pai não tem prazo na leitura; ajustado no texto do comentário, sem mudar o código, porque o `transaction_timeout` do
+`vetra_app` limita essa espera; dois pontos preexistentes, `VETRA_MEDICAO_RODADAS` nulo ou `VETRA_MEDICAO_AMOSTRAS` abaixo de 5, são configuração inválida e não mudam). A
+[execução 43201505871](https://github.com/vetra-framework/vetra/actions/runs/43201505871) do `0526ffa` passou nos cinco jobs. A escolha da saída da `vt_system` é do mantenedor; a K21 não escreve o ADR 049.
