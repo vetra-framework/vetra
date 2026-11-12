@@ -90,7 +90,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Documentação alinhada ao estado real (K22): o README deixa de dizer que a persistência e a execução não existem (diz o que há: compilador, plano de banco, camada de dados, executor parcial, sem servidor nem
   adaptadores), a IR é 0.6, os comandos de banco entram na tabela da CLI, a gemspec descreve o que o pacote traz, o índice de ADRs e o guia da IR não chamam o executor de pendente, e as seções 5 a 7 desta
   situação separam o que é parcial do que falta; a população das sondas é dita com precisão (32 arquivos, 30 na matriz da CI e dois manuais). Só documentação e a descrição da gemspec; nenhum comportamento mudou.
-  Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas, e limitada: restam menções antigas nos guias longos (veja o quadro). Integrada, com a CI pendente.
+  Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas, e limitada: restam menções antigas nos guias longos (veja o quadro). Integrada em `9bf46ba`, com a CI verde ([execução 43227564979](https://github.com/vetra-framework/vetra/actions/runs/43227564979)).
 - [x] Material para a decisão da saída da `vt_system` (K21, [documento](sondas/saidas-da-vt-system.md)): a sonda `medir_saidas_vt_system.rb` (17 conferências no 17 e no 18, e um passo curto
   na CI) reescreve no lugar as políticas de linha do CRM com revendas em quatro variantes (`atual`, `papel` = papel de banco próprio, `unica` = função única `vetra.context()` e as duas) e conta
   no banco as validações de contexto dos quatro comandos de referência. Cada saída tira de 18% a 20% das validações e as duas juntas, de 36% a 39%; nenhuma leva sozinha o CRM com revendas

@@ -67,7 +67,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
-| K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
+| K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | concluída | `9bf46ba` | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | pendente | — | — |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
@@ -1559,3 +1559,5 @@ existe hoje e o que falta, e duas frases que eram afirmações atuais (a observa
 **A K22 foi limitada aqui**: uma quinta rodada acharia mais texto antigo nos guias longos (menções a quem roda sondas, contagens de testes datadas), e o custo de perseguir cada frase passou do valor. O que resta está nomeado acima e nos não bloqueantes
 (`docs/vetra-data.md`, linhas 140, 355, 847, 879 e 979; as contagens datadas da matriz). A **regra** que fica: ao mudar um status, atualizar a situação **e varrer o texto que fala do mesmo componente** em `README.md`, `docs/fase-0.md` e
 `docs/vetra-data.md`.
+
+**CI.** A [execução 43227564979](https://github.com/vetra-framework/vetra/actions/runs/43227564979) do commit `9bf46ba` passou nos cinco jobs. A próxima tarefa é a K23 (Claude), o contrato da identidade e da borda pública.
