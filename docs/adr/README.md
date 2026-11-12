@@ -6,7 +6,7 @@ componente correspondente. **Os 21 ADRs estão escritos e os 21 estão aceitos**
 (022 em diante) tratam as questões em aberto de um ADR aceito, sem mudar a decisão (veja a [Convenção](#convenção));
 há seis ADRs de resolução aceitos (022 a 026 e 030), duas evoluções de formato aceitas (027 e 028) e o suporte
 declarativo a live (029), além da geração inicial de SQL de revisão (031). O ADR-032, também aceito, gera os
-comandos de vínculo de `many_to_many`. O executor de operações segue pendente; a infraestrutura do Vetra Data
+comandos de vínculo de `many_to_many`. O executor parcial das operações está nos ADRs 044 a 048 (propostos); a infraestrutura do Vetra Data
 está descrita no ADR-039.
 
 O [ADR-033](033-arredondamento-monetario-e-ir-0-5.md), também aceito, declara o arredondamento monetário da
@@ -27,7 +27,7 @@ da IR, o espelho revisável e a integração de RLS, revisão e transições no 
 O [guia](../db-rls.md) registra os limites e as verificações esperadas no PostgreSQL 17/18.
 
 O [ADR-039](039-unidade-de-trabalho-e-repositorios.md), aceito, define a unidade de trabalho sobre o Sequel,
-o emissor Ruby do token, o contexto global sem tenant e o contrato que os repositórios da C10 seguirão.
+o emissor Ruby do token, o contexto global sem tenant e o contrato que os repositórios da C10 seguem.
 A unidade e o emissor estão implementados, com a sonda PostgreSQL no job de planos da CI. [Guia](../vetra-data.md).
 
 O [ADR-040](040-papeis-e-rls-da-outbox.md), aceito, define os papéis, o RLS e o armazenamento da outbox: tabelas
@@ -50,8 +50,8 @@ e a purga pelo papel de manutenção, nunca pela aplicação. O uso pelo executo
 
 O [ADR-044](044-entrada-e-autorizacao-em-ruby.md), proposto, define entrada e autorização em Ruby antes da
 transação: fatos resolvidos pela borda confiável e ligados à revisão atual, `uses` sem concessão implícita de
-dados e papéis atribuídos pela borda. O avaliador está implementado, com recusa de concessões dependentes de
-`rate_limit:` e de ator de sistema. Despacho e autorização dos acessos continuam na K17/K18.
+dados e papéis atribuídos pela borda. O avaliador está implementado (C13), com recusa de concessões dependentes de
+`rate_limit:`; o despacho, a autorização dos acessos e o ator de sistema dos handlers estão nos ADRs 045 a 048.
 
 O [ADR-045](045-borda-interna-e-runner.md), proposto, decide a borda interna que o ADR-044 deixou sem dono: o contrato dos três
 colaboradores (identidade, fatos e autoridade de revisão), as implementações de referência (marcador composto nos CRMs, geração em
@@ -125,12 +125,12 @@ retenção por evento e timeout total de 30 s, com fechamento da unidade antes d
 
 O ADR-001 agora especifica o [esquema IR 0.1](../ir/README.md) e sua política de compatibilidade, atendendo
 à pendência documental anterior à fase 0. A decisão foi aceita; a suíte do compilador cobre parte dos
-[critérios da fase 0](../fase-0-criterios.md), e os critérios restantes e os testes de runtime continuam pendentes.
+[critérios da fase 0](../fase-0-criterios.md), e os critérios restantes continuam pendentes; os testes do executor parcial (execução, autorização, fechamento e handlers) existem, e os de histórico, auditoria e adaptadores seguem pendentes.
 
 O [protótipo da fase 0](../fase-0.md) já compila e valida um subconjunto do DSL,
 [compara versões da IR](../graph-diff.md) e [vincula blocos Ruby ao artefato aprovado](../graph-link.md).
-Ainda não cobre todos os critérios do ADR-001. Execução das operações, primitivas CRUD e garantias
-transacionais continuam pendentes.
+Ainda não cobre todos os critérios do ADR-001. O executor parcial (ADRs 044 a 048) roda as operações, as primitivas CRUD e as garantias
+transacionais nos exemplos, por sondas; faltam os adaptadores, o histórico, a auditoria e a cifra.
 
 A implementação do [ADR-027](027-created-at-implicito-e-ir-0-2.md) produz IR 0.2 com `created_at`
 implícito, mantendo leitura e vinculação da 0.1 com as versões do produtor exigidas pelo pacote. Os ADRs
@@ -181,8 +181,9 @@ Para repetir as sondas de banco no PostgreSQL 17 e na versão estável mais rece
    na matriz. A sonda do pooler exige um PgBouncer e não roda na CI.
 3. **Fechar as lacunas declarativas e os critérios restantes da fase 0** com os exemplos da proposta.
 4. As questões em aberto dos ADRs 003, 005, 014 e 015, que o índice pedia tratar antes de implementar a
-   persistência, estão tratadas por ADRs de resolução (022 a 025). Os valores iniciais e as medições que eles
-   registram continuam por fazer, na fase 1. Os demais ADRs aceitos também têm questões em aberto, e nenhuma
+   persistência, estão tratadas por ADRs de resolução (022 a 025). As medições dos ADRs 022 e 023 e os parâmetros de repetição já têm resultado (K13, K20, K21; os
+   relatórios em `docs/sondas/`), mas os gates seguem abertos e dependem do mantenedor (o orçamento de 10% dos registros, o teste 6 do ADR-023); os valores iniciais
+   restantes e o contract do ADR-025 continuam por fazer. Os demais ADRs aceitos também têm questões em aberto, e nenhuma
    bloqueia a persistência; elas se tratam pela mesma regra quando forem necessárias (veja a
    [Convenção](#convenção)).
 

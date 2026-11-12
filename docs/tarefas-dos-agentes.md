@@ -67,7 +67,7 @@ foi decidido pelo Claude, por delegação do mantenedor, e incorpora o parecer d
 | ID | Tarefa | Responsável | Situação | Commit | Auditoria e parecer |
 |---|---|---|---|---|---|
 | P6 | Planejamento da rodada 6 (marco): reavaliação do projeto, plano e parecer do Codex | Claude | concluída | — | Primeira rodada devolvida pelo Codex (13 bloqueantes incorporados), segunda aprovada ([parecer](#parecer-do-codex-sobre-o-plano-da-rodada-6)) |
-| K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | pendente | — | — |
+| K22 | Documentação alinhada ao estado real: README, seções 5 a 7 da situação, gemspec e índice de ADRs | Claude | integrada, CI pendente | — | Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas; a quinta não foi pedida (a tarefa foi limitada); só documentação e a descrição da gemspec ([entrega](#entrega-da-k22-pelo-claude), [auditoria](#auditoria-k22)) |
 | K23 | Contrato da identidade e da borda pública (ADR proposto), com a autoridade entre processos | Claude | pendente | — | — |
 | K24 | Adaptador HTTP como aplicação Rack, sem dependência nova (ADR proposto) | Claude | pendente | — | — |
 | C17 | Contadores de `rate_limit:` (ADR-034; ADR proposto) | Codex | pendente | — | — |
@@ -1511,3 +1511,51 @@ checkpoint de 59 s de escrita), e a mediana de uma lista vazia não existe. O Cl
 bloqueante: o teto não limita uma instrução bloqueada dentro da transação, e o pai não tem prazo na leitura; ajustado no texto do comentário, sem mudar o código, porque o `transaction_timeout` do
 `vetra_app` limita essa espera; dois pontos preexistentes, `VETRA_MEDICAO_RODADAS` nulo ou `VETRA_MEDICAO_AMOSTRAS` abaixo de 5, são configuração inválida e não mudam). A
 [execução 43201505871](https://github.com/vetra-framework/vetra/actions/runs/43201505871) do `0526ffa` passou nos cinco jobs. A escolha da saída da `vt_system` é do mantenedor; a K21 não escreve o ADR dessa escolha.
+
+## Entrega da K22 pelo Claude
+
+Base: `d64a782`, árvore limpa na `main`. Implementada pelo Claude sem commit, branch nem push. **Só documentação e a descrição da gemspec**: nenhum arquivo de `lib/`, de teste ou de exemplo mudou.
+
+- **O que mudou.** `docs/fase-0.md` (as passagens que davam persistência, execução, autorização em execução, RLS, triggers e deduplicação por inexistentes), `README.md` (estado atual, IR 0.6, linhas novas na tabela de funcionalidades e de comandos, a direção do projeto, o mapa do repositório, a população das sondas), `vetra.gemspec` (resumo e descrição),
+  `docs/ir/README.md` e `docs/adr/README.md` (as frases que ainda davam o executor por inexistente), as seções 1, 5, 6 e 7 de `docs/situacao-do-projeto.md` (o que o executor parcial já cobre; a rodada 5 fechada; o que fica para as rodadas 6 e 7; as sondas) e a seção da rodada 6 de `docs/plano-persistencia.md`.
+- **Por quê.** O parecer do Codex sobre o plano da rodada 6 apontou a deriva: o README ainda dizia que a execução e a persistência não existiam, e a gemspec que o pacote "ainda não executa operações".
+- **Verificação.** Os fatos foram conferidos no repositório: 42 ADRs aceitos e seis propostos, 32 arquivos `sonda_*.rb`, os comandos da CLI (`graph:*`, `db:plan`, `db:migrate`, `db:authz:sql`, `outbox:maintain`,
+  `idempotency:purge`) e as seis versões de schema da IR. Suíte, gate e `db:plan` rodam na verificação do push.
+- **O que ficou de fora.** Os guias de banco e `docs/vetra-data.md`, que não foram relidos linha a linha (restam ali menções antigas a quem executa ou inclui sondas na CI, que o Codex apontou como não bloqueantes); a decisão do mantenedor sobre a publicação da gem e a sua versão.
+
+## Auditoria K22
+
+Implementada pelo Claude sobre `d64a782`; auditada pelo Codex em modo somente leitura. A **primeira rodada devolveu** a entrega (nove achados bloqueantes e dois não bloqueantes): o texto novo estava certo, mas a entrega não corrigira o que
+continuava falso ou desatualizado ao lado dele. O sandbox do Codex não alcança o PostgreSQL; ele conferiu por leitura e rodou o gate e a validação dos exemplos (a suíte dá 422 erros no sandbox dele, por temporários bloqueados).
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| O README anunciava as políticas "implementadas como RLS" sem alcance: blog e chat não têm RLS, e o limite de taxa não tem contadores | sim | Ajustar: o item diz onde o RLS vale e o que falta |
+| O README ainda dizia que a execução do exemplo dependia do "futuro motor de operações" | sim | Ajustar: o `Runner` parcial executa o comando nas sondas, e não há adaptador HTTP |
+| O índice de ADRs ainda anunciava a recusa do ator de sistema e a execução como pendentes (linhas 54 e 132) | sim | Ajustar: as duas frases dizem o que existe (ADRs 044 a 048) e o que falta |
+| A seção 6 da situação tratava reautorização, eventos, executor e outbox como futuros e negava a `system_actor`, a `is_system_actor()` e a `vt_system` | sim | Ajustar: ADR-021, ADR-024 e "Persistência" corrigidos |
+| A lista de lacunas do executor omitia a composição de comandos pelo `call` e as capacidades `uuid` e `random` (o `CallHost` só oferece `fail!`; o `Runner` só aceita repositório e `core.clock`) | sim | Ajustar: entram na seção 5, no plano (rodada 7) e aqui. Na primeira versão da correção o Claude incluiu também as capacidades externas, o que a segunda rodada refutou (elas rodam nos handlers, e o ADR-004 as proíbe nos comandos) |
+| Duas entradas de "Feito" ainda mandavam o reprocessamento de `dead`, o histórico e a cifra para a rodada 6 | sim | Ajustar: rodada 7 |
+| O primeiro próximo passo ainda era a rodada 5, já fechada, com "entra primeiro" e a "única decisão" do mantenedor | sim | Ajustar: a rodada 5 vira item fechado, e as decisões apontam para a seção 3 |
+| O Resumo mantinha a sonda aditiva da C9 como pendente de execução e de CI | sim | Ajustar: executada e na CI |
+| O índice de ADRs dizia que os valores iniciais e as medições dos ADRs 022 a 025 estavam por fazer | sim | Ajustar: o que já tem resultado, o que segue aberto e é do mantenedor |
+| Restava "futuro" em `docs/ir/README.md` (o `graph.json` versionado e o compilador) | não | Ajustar: removido |
+| Limitação do ambiente do Codex: a suíte não roda no sandbox dele | não | Sem ação: a verificação do push roda a suíte |
+
+**Segunda rodada: devolvida** (cinco bloqueantes e um não bloqueante, todos ajustados). (1) A correção sobre as capacidades externas estava errada: elas já rodam nos handlers (`HandlerRunner::Effect`) e nos comandos o ADR-004 as proíbe;
+as lacunas reais são `uuid`, `random` e a composição pelo `call`. (2) a (4): quatro entradas históricas de "Feito" (linhas das K10/K11/chat) ainda diziam "pendentes na K17/K18", "emissão em runtime e contexto global pendentes" e "sem executor nem índice real";
+cada uma passou a dizer o que foi entregue depois. (5) O índice de ADRs ainda dizia que "os testes de runtime continuam pendentes". (6) A descrição da entrega não correspondia ao diff (corrigida). A varredura de todo o texto que fala do estado do runtime
+é o ponto fraco desta tarefa: o Claude corrigiu o que viu, e o Codex achou o resto em duas rodadas.
+
+**Terceira rodada (varredura exaustiva): devolvida** (quinze bloqueantes e quatro não bloqueantes, todos ajustados). O Codex varreu tudo e achou o que as duas primeiras rodadas e o Claude tinham deixado: `docs/fase-0.md` ainda dava por inexistentes a
+persistência, a execução das primitivas, a autorização em execução, a tradução do escopo em RLS, os triggers de transição e de revisão e a deduplicação; a situação ainda trazia negativas históricas (contexto de sistema recusado, "sem o executor",
+ganchos vazios, a guarda "só das duas funções", o analisador que "hoje aceita" `Sequel`), "faltam upgrades" abrangente demais, a cobertura do ADR-004 anterior ao executor e a contagem de 143 diagnósticos. Cada passagem agora diz o que existe e o que falta, ou
+aponta a entrega posterior. **Achado real do código, não só de texto:** o `Runner` não valida a saída do `call` contra o contrato antes do commit (uma consulta cujo `call` devolve uma String fora do contrato termina `ok` e com COMMIT; a serialização é que
+recusa o valor, depois). Entra como lacuna na seção 5 da situação e como requisito da K24 no plano, porque uma resposta HTTP não pode dizer sucesso sobre um valor inválido. O contexto visitante com tenant e a identidade anônima estável seguem pendentes (K23).
+
+**Quarta rodada: devolvida** (doze bloqueantes e cinco não bloqueantes). `docs/fase-0-criterios.md` é um **registro cronológico** de verificações datadas, e corrigir cada frase seria reescrever a história: em vez disso ganhou um aviso que o delimita e diz o que
+existe hoje e o que falta, e duas frases que eram afirmações atuais (a observabilidade do código pela API pública) foram corrigidas. Corrigidos também os destinos antigos (rodada 6 para 7) em `docs/vetra-data.md` e no plano, a frase "conservam somente
+`0001`", as capacidades externas em `docs/vetra-data.md`, a contagem do blog (3 de 14) e a descrição da lacuna da saída (só sem chave termina `ok`; com chave a etapa 7 já recusa e desfaz; a K24 exige a validação antes do COMMIT também sem chave, no `Runner`).
+**A K22 foi limitada aqui**: uma quinta rodada acharia mais texto antigo nos guias longos (menções a quem roda sondas, contagens de testes datadas), e o custo de perseguir cada frase passou do valor. O que resta está nomeado acima e nos não bloqueantes
+(`docs/vetra-data.md`, linhas 140, 355, 847, 879 e 979; as contagens datadas da matriz). A **regra** que fica: ao mudar um status, atualizar a situação **e varrer o texto que fala do mesmo componente** em `README.md`, `docs/fase-0.md` e
+`docs/vetra-data.md`.

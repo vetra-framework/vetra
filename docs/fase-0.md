@@ -7,7 +7,7 @@ O compilador continua validando e vinculando as IRs 0.1 a 0.5 com seus schemas e
 Novos builds usam 0.6, com o `created_at` do [ADR-027](adr/027-created-at-implicito-e-ir-0-2.md) e os
 retornos de consulta do [ADR-028](adr/028-contratos-compostos-e-colecoes-de-consultas.md) e as declarações
 live do [ADR-029](adr/029-declaracoes-live-e-dependencias.md). O [ADR-032](adr/032-comandos-gerados-de-vinculo.md)
-descreve os comandos gerados de `many_to_many`, disponíveis desde a IR 0.4 e sem executor. O
+descreve os comandos gerados de `many_to_many`, disponíveis desde a IR 0.4 (o `Runner` parcial os executa nas sondas). O
 [ADR-033](adr/033-arredondamento-monetario-e-ir-0-5.md) declara o arredondamento em `currency`
 desde a IR 0.5. O [ADR-034](adr/034-limite-de-taxa-por-permissao-e-ir-0-6.md) declara
 `rate_limit:` por permissão na IR 0.6; a versão da gem permanece alpha.5.
@@ -39,13 +39,13 @@ bundle exec bin/vetra graph:link --root examples/chat
 ```
 
 Os diretórios em `examples/` contêm declarações Ruby reais, lockfiles e `.vetra/graph.json` gerado
-e versionado. São recortes sem autenticação, UI ou persistência: o blog demonstra escopo do autor e
+e versionado. São recortes sem autenticação nem UI, com plano de banco e executor parcial exercitados por sondas (veja a [situação do projeto](situacao-do-projeto.md)): o blog demonstra escopo do autor e
 publicação; o CRM demonstra tenant, dinheiro, transição e um handler declarado; o `mini_crm_revendas`
 reproduz o exemplo da proposta com revendas, vendedores e papéis por vínculo
 (veja [escopo por vínculo](#escopo-por-vínculo)); o `chat` reproduz as salas e mensagens do exemplo 3, com
 membros por relação muitos-para-muitos (veja [muitos-para-muitos](#relações-muitos-para-muitos)).
-Cadastro, login e persistência de usuários e vínculos continuam fora: as entidades são declaradas à mão,
-e não geradas por `auth`.
+Cadastro e login continuam fora: as entidades de usuários e vínculos são declaradas à mão,
+e não geradas por `auth` (os repositórios as persistem, nas sondas).
 
 `bundle exec rake test:diagnostics` executa a suíte completa e exige que todos os códigos de diagnóstico
 literais de `lib/` sejam emitidos por algum teste. É a tarefa usada na CI e também o padrão de `bundle exec rake`.
@@ -86,7 +86,7 @@ locks e limites. O comando exige tenant e tabelas comuns; não é o planejador d
   `many_to_many` por uma entidade de junção declarada ou gerada, com comandos de vínculo gerados por padrão
   e `commands: false` para desligá-los por relação.
 - `crud`: gera criação, leitura por ID, atualização e exclusão como nós de comandos/consulta, contratos,
-  repositórios e rotas HTTP. Ainda não existe execução dessas primitivas.
+  repositórios e rotas HTTP. O `Runner` parcial executa essas primitivas (K17 a K20).
 - `roles`, `role`, `visitor`, `authenticated` e `can`; `manage` expande para as quatro ações CRUD.
   `where` aceita igualdade literal, `:current_actor` e relações declaradas. `scope` suporta
   `author`, `owner` e `seller` comparados com `actor.id` e, com `memberships`, o escopo por vínculo.
@@ -186,7 +186,7 @@ entradas, comandos ou eventos e rebaixamento de privacidade falham antes da vinc
 
 O chat declara `my_rooms` (`GET /rooms`) e `room_page` (`GET /rooms/:room_id/page`), com autorização explícita
 e repositórios de leitura. A página traz no máximo as últimas 100 mensagens da sala, ordenadas por criação
-e ID para desempate. São consultas compiláveis e corpos testados em memória; autorização em execução,
+e ID para desempate. São consultas compiláveis e corpos testados em memória; o `Runner` parcial as executa, com autorização em Ruby (sondas);
 HTTP, paginação por cursor, expansão de membros/autores e entrega live continuam pendentes.
 
 Comandos conservam o retorno de um registro. Coleções de escalares, listas de listas e contratos recursivos
@@ -255,9 +255,9 @@ Os identificadores gerados contam por superfície: `crm.win_lead.http_1`, `.cli_
 Acrescentar uma exposição CLI não renomeia as rotas HTTP existentes. Rotas novas aparecem no `graph:diff`
 como mudanças de superfície e permissão que exigem revisão.
 
-Este suporte é declarativo: `graph:link` vincula o bloco uma única vez. O protótipo ainda não tem servidor
-HTTP, terminal para executar comandos de negócio, fila de jobs nem recebimento de webhooks; a exigência de
-idempotência é metadado validado, sem deduplicação em execução.
+Este suporte é declarativo: `graph:link` vincula o bloco uma única vez. Ainda não há servidor
+HTTP, terminal para executar comandos de negócio, fila de jobs nem recebimento de webhooks (rodada 6); a exigência de
+idempotência é metadado validado, e o `Runner` já deduplica por chave (ADR-043 e ADR-047), mas nenhum adaptador a extrai ainda.
 
 ## Limite de taxa por permissão
 
@@ -344,8 +344,8 @@ falha com `reserved_field`. Atribuições literais reconhecidas por repositório
 em entradas de operações.
 
 No chat, `index :room_id, :created_at` agora reproduz a proposta. A compilação não consulta o relógio:
-somente registra que o futuro repositório atribuirá a data na criação, usando o relógio determinístico da
-operação. Persistência, preenchimento de linhas antigas e `updated_at` continuam pendentes.
+somente registra que o repositório atribui a data na criação (implementado), usando o relógio determinístico da
+operação. O preenchimento de linhas antigas e `updated_at` continuam pendentes.
 
 O schema 0.1 não foi alterado. `graph:validate`, `graph:diff` e `graph:link` continuam lendo artefatos
 0.1, sem adicionar campos durante a vinculação. `graph:check` exige reconstrução porque compara com um
@@ -401,13 +401,13 @@ percorrendo as relações do registro até o vínculo, e `reads` passa a incluir
   permissivo.
 - Cada papel gera as próprias políticas, com o próprio valor de `role` no predicado. O compilador não
   define hierarquia entre papéis (gerente não implica vendedor) nem como as políticas de um ator com mais
-  de um papel se combinam: isso é do motor de autorização, que ainda não existe. O exemplo impede
+  de um papel se combinam: isso é do avaliador em Ruby (`Authorization#decide`) e da RLS gerada, que unem as concessões aplicáveis (ADR-041). O exemplo impede
   vínculos repetidos com um índice único em usuário, revenda e papel.
 - Os escopos `author`, `owner` e `seller` continuam comparando o campo com `actor.id` quando não há
   `memberships` para o nome.
 
-A tradução em RLS não existe ainda: o ADR-005 prevê políticas SQL geradas para esse escopo, que dependem do
-Vetra Data. O predicado é o contrato que essa geração vai consumir.
+A tradução em RLS existe (`SQL::Security`, ADR-037 e ADR-041): o predicado é o contrato que o gerador consome e que o
+avaliador em Ruby repete, com sondas de concordância.
 
 ## Relações muitos-para-muitos
 
@@ -433,7 +433,7 @@ Na IR 0.1 a relação usa campos que o schema já tem, com este significado:
 - `through` referencia a junção. `local_fields` e `target_fields` são as chaves do dono e do alvo que a
   junção referencia (`["id"]`, ou `[tenant, "id"]` com `same_tenant`), as mesmas dos `belongs_to` dela.
 - `include_on_create` (de `include:`) lista `belongs_to` do dono que apontam para o alvo; o proprietário da
-  sala entra como membro na criação. É dado do grafo: nenhum comando o executa ainda.
+  sala entra como membro na criação. É dado do grafo, que os repositórios e o `Runner` parcial executam.
 - A junção precisa ter **exatamente um** `belongs_to` para o dono e um para o alvo. Auto-relações (amigos de
   um usuário) têm dois para a mesma entidade e são recusadas (`relation_through`), pois a IR não registra
   qual coluna é qual.
@@ -467,8 +467,8 @@ end
 - **Recusas** (`relation_through`): auto-relação, nome que colide com uma entidade declarada e um lado com tenant
   e o outro sem. Nos três casos, declare a junção e use `through:`.
 - Os nomes de tabela da proposta (`posts_tags`, `room_memberships`) não são reproduzidos: a junção gerada segue a
-  convenção das demais entidades (`post_tags`, `room_members`). A persistência ainda não existe, então isso não
-  afeta nada hoje.
+  convenção das demais entidades (`post_tags`, `room_members`). Esses nomes só importam para quem
+  migrar um banco existente.
 
 ### Comandos gerados de vínculo
 
@@ -530,7 +530,7 @@ recusa o `user_id` do dono com `fail!`, preservando o vínculo inicial do propri
 política do dono. Usa `rooms` e a capacidade de somente leitura `users_read`: trava a sala antes da busca,
 consulta até dois usuários pelo e-mail e inclui o ID apenas se houver um resultado. Nenhum resultado ou um
 e-mail ambíguo falha no campo `email`, sem alterar membros. O contrato da entrada e a entidade `user` declaram
-normalização `downcase` e classificação pessoal do e-mail; a normalização ainda depende do futuro runtime.
+normalização `downcase` e classificação pessoal do e-mail; a normalização é aplicada pela camada de dados (`Values.coerce`).
 O e-mail do usuário declara unicidade e gera um índice único sobre o valor normalizado. A checagem de
 ambiguidade permanece como defesa para dados inconsistentes; ausência e ambiguidade usam a mesma mensagem.
 
@@ -575,16 +575,16 @@ Normalização mantém arrays posicionais e a ordem dos enums. O schema local é
 
 O compilador verifica referências, namespaces, fronteiras/ciclos entre domínios, origens e hashes de
 implementação, campos/defaults, donos de transição, dependências declarativas de políticas, capacidades,
-payloads, consumidores obrigatórios, rotas e renomeações explícitas. Não aplica políticas SQL, não instala
-triggers no banco da aplicação e não chama serviços. `transitions enforce: :db` continua sendo metadado:
-o gerador SQL inicial cobre somente revisões de autorização, sem triggers de transição.
+payloads, consumidores obrigatórios, rotas e renomeações explícitas. O compilador em si não aplica políticas SQL, não instala
+triggers no banco e não chama serviços: `db:plan` as gera e `db:migrate` as aplica a um banco descartável.
+`transitions enforce: :db` vira triggers de transição no plano.
 Nem toda relação semântica possível no schema tem uma implementação; recursos fora do subconjunto
 suportado devem ser recusados, não tratados como seguros.
 
 O arquivo versionado sempre é recompilado nos comandos de build/check. `graph:link` exige o artefato
 existente e não o substitui: carrega declarações confiáveis para registrar as closures e audita o modelo
-em memória contra a IR aprovada. `.vetra/cache/` é ignorado. Cache de compilação, servidor de produção e
-execução de operações ainda não existem. `graph:validate --sources` permanece uma verificação de dados
+em memória contra a IR aprovada. `.vetra/cache/` é ignorado. Cache de compilação e servidor de produção
+ainda não existem; a execução de operações é parcial (`Runner`). `graph:validate --sources` permanece uma verificação de dados
 e integridade, sem carregamento de código ou vinculação. Hashes não autenticam o pacote.
 
 ## Cobertura e continuação
@@ -596,17 +596,16 @@ O diff cobre direção de contratos, renomeações, ordem posicional, metadados,
 permissões e leitura de revisões/tags em repositórios temporários, sem executar o DSL ou alterar o checkout.
 A vinculação cobre assinatura/origem dos blocos, correspondência exata do registro, fontes e artefato
 antes/depois do carregamento e recusa de mudanças sem reconstrução automática. Primitivas CRUD e de vínculo são
-descritores reconhecidos com executor pendente; os testes não demonstram execução transacional.
+descritores que o `Runner` parcial executa (K17 a K20); os testes do compilador não demonstram execução transacional, que as sondas e os testes do executor cobrem.
 A [CI](../.github/workflows/ci.yml) executa os testes e confere os grafos dos exemplos no Ruby fixado.
 As sondas de PostgreSQL são executadas separadamente; a [sonda do ADR-008](sondas/adr008.md) verifica
 intervalos, continuidade e versão por linha, sem implementar a entrega live.
 A [sonda do ADR-020](sondas/adr020.md) acrescenta revisão de autorização e demonstrações de decisão strict
-e releitura agrupada; os triggers ainda não são gerados da IR e não há runtime integrado.
+e releitura agrupada; os triggers de revisão são gerados da IR (ADR-031) e integram os planos; a entrega live e o seu runtime continuam pendentes.
 A [cobertura dos critérios do ADR-001](fase-0-criterios.md) cruza cada um dos 11 testes de aceitação com a suíte
-e registra o que foi fechado: os 143 códigos de diagnóstico do compilador são disparados por algum teste,
+e registra o que foi fechado: os códigos de diagnóstico do projeto (259 na última contagem da tarefa `test:diagnostics`) são disparados por algum teste,
 conferidos pela tarefa `test:diagnostics`.
 
 Os próximos incrementos da fase 0 são a ampliação do subconjunto declarativo e o fechamento dos critérios
 restantes com os exemplos da proposta e medições. A suíte deverá acompanhar cada expansão.
-Depois, o motor de comandos e o Vetra Data precisam de seus ADRs, PostgreSQL real e testes transacionais;
-as garantias de RLS, entrega de eventos e live continuam pendentes dessas implementações.
+O motor de comandos e o Vetra Data já têm ADRs e testes transacionais (rodadas 4 e 5, executor parcial); as superfícies, o live e o contrato externo da entrega de eventos (esquema publicado, assinatura e política de repetição para o destinatário, ADR-024, questão 6) são das rodadas seguintes; os handlers já chamam provedores por `Effect` (veja a situação do projeto).

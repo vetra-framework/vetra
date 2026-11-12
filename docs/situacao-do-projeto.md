@@ -4,7 +4,7 @@ Este arquivo reúne, num só lugar, o que já foi feito, o que espera uma decis�
 substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-de-aceite.md) nem a
 [cobertura dos critérios da fase 0](fase-0-criterios.md): resume os três e aponta para eles.
 
-- **Atualizado em:** 2026-11-11: o `Runner` fecha as oito etapas (K19, [ADR-047 proposto](adr/047-fechamento-transacional-do-runner.md)): grava os eventos do
+- **Atualizado em:** 2026-11-12: a rodada 6 está planejada (superfícies experimentais sobre o executor parcial, [plano](plano-persistencia.md#rodada-6-superfícies-executáveis-planejada-em-2026-11-12)), e a K22 alinhou o README, a gemspec e as seções 5 a 7 ao estado real; a K21 preparou a decisão da saída da `vt_system`. 2026-11-11: o `Runner` fecha as oito etapas (K19, [ADR-047 proposto](adr/047-fechamento-transacional-do-runner.md)): grava os eventos do
   `emits` na etapa 7, liga a chave de idempotência às etapas 4 e 7 (com a repetição do resultado em JSON), devolve um `Outcome` com o status do ADR-016 (422, 403, 404,
   409, 500) e repete por serialização e deadlock só quando a operação é segura; auditada pelo Codex em cinco rodadas. O `Runner` autoriza cada acesso dos repositórios e o estado final, e o ator de sistema é admitido pelos
   `calls` do handler (K18, [ADR-046 proposto](adr/046-autorizacao-dos-acessos-e-estado-final.md)); auditada pelo Codex em quatro rodadas. O avaliador Ruby percorre `many_to_many` na C16 (dono → junção → alvo, com tenant a cada salto), o que
@@ -17,8 +17,8 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   ([ADR-044 proposto](adr/044-entrada-e-autorizacao-em-ruby.md)): contratos estritos com `Values`, papéis,
   escopo por vínculo, registro referenciado e campos, sem abrir unidade, com fatos e revisão resolvidos pela
   borda confiável. `uses` não concede leitura implícita; limite de taxa sem contadores e contexto de sistema
-  recebem recusa explícita. Sonda de concordância Ruby/RLS executada no PostgreSQL 17 e 18 (68/68). A integração no despacho e nos acessos é da K17/K18. A operação tem o registro de idempotência (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito):
-  tabela `vetra.idempotency`, API e purga, ainda sem o executor. O contexto assinado tem o ator de sistema de um handler (K15, ADR-024, §4), com custo que pede decisão
+  recebem recusa explícita (o ator de sistema passou a ser admitido pelos `calls` na K18). Sonda de concordância Ruby/RLS executada no PostgreSQL 17 e 18 (68/68). A integração no despacho e nos acessos foi entregue na K17/K18. A operação tem o registro de idempotência (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito):
+  tabela `vetra.idempotency`, API e purga (o executor a usa desde a K19). O contexto assinado tem o ator de sistema de um handler (K15, ADR-024, §4), com custo que pede decisão
   do mantenedor. O compilador recusa campos e predicados de grupos de enum que colidem com
   métodos do registro `Data` (C12), com diagnóstico próprio e reserva compartilhada com os repositórios.
   A construção dos registros tem conversão imediata de leitura (C11,
@@ -60,11 +60,11 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
 | Verificação local da C5 | 35 testes de esquema e 311 asserções; 11 diagnósticos próprios cobertos. Quatro fixtures SQL integrais e grafos em check, validação com fontes e link (52, 36, 49 e 64 nós). Gate contra `origin/main` (`cc013b7`): zero mudanças nos quatro grafos. `git diff --check` passa; nenhum script mudou de modo. Aplicação conferida na auditoria da C5/K7 (detalhes abaixo). |
 | Verificação da C6 | Planos com 33 passos no blog e no mini CRM, 49 no chat e 59 no mini CRM com revendas. No PostgreSQL 18.6: bootstrap repetível, sonda do contexto assinado 58/58 com o plano aplicado pelo `vetra_migrator` sem superusuário, sonda ADR-031 59/59, retratos com donos e `--check` nos quatro exemplos |
 | Entrega da C7 | Planos com 33 passos no blog, 49 no chat, 90 no mini CRM e 179 no CRM com revendas; espelhos em db/policies conferidos sem banco. Sonda de RLS e integridade 103/103 no PostgreSQL 18.6, no job db-plan da CI no 17 e 18; retratos regenerados pelo Claude |
-| Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva com sintaxe conferida e modo 100755; execução no 17/18 e inclusão na CI pendentes da auditoria |
+| Verificação da C9 | 32 testes novos; oito diagnósticos novos cobertos. Suíte completa: 543 testes/8.819 asserções, sem falhas. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`219236c`): zero diferenças nos quatro grafos. Sonda aditiva (modo 100755) executada no 17 e no 18 e incluída na CI, na matriz do PostgreSQL 17 e 18; auditada (veja o quadro) |
 | Repositórios do Vetra Data | 35 testes/865 asserções sem banco: geração e leitura dos `Data` das 13 entidades dos quatro exemplos, CRUD, locks, consulta restrita, vínculos, recusas e dez corpos Ruby de comandos/consultas. Suíte completa: 583 testes/9.792 asserções, 216/216 diagnósticos. Quatro exemplos em check, validação com fontes e link; quatro planos sem mudanças. Gate contra `origin/main` (`047e03d`): zero diferenças nos grafos. Sonda 72/72 no PostgreSQL 18.6 e no 17 e 18 da CI ([execução 42282609424](https://github.com/vetra-framework/vetra/actions/runs/42282609424)), modo 100755; integrada em `5c15ebf`; os resultados estão no guia. Campos que colidem com métodos do registro são recusados (`data_record_type`). Sem alteração de banco ou dependências |
 | PRs e commits | #1 a #36 integrados; depois, commits diretos na `main`: IR 0.3 em `cb7c0b5`, live em `ed0d90f`, sondas 008 e 020 em `0beb473` e `ebed54a`, gerador SQL em `61efbb8`. Tarefas dos agentes em [tarefas-dos-agentes.md](tarefas-dos-agentes.md) |
-| Sondas | 31 em `script/`, incluindo a dos handlers (12 verificações, no 17 e no 18), a do fechamento (13 verificações, no 17 e no 18), a dos acessos (21 verificações, no 17 e no 18), a de autorização do chat (30 verificações, no 17 e no 18), a do Runner (27) e a de autorização Ruby (68) e o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
-| Runtime | Unidade de trabalho, emissor HMAC, repositórios gerados da IR, avaliador Ruby das etapas 2/3, borda de referência, `Runner` das oito etapas (K17 e K19, com eventos, idempotência, status e repetição) e a guarda dos acessos (K18) implementados, com carregamento explícito. A C14 liga o relay aos handlers e comandos com identidade de sistema, chaves de evento e timeout total; auditoria e sonda real pelo Claude pendentes. Histórico e auditoria das operações seguem na rodada 6 |
+| Sondas | 32 arquivos `sonda_*.rb` em `script/` (30 na matriz do PostgreSQL 17 e 18 da CI, e dois manuais: `sonda_pooler` e `sonda_adr006`), incluindo a dos handlers (12 verificações, no 17 e no 18), a do fechamento (13 verificações, no 17 e no 18), a dos acessos (21 verificações, no 17 e no 18), a de autorização do chat (30 verificações, no 17 e no 18), a do Runner (27) e a de autorização Ruby (68) e o simulador do gate; medição do custo do contexto ([relatório](sondas/custo-contexto.md)), relay (38), outbox (36), repositórios (72), `db:migrate` incremental (16), diferenças aditivas (99), Vetra Data (23), plano incremental (18), idempotência (83), contexto assinado (78), RLS/integridade (112) e `db:migrate` (21) no job de planos 17/18, além das sondas anteriores na CI |
+| Runtime | Unidade de trabalho, emissor HMAC, repositórios gerados da IR, avaliador Ruby das etapas 2/3, borda de referência, `Runner` das oito etapas (K17 e K19, com eventos, idempotência, status e repetição) e a guarda dos acessos (K18) implementados, com carregamento explícito. A C14 liga o relay aos handlers e comandos com identidade de sistema, chaves de evento e timeout total (auditada pelo Claude, com a sonda real no 17 e no 18). Histórico e auditoria das operações seguem na rodada 7; os adaptadores, na rodada 6 |
 
 ## Como manter este arquivo
 
@@ -87,6 +87,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Documentação alinhada ao estado real (K22): o README deixa de dizer que a persistência e a execução não existem (diz o que há: compilador, plano de banco, camada de dados, executor parcial, sem servidor nem
+  adaptadores), a IR é 0.6, os comandos de banco entram na tabela da CLI, a gemspec descreve o que o pacote traz, o índice de ADRs e o guia da IR não chamam o executor de pendente, e as seções 5 a 7 desta
+  situação separam o que é parcial do que falta; a população das sondas é dita com precisão (32 arquivos, 30 na matriz da CI e dois manuais). Só documentação e a descrição da gemspec; nenhum comportamento mudou.
+  Auditada pelo Codex em quatro rodadas, todas devolvidas e ajustadas, e limitada: restam menções antigas nos guias longos (veja o quadro). Integrada, com a CI pendente.
 - [x] Material para a decisão da saída da `vt_system` (K21, [documento](sondas/saidas-da-vt-system.md)): a sonda `medir_saidas_vt_system.rb` (17 conferências no 17 e no 18, e um passo curto
   na CI) reescreve no lugar as políticas de linha do CRM com revendas em quatro variantes (`atual`, `papel` = papel de banco próprio, `unica` = função única `vetra.context()` e as duas) e conta
   no banco as validações de contexto dos quatro comandos de referência. Cada saída tira de 18% a 20% das validações e as duas juntas, de 36% a 39%; nenhuma leva sozinha o CRM com revendas
@@ -105,10 +109,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Handlers de sistema (C14, [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md)): `Execution::HandlerRunner` reserva as entregas pelo `Relay`, monta a identidade de
   sistema do tenant do evento, roda o `call` do handler e o faz chamar os comandos de `calls` por `call_command`, pelo `Runner`, com a chave de idempotência derivada de handler,
   evento e ocorrência (origem `event`), a mesma chave no provedor externo e a retenção até a entrega sumir, inclusive `dead`; timeout total de 30 s com lease de 60 s,
-  que desfaz a unidade aberta e preserva a lease. Reprocessamento de `dead`, histórico e cifra são da rodada 6.
+  que desfaz a unidade aberta e preserva a lease. Reprocessamento de `dead`, histórico e cifra são da rodada 7.
 - [x] Fechamento do Runner (K19, [ADR-047 proposto](adr/047-fechamento-transacional-do-runner.md)): eventos do `emits` na etapa 7, idempotência na unidade (claim na etapa 4,
   resultado na 7, repetição em JSON), `Outcome` com o status do ADR-016 e a indicação de resposta retentável, `run!` que levanta, e repetição por serialização e deadlock (até 3, com
-  espera crescente) só sem `unsafe_effect` nem `retry_safe: false`. Os handlers rodam pela C14 (`HandlerRunner`); histórico e cifra são da rodada 6.
+  espera crescente) só sem `unsafe_effect` nem `retry_safe: false`. Os handlers rodam pela C14 (`HandlerRunner`); histórico e cifra são da rodada 7.
 - [x] Autorização dos acessos (K18, [ADR-046 proposto](adr/046-autorizacao-dos-acessos-e-estado-final.md)): a `AccessGuard` que o `Runner`
   instala na unidade decide cada `find!`, `lock!`, `create!`, `update!`, `delete!`, vínculo e coleção por ação, registro e campos, com fatos
   lidos na própria transação; reautoriza o estado final antes do commit (`data_authorization_final`); `Authorization#decide` é a decisão
@@ -123,7 +127,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `InProcessAuthority` (um processo, publicada depois do commit ou da falha) e `DatabaseFacts` (pool próprio da borda, limite de
   linhas); `Runner` das etapas 1 a 5 e 8 com `Outcome` para as recusas 1 a 3 e ganchos vazios para as etapas 6 e 7; primitivas CRUD e
   de vínculo; `LinkedGraph#run_implementation`; descritor `builtin` sem `executor: "pending"`. Sem eventos, idempotência nem
-  autorização dos acessos (K18, K19).
+  autorização dos acessos nesta entrega, que a K18 e a K19 trouxeram depois.
 - [x] Limites da unidade (C15, fase B da rodada 5): `UnitOfWork#transaction(statement_timeout:, lock_timeout:,
   isolation:)` com `set_config(..., true)` na transação externa (nunca em savepoint), tetos de 30 s e 10 s e máximo de
   120.000 ms, verificador `Limits` dos parâmetros de sessão do papel (`transaction_timeout`,
@@ -134,10 +138,10 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   `Vetra::Execution`: valida contratos com os tipos/erros de `Values`, avalia `authorize` por papel, tenant,
   vínculo, registro referenciado e campos e conserva a semântica SQL de NULL. Recebe fatos imutáveis e
   confirmação autoritativa da revisão da borda; fatos incompletos/obsoletos, predicados fora do subconjunto,
-  dependência de `rate_limit:` e contexto de sistema recusam com diagnóstico próprio. `uses` não concede dados
+  dependência de `rate_limit:` e contexto de sistema recusam com diagnóstico próprio (nesta entrega; a K18 admitiu o ator de sistema pelos `calls`). `uses` não concede dados
   implicitamente. Modelos, planos, retratos e IR 0.6 preservados. A sonda de concordância com o RLS está em modo 100755, com 68 verificações, executada no 17 e no 18 e na CI; a
   contagem de "zero transações" é a do pool do runtime (o `pg_stat_database` foi descartado, por publicar com atraso). Provedor da borda e despacho são da K17; acessos, NEW e `calls` de sistema são da K18.
-  Contratos aninhados existentes são validados nas saídas de consultas; a IR continua recusando entrada
+  Contratos aninhados existentes são lidos na serialização das saídas de consultas (o `Runner` não valida toda saída antes do commit, só a de operações com chave: veja a seção 5); a IR continua recusando entrada
   aninhada de comando. O aceite do ADR é do mantenedor.
 
 - [x] Registro de idempotência da operação (K16, [ADR-043](adr/043-registro-de-idempotencia-da-operacao.md), aceito por delegação do
@@ -237,7 +241,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   entre Ractors, com predicados de grupos de enum. São 35 testes/865 asserções sem banco, incluindo os
   dez corpos Ruby de comandos e consultas dos quatro exemplos. A sonda passa 72/72 no
   PostgreSQL 18.6 e roda no job de planos da CI. O avaliador Ruby anterior à unidade está implementado;
-  autorização nos acessos, reautorização final e despacho continuam pendentes na K17/K18.
+  autorização nos acessos, reautorização final e despacho foram entregues depois, na K17 e na K18.
 
 - [x] Infraestrutura do [Vetra Data](vetra-data.md): `transaction`, `read`, `compose` e `rollback!`, com
   `pg_auto_parameterize`, concorrência por fibra, sem statements nomeados e contexto instalado uma vez na
@@ -309,14 +313,14 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   SECURITY INVOKER de `pgcrypto` conservam EXECUTE; a aplicação não tem USAGE no schema privado.
 - [x] Plano inicial com `vetra_private.keys` vazia, contexto HMAC-SHA256, validade, rotação por estados,
   donos fixos, concessões mínimas e classificação de todos os passos. Chaves ficam fora dos artefatos.
-- [x] Guarda de autorização reconhece somente as duas funções exatas por assinatura, schema, dono,
+- [x] Guarda de autorização reconhece somente as funções de contexto exatas (duas no plano global; três, com `is_system_actor()`, em aplicação com tenant, desde a K15) por assinatura, schema, dono,
   atributos, configuração e hash do corpo; reutiliza `vetra` do plano sem substituir infraestrutura.
 - [x] Testes sem banco para geração, identificadores, classificação, hashes e retrato com donos.
   `sonda_contexto_assinado.rb` verifica o plano gerado, privilégios e tokens válidos/recusados, rotação e
   mutações da exceção, aplicando os planos com session_user/current_user `vetra_migrator` e sem poderes
   administrativos: 58/58 no PostgreSQL 18.6, e na CI no 17 e 18.
-- [x] ADR-036 aceito em 2026-11-05 pelo Claude, por delegação do mantenedor. Autenticação, emissão em runtime, contexto visitante/global e keys:rotate
-  continuam pendentes.
+- [x] ADR-036 aceito em 2026-11-05 pelo Claude, por delegação do mantenedor. A emissão em runtime e o contexto global estão entregues (Vetra Data, ADR-039); a autenticação, a identidade
+  anônima estável da borda pública (o visitante com tenant) e `keys:rotate` continuam pendentes; o visitante global já existe (`sonda_vetra_data`).
 
 **RLS e integridade no plano inicial**
 
@@ -372,7 +376,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] Escopo por vínculo (`memberships`)
 - [x] `many_to_many` por entidade de junção declarada ou gerada (#13)
 - [x] C1 (`58993e2`): `many_to_many` gera `add_<singular>` e
-  `remove_<singular>`, contratos de IDs tipados, autorização pelo dono e descritores sem executor.
+  `remove_<singular>`, contratos de IDs tipados, autorização pelo dono e descritores (o `Runner` parcial os executa depois, da K17 à K20).
   `commands: false` desliga por relação; colisões e junções incompatíveis são recusadas. Validação de
   IR externa, link com semântica anterior e diff cobertos. Recurso introduzido na IR 0.4 com
   `vetra.relation_commands` quando há geração; schemas 0.1/0.2/0.3 preservados, sem geração retroativa.
@@ -407,13 +411,13 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 **Exemplos**
 - [x] O chat declara `add_member` e `remove_member`, com IDs tipados, autorização pela sala, política do dono,
   rotas HTTP e recusa de remover o proprietário. Os nove testes de `chat_test.rb` cobrem a IR, a vinculação e
-  os corpos com duplos de memória. Comandos são explícitos, sem executor ou revogação live (`dbbd713`);
+  os corpos com duplos de memória. Comandos são explícitos, sem revogação live (`dbbd713`; o executor parcial os roda depois, da K17 à K20);
   na C1 a relação usa `commands: false` para preservar esses corpos e suas exposições
 - [x] O chat declara `add_member_by_email` como comando interno, sem superfícies de exposição. A busca usa
   `users_read`, normalização `downcase` e e-mail pessoal com índice único declarado. Usuário ausente ou
   ambíguo falha com a mesma mensagem, sem alterar membros. A rota HTTP foi retirada para evitar descoberta
   de cadastros; convites com aceite e a política de descoberta continuam pendentes. Os 16 testes do chat
-  cobrem contratos, corpos, falhas e ausência de rota; não há executor nem índice real no banco.
+  cobrem contratos, corpos, falhas e ausência de rota; o índice real existe no plano (`UNIQUE (email)`) e o executor parcial roda os comandos do chat (`sonda_acessos`).
 
 
 - [x] `my_rooms` e `room_page` no chat, com autorização explícita e repositórios de leitura. A primeira
@@ -525,7 +529,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 - [x] ADR-022 resolveu as seis questões em aberto do ADR-003: poolers e `pg` sob o Falcon viraram medições com
   critério (o Falcon já tem resultado preliminar: quatro requisições simultâneas de 1 s em 1,05 s, contra 4,02 s do
   controle); os registros são um `Data` por entidade, congelado em profundidade; `uses :sql` fica fora da fase 1; o
-  analisador passa a recusar `Sequel`, `ActiveRecord` e `PG` num `call`, que hoje o compilador aceita (#30)
+  analisador passa a recusar `Sequel`, `ActiveRecord` e `PG` num `call`, (#30; implementado em `Analysis::EFFECT_CLASSES`, com a exceção `unsafe_effect`)
 - [x] ADR-023 resolveu as cinco questões em aberto do ADR-005: o custo do contexto assinado é uma medição com
   limiar (preliminar: cerca de 0,2 ms por instrução sobre o RLS ingênuo, por instrução e não por linha); a política
   de escopo por vínculo passa a amarrar tenant e ator como condições não correlacionadas na subconsulta, porque a
@@ -597,7 +601,7 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
 - [x] **026** Tabela de expoentes ISO 4217 no compilador: resolve a origem da tabela do ADR-017 e adia a escolha
   da biblioteca de formatação até a implementação da borda de UI/API. Implementação integrada; aceite
   registrado em 2026-11-02 por solicitação do mantenedor
-- [x] **027** `created_at` implícito e IR 0.2: geração pelo relógio do futuro repositório, exclusão das
+- [x] **027** `created_at` implícito e IR 0.2: geração pelo relógio do repositório (implementado na C10), exclusão das
   entradas CRUD e compatibilidade com artefatos 0.1. Implementação integrada; aceite registrado em
   2026-11-02 por solicitação do mantenedor
 
@@ -660,7 +664,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [x] **5** Versão suportada, MENOR ou MAIOR futura, recurso não implementado
 - [ ] **6** Produção recusa IR ausente, adulterada ou incompatível. Parcial: não há servidor de produção
 - [ ] **7** Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta. Parcial por desenho: o
-  DSL recusa 4 construtos de 14 no blog, 3 de 6 no mini CRM e 4 de 9 no chat
+  DSL recusa 3 construtos de 14 no blog, 3 de 6 no mini CRM e 4 de 9 no chat
 - [x] **8** Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização
 - [x] **9** O diff distingue remoção, renomeação, capacidade nova, permissão e só origem
 - [x] **10** Registro congelado, implementação ausente ou duplicada, recarga como unidade. Coberto, com uma
@@ -683,12 +687,12 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 **Runtime**
 - [ ] Execução de `rate_limit:` por permissão: contadores compartilhados, janela móvel, reservas concorrentes
   e identidade anônima confiável, conforme o ADR-034
-- [ ] Executor das primitivas CRUD, de vínculo de `many_to_many` e dos comandos (descritores reconhecidos,
-  sem executor). Os repositórios já implementam CRUD, `include_on_create`, locks e idempotência dos vínculos
-- [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação;
-  as exposições e a exigência de idempotência já são compiladas e validadas
-- [ ] Executor de operações do Vetra Data, com `authorize` em Ruby, permissões por campo e reautorização do
-  estado final; repositórios, unidade de trabalho e emissor Ruby já implementados
+- [ ] Executor completo do ADR-016: o `Runner` parcial (K17 a K20) cobre as primitivas, os comandos, a autorização dos acessos, os eventos e a idempotência; **faltam** o histórico, a
+  auditoria e a cifra dos campos pessoais (rodada 7), a **composição de comandos pelo `call`** (savepoint; o bloco só enxerga `fail!`) e o executor das capacidades determinísticas além de `core.clock`
+  (`uuid`, `random`; o `Runner` as recusa com `execution_capability`) e a **validação da saída contra o contrato** antes do commit (sem chave de idempotência o `Runner` devolve `ok` e só a serialização recusa, depois do commit, um valor fora do contrato; com chave, a etapa 7 já o recusa e desfaz), que a conformidade integral com o ADR-016 e o ADR-004 exigem. As capacidades externas já rodam nos handlers, por `HandlerRunner::Effect`,
+  com timeout e chave de idempotência; nos comandos e nas consultas o ADR-004 as proíbe e o validador as recusa, então a ausência delas no `Runner` não é lacuna
+- [ ] Adaptadores HTTP, CLI, job e webhook em execução, incluindo resolução do ator/tenant e deduplicação (rodada 6, experimentais); as exposições e a exigência de idempotência já são
+  compiladas e validadas
 - [ ] Modo hospedado em Rails: adaptador Rack, resolvedor do ator e pontes somente leitura para models do Rails
 - [ ] Privacy, Audit e History em execução: criptografia por envelope, KMS, eliminação e exportação
 - [ ] Sinais efêmeros em execução: "digitando", presença por lease e a limitação de taxa
@@ -698,7 +702,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] Camada de UI em execução: módulos, páginas, formulários por contrato, ejeção, cabeçalho de linha de base e
   `vetra doctor`
 - [ ] Servidor de produção e cache de compilação
-- [ ] Entrega de eventos e consultas live em execução; RLS é gerado no plano inicial, sem runtime de operações
+- [ ] Entrega de consultas live em execução e distribuidor (rodada 8); a outbox, o relay e os handlers de sistema existem (K11, K12, C14)
 
 ## 6. Lacunas de evidência e limites conhecidos
 
@@ -709,8 +713,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   de revisão integra o plano inicial (ADR-031); assinaturas autenticadas, entrega, modo balanced,
   auditoria e os 12 critérios integrados continuam pendentes do runtime. O agrupamento e a decisão strict
   da sonda são demonstrações
-- [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Os outros seis dependem do runtime, e o erro de
-  `uses` inexistente não foi conferido
+- [ ] **ADR-004:** o protótipo cobre os testes de aceitação 2 e 3. Há teste de referência inexistente em `uses` (`validator_test.rb`) e cobertura parcial da repetição (`execution_closing_test.rb`);
+  o boot completo, o modo sombra e os demais critérios seguem pendentes
 - [ ] **ADR-009:** o motor de workflows, o histórico e a sintaxe não existem, e o schema 0.1 não representa
   workflows. A `sonda_adr009` verifica o replay em Fiber (sem escalonador), o código alterado e a Fiber não
   serializável, e mede o `TracePoint`. O contrato de cancelamento, sinais concorrentes e compensação ainda não
@@ -723,7 +727,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   registrado; as recusas das etapas 1 a 3 ficam no log, não no Audit
 - [ ] **ADR-018:** os módulos de UI, o DSL (`ui :server`, `page`, `crud ui:` e `expose ui:` falham no protótipo), a
   representação na IR (nova MENOR com `vetra.ui`), o `vetra doctor` e `vetra ui:resync` não existem; a CLI tem
-  `graph:*` e `db:authz:sql`. O ERB da biblioteca padrão (4.0.3) não escapa a saída, conferido à mão, sem sonda versionada: o motor
+  `graph:*`, `db:*`, `db:authz:sql`, `outbox:maintain` e `idempotency:purge`. O ERB da biblioteca padrão (4.0.3) não escapa a saída, conferido à mão, sem sonda versionada: o motor
   precisa ser outro ou configurado para isso. Como o `can?` é avaliado e o mecanismo do token anti-CSRF estão em
   aberto. A garantia de que a tela não ultrapassa a autorização vale para o código que usa o runtime; uma página
   com conexão própria escapa
@@ -738,12 +742,12 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-021:** o protótipo representa `set_by`, `guarded` e `transitions enforce:`, omite os campos e valores
   protegidos do contrato do CRUD, recusa a gravação literal por um comando fora da lista (`transition_owner`) e o
   valor protegido como `default:` (`guard_default`). Os repositórios conferem transições antes do DML a partir
-  de OLD relido com lock e do cmd da unidade. O plano gera os triggers db; a reautorização na etapa 6,
-  as telas administrativas, os eventos e o histórico dependem do runtime, e a sintaxe de UI pertence ao ADR-018
+  de OLD relido com lock e do cmd da unidade. O plano gera os triggers db; a reautorização na etapa 6 (K18) e os eventos (K19) estão no
+  executor parcial. Faltam as telas administrativas e o histórico (rodada 7), e a sintaxe de UI pertence ao ADR-018
 - [ ] **ADR-014:** o protótipo recusa um handler que escreve por repositório e um evento interno sem consumidor,
   tem relay, entregas, lease e reentrega. O runner dos handlers da C14 aplica `calls`, identidade do tenant do evento,
   idempotência e timeout total (sonda em 12/12 no 17 e no 18). Reprocessamento
-  auditado de `dead`, cifra, histórico e auditoria continuam na rodada 6; a IR não ganha papel de sistema
+  auditado de `dead`, cifra, histórico e auditoria continuam na rodada 7; a IR não ganha papel de sistema
 - [ ] **ADR-013:** o protótipo cobre só a classificação `privacy`, a validação do payload dos eventos e o diff de
   privacidade (teste de aceitação 2). Nada do envelope, do KMS, do histórico ou da auditoria existe. Declarar o
   titular e a retenção exige uma nova MENOR da IR, porque `privacy` é fechado
@@ -757,15 +761,16 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
 - [ ] **ADR-007:** as quatro superfícies são declaradas no DSL e validadas na IR 0.1. O teste de aceitação 6
   cobre comando por GET e consulta por POST. Nomes únicos por superfície, colisões entre HTTP e webhook,
   idempotência obrigatória de webhook e vínculo único ao comando estão cobertos em `exposure_test.rb`.
-  Os adaptadores, a tradução da entrada/saída, a transação comum e a idempotência em execução continuam
-  dependentes do runtime
+  O executor parcial já dá a transação comum e a idempotência por chave; os adaptadores e a tradução da entrada e da saída
+  são da rodada 6 (experimentais), e o histórico e a auditoria da equivalência, da rodada 7
 - [ ] **Sondas manuais:** `sonda_pooler` (precisa de PgBouncer) e `sonda_adr006` (precisa de `RUBY_BOX=1`) não rodam
   na CI. Parte da evidência dos ADRs 003, 005, 006 e 008 vem delas
 - [ ] **PostgreSQL 19:** entra na matriz da CI quando existir uma imagem
 - [ ] **Persistência:** as questões em aberto dos ADRs 003, 005, 014 e 015 estão tratadas por ADRs de resolução
   (022 a 025). O modelo físico, o DDL de banco vazio (ADR-035) e o plano inicial com retrato (`db:plan`) estão implementados;
   as diferenças aditivas e os repositórios estão implementados, e o `db:migrate` aplica o plano inicial e os
-  incrementais, passo a passo; executor, outbox e medições restantes continuam pendentes (veja ADR-022 a ADR-025 abaixo)
+  incrementais, passo a passo; o executor parcial e a outbox também (K11, K12, K17 a K20, C14). Continuam pendentes o histórico, a auditoria e a cifra (rodada 7) e as medições
+  restantes (veja ADR-022 a ADR-025 abaixo)
 - [ ] **ADR-022:** o custo dos registros no repositório real foi medido (K13): de 72% a 193% da consulta, acima do
   limiar de 10%. A C11 implementa a conversão imediata de leitura após medir também a construção sob demanda
   ([ADR-042 proposto](adr/042-construcao-dos-registros.md)); o gate segue aberto: a construção caiu para 40%-56% da consulta no 17 e no 18 e a decisão do
@@ -788,8 +793,8 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   tenant/ator. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
   concorrente nem `VACUUM`; o gate na matriz do G4 está por medir. A outbox e as entregas particionadas,
-  `vetra.dead_deliveries`, o relay e a manutenção existem desde a K11 e a K12 (ADR-040); a claim `system_actor`, a função `is_system_actor()` e a condição nas
-  políticas de escopo não existem. O `graph:diff` já classifica `calls` de um handler como `permissions` (#34), mas
+  `vetra.dead_deliveries`, o relay e a manutenção existem desde a K11 e a K12 (ADR-040); a claim `system_actor`, a função `is_system_actor()` e a condição `vt_system` nas
+  políticas de escopo existem desde a K15 (só em aplicação com tenant, com custo que o mantenedor decide). O `graph:diff` já classifica `calls` de um handler como `permissions` (#34), mas
   o compilador não avisa sobre o timeout do handler. O DSL só declara `handler` com `calls`, e a IR 0.1 não tem
   timeout nem papel por handler
 - [ ] **ADR-025:** a [sonda](sondas/adr015.md) confere, no PostgreSQL 17 e 18 da CI, o índice e as chaves em tabela
@@ -798,7 +803,7 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   escrita do índice de apoio sob carga continua por medir. O desenho do contract (`vetra.instances`, `vetra.schema_state`, `plan_seq`) não
   tem protótipo. `db:plan`, retrato `db/schema.sql` e enum como texto com CHECK estão implementados;
   os retratos incluem RLS, revisão e transições (C7)
-- [ ] **ADR-030/020/031:** revisão integrada ao plano inicial; faltam upgrades e a chave de revisão de aplicações sem
+- [ ] **ADR-030/020/031:** revisão integrada ao plano inicial; o `Differ` já instala incrementalmente as funções e os triggers gerados, sem zerar revisões; faltam os demais upgrades (o que ele não suporta) e a chave de revisão de aplicações sem
   tenant; exercitar particionamento, cascatas, combinações de eventos e deadlocks entre instruções.
   O custo de reler campos pessoais por grupo continua por medir no gate G4
 
@@ -809,16 +814,9 @@ Limite documentado, sem ação prevista: os hashes não autenticam o pacote.
 Ordem sugerida; cada passo é um ou mais commits na `main`, conforme o [quadro dos agentes](tarefas-dos-agentes.md).
 O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
 
-1. [ ] Persistência, rodada 5: um executor **parcial** do ADR-016, sem histórico, auditoria nem adaptadores, em duas
-   fases. A fase A traz as duas decisões que a medição da K13 pediu (a forma da política de escopo, **decidida na K14**, e a
-   construção dos registros, implementada na C11 com ADR-042 proposto e gate aberto), o ator de sistema (K15, implementado; custo
-   pendente de decisão do mantenedor), a
-   idempotência (K16, implementada) e a autorização em Ruby (C13, ADR-044 proposto); a fase B, o executor (despacho,
-   autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, foi
-   **replanejada na P5** (parecer do Codex em duas rodadas, aprovada): C15 (limites da unidade), K17 (borda e despacho), C16
-   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15, a K17, a C16, a K18, a K19 e a C14 estão integradas; a K20 está integrada, e a rodada 5 fecha com ela. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
-   no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
-   pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
+1. [x] Persistência, rodada 5, **fechada**: o executor parcial do ADR-016 (K14 a K20, C11 a C16, com a decisão da política de escopo, o ator de sistema, a idempotência, a autorização em Ruby, os
+   limites da unidade, o `Runner` das oito etapas e os handlers de sistema), planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial)
+   e registrada no quadro. As decisões que ela deixou com o mantenedor estão na seção 3 (a saída da `vt_system`, o ADR-005, o gate de 10%, o aceite dos ADRs propostos e o teste 6 do ADR-023) e não bloqueiam a rodada 6.
 2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:
    - **As cinco famílias que o DSL ainda recusa nos exemplos da proposta** (critério 7, parcial por desenho):
      `auth`, a UI, `realtime`, a consulta sem `returns` e sem `authorize`, e o escopo por vínculo sem o `has_many`

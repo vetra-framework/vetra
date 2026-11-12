@@ -2,7 +2,7 @@
 
 Contrato definido pelo [ADR-001](../adr/001-grafo-da-aplicacao-e-ir.md), aceito. Estes arquivos especificam
 dados. O [protótipo da fase 0](../fase-0.md) já compila um subconjunto do DSL e implementa
-`graph:build`, `graph:check` e `graph:validate`; o runtime continua pendente.
+`graph:build`, `graph:check` e `graph:validate`; o runtime é parcial (executor das operações, sem adaptadores nem histórico).
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -25,8 +25,8 @@ O blog demonstra publicação com um evento explícito adicional. Não há fonte
 
 Os digests de arquivos em `inputs` e `implementation` são placeholders de 64 zeros; `source.line: 1` e
 as versões de produtor/dependências são ilustrativos. **O digest do documento é real**: SHA-256 sobre
-JCS do envelope sem `digest`. Os arquivos usam indentação para leitura; o futuro `.vetra/graph.json`
-versionado usará JCS seguido de LF. Não usar estas fixtures como pacote de produção.
+JCS do envelope sem `digest`. Os arquivos usam indentação para leitura; o `.vetra/graph.json`
+versionado de cada exemplo usa JCS seguido de LF. Não usar estas fixtures como pacote de produção.
 
 ## Forma, semântica e execução
 
@@ -44,7 +44,7 @@ Comandos gerados de vínculo exigem `vetra.relation_commands`, disponível desde
 `builtin` existente com nome `many_to_many.add.<relação>` ou `many_to_many.remove.<relação>`. O dono vem de
 `authorize.entity`; a relação resolve alvo, junção, chaves e vínculos protegidos por `include_on_create`.
 O [ADR-032](../adr/032-comandos-gerados-de-vinculo.md) define contratos, recusas e coexistência com
-comandos explícitos, sem executor e sem mudança estrutural nos nós. A evolução semântica exige nova MENOR e
+comandos explícitos, sem mudança estrutural nos nós (o `Runner` parcial executa as primitivas de vínculo). A evolução semântica exige nova MENOR e
 requisito, conforme o [ADR-001 §4](../adr/001-grafo-da-aplicacao-e-ir.md#4-compatibilidade-e-evolução).
 Os schemas publicados 0.1 a 0.4 permanecem inalterados. Um documento 0.3 com o requisito ou com a
 primitiva de vínculo é recusado. O link preserva artefatos anteriores sem geração retroativa.
@@ -135,7 +135,7 @@ PY
 ```
 
 Isso valida o schema e os digests documentais; não verifica arquivos de origem inexistentes nem executa
-a validação semântica do futuro compilador. Python não é uma dependência do framework Ruby.
+a validação semântica do compilador. Python não é uma dependência do framework Ruby.
 
 A suíte Ruby cobre recusa de versões futuras, propriedades desconhecidas, referências quebradas, defaults
 protegidos e fonte alterada, entre outros casos. Isso ainda é cobertura parcial dos critérios do ADR;

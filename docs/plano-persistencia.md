@@ -59,6 +59,7 @@ Cada tarefa segue o protocolo (implementação sem commit, auditoria cruzada, de
   explícita, com identificador anônimo estável, emitido e verificado. `system_actor` não entra por uma superfície pública.
 - **Autoridade entre processos (K23).** `InProcessAuthority` e a geração em memória dos exemplos de referência não observam outros processos; HTTP, CLI e workers separados ultrapassam esse limite. A rodada entrega a autoridade
   compartilhada ou limita a referência a um processo por uma configuração que recusa o modo distribuído.
+- **Saída (K24).** O `Runner` não valida a saída do `call` contra o contrato em toda operação: sem chave, um valor fora do contrato volta como `ok` e só a serialização o recusa, depois do commit. Com chave de idempotência o `Runner` já valida na etapa 7 e termina `error` com ROLLBACK; **sem chave** termina `ok` com COMMIT. A K24 exige a validação **antes do COMMIT também sem chave**, no `Runner` e não no adaptador (que só descobriria depois de confirmar), para que uma resposta HTTP nunca diga sucesso sobre um valor inválido.
 - **Entrada HTTP (K24).** Leitura do corpo limitada independentemente de `Content-Length`; limites de consulta, profundidade e quantidade de campos; JSON inválido, chaves duplicadas e conflitos entre caminho, consulta e corpo
   recusados; conversões pelo contrato, sem perda monetária; o servidor ou o proxy respondem por cabeçalhos e conexões lentas.
 - **Credenciais e navegador (K24).** O modelo de credenciais é declarado; a proteção contra CSRF é do resolvedor quando há sessão, e o contrato a exige nos testes; CORS fechado por padrão, com origens explícitas; respostas pessoais e
@@ -88,7 +89,7 @@ HTTP medida com 16 clientes, e a medição dos registros é a do repositório, s
 
 ### Fica para a rodada 7 e depois
 
-Cifra dos campos pessoais (ADR-013), histórico, auditoria e a conformidade integral com o ADR-016 (rodada 7); a **declaração de titular (`subject`) e a evolução da IR que ela pede são dependências da cifra** e entram na rodada 7, com o destino da
+Cifra dos campos pessoais (ADR-013), histórico, auditoria e a conformidade integral com o ADR-016 (rodada 7), com a **composição de comandos pelo `call`** (savepoint, ADR-016; o bloco só enxerga `fail!`) e o executor das capacidades determinísticas além de `core.clock` (`uuid`, `random`; o `Runner` as recusa; as externas já rodam nos handlers, e o ADR-004 as proíbe nos comandos), lacunas que a auditoria da K22 expôs; a **declaração de titular (`subject`) e a evolução da IR que ela pede são dependências da cifra** e entram na rodada 7, com o destino da
 retenção (`retention`) esclarecido. Distribuidor do live e fase contract (`vetra.instances`, `vetra.schema_state`) na rodada 8, e o modo hospedado em Rails também; **adiar o Rails preserva o risco de adoção, não o resolve**, e o
 Rack isolado não verifica a transação compartilhada com o Rails (ADR-010). Fora do escopo, sem perda: servidor próprio de produção, fila própria, vários provedores de webhook, streaming e ampliação de permissões; um adaptador injetável e uma
 fixture de assinatura bastam. Sem rodada ainda: `auth`, moeda por tenant e políticas por atributo do ator.
@@ -335,7 +336,7 @@ para a aplicação depois de toda a segurança instalada.
 Remoções, renomeações, tipos físicos, preenchimento necessário, enum estreitado, tenant alterado e instruções sem
 tradução têm diagnósticos próprios e não gravam plano parcial. O [guia](db-plan.md#diferenças-aditivas) especifica
 passos, locks, custos, recusas e a sonda. São detalhes do ADR-038 aceito; não exigem um ADR substituto. O formato
-físico e a IR permanecem nas versões atuais, e os artefatos dos exemplos conservam somente `0001`.
+físico e a IR permanecem nas versões atuais, e os artefatos dos exemplos conservavam somente `0001` nesta entrega (os planos incrementais vieram depois).
 
 O [`db:migrate`](db-migrate.md) aplica os planos incrementais no banco real (K10): registro por passo em
 `vetra.migration_steps`, com o começo do plano marcado depois da conferência da base pela linha `-- vetra:base`;
@@ -361,7 +362,7 @@ São 72 verificações, todas passando no PostgreSQL 18.6 e no job de planos da 
 
 A avaliação de `authorize` em Ruby e de permissões por campo antes da unidade está implementada na C13
 (ADR-044 proposto). A integração no despacho/acessos e a reautorização do estado final são da K17/K18;
-o fechamento de eventos/idempotência, da K19, e histórico/auditoria continuam na rodada 6. Blog e chat usam
+o fechamento de eventos/idempotência, da K19, e histórico/auditoria continuam na rodada 7. Blog e chat usam
 contexto global e autorização da aplicação, conforme ADR-037/039. O contrato do ADR-039 foi preservado; nenhum modelo, plano, retrato,
 espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência foi acrescentada.
 
@@ -407,7 +408,7 @@ espelho ou grafo dos exemplos muda, e a IR permanece 0.6. Nenhuma dependência f
 - as políticas de administração dos vínculos, dentro do limite que o ADR-037 já documenta;
 - a cifra dos campos pessoais (ADR-013) e o distribuidor do live.
 
-Destino no planejamento atual: o executor das oito etapas, a medição do ADR-023 por comando (o teste 6 continua pendente) e os handlers de sistema estão na rodada 5, o executor sem histórico nem auditoria; os adaptadores, a fase contract, a cifra e o distribuidor do live estão na rodada 6; o preenchimento em lotes, as mudanças de tipo, as renomeações declaradas e as políticas de administração dos vínculos ainda não têm rodada.
+Destino no planejamento atual: o executor das oito etapas, a medição do ADR-023 por comando (o teste 6 continua pendente) e os handlers de sistema estão na rodada 5, o executor sem histórico nem auditoria; os adaptadores estão na rodada 6, a cifra, o histórico e a auditoria na 7, e a fase contract e o distribuidor do live na 8; o preenchimento em lotes, as mudanças de tipo, as renomeações declaradas e as políticas de administração dos vínculos ainda não têm rodada.
 
 Cada uma dessas mudanças de modelo é recusada com código próprio pela diferença aditiva, sem plano parcial.
 

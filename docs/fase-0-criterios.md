@@ -4,6 +4,12 @@ O [ADR-001](adr/001-grafo-da-aplicacao-e-ir.md) lista 11 testes de aceitação p
 cada um com a suíte atual e registra o que está coberto, o que está parcial e o que é lacuna. Ele não declara a
 fase 0 concluída: o [protótipo](fase-0.md) cobre parte dos critérios.
 
+> **Registro cronológico.** A tabela de critérios é a fonte vigente da cobertura. Os parágrafos de verificação abaixo são entradas **datadas** de cada entrega (os números de testes e de códigos de
+> diagnóstico, e as pendências "do runtime", "do executor" ou "dos planos", valem à data de cada uma). Várias foram superadas: o plano de banco, a migração, os papéis, a RLS, os triggers de revisão e de
+> transição, o contexto assinado, os repositórios (inclusive `created_at`, `include:` e a normalização da entrada) e o executor parcial das operações existem desde as rodadas 3 a 5, com a autorização em Ruby,
+> a idempotência e os eventos. Seguem pendentes o transporte e a revogação live, as assinaturas, os adaptadores, o histórico, a auditoria e a cifra. A situação atual está em
+> [situacao-do-projeto.md](situacao-do-projeto.md); a última contagem é de 808 testes e 259 códigos de diagnóstico.
+
 Verificação em 2026-11-03, Ruby 4.0.9, base `131478b9ec9b25a12074189dfa9c9248805197fb`:
 **428 testes e 4.618 asserções**, sem falhas, erros ou testes ignorados; **154/154 códigos**
 exercitados em `bundle exec rake test:diagnostics`. São 35 ADRs aceitos.
@@ -79,7 +85,7 @@ visibilidade após o carregamento. Sua emissão integra o mesmo gate automático
 | 7 | Contratos CRUD, políticas e transições equivalem aos três exemplos da proposta | Parcial, por desenho | Os testes cobrem as propriedades dos contratos CRUD (campos de dono, valores protegidos, tenant, chaves compostas e timestamps gerados). Os exemplos do repositório são recortes do subconjunto implementado, e os exemplos documentais são recortes didáticos que divergem do compilado. Conferidos construto a construto contra a proposta: no blog, 3 de 14 recusados; no mini CRM, 3 de 6; no chat, 4 de 9. Todos falham de forma audível. |
 | 8 | Mesma IR gera saídas idênticas; `graph:check` detecta edição e desatualização | Coberto | `repeated_builds_in_different_directories_have_identical_bytes`, `check_detects_missing_edited_and_noncanonical_artifacts_without_overwriting`, `executable_reports_stale_graph_without_stack_trace`. |
 | 9 | Diff distingue remoção, renomeação, capacidade nova, permissão, só origem | Coberto | 26 testes em `diff_test.rb` e 4 em `diff_source_test.rb`. `exposure_test.rb` também confere que adicionar CLI conserva as identidades HTTP e aparece como nova superfície com revisão de permissão. |
-| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pela API pública (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
+| 10 | Registro congelado, implementação ausente ou duplicada, recarga como unidade | Coberto, com uma limitação de desenho (mantida) | Declaração tardia (`registry_frozen`, `compiler_test`), implementação ausente ou duplicada (`linker_test`) e recarga bem-sucedida (`link_test`) estão cobertas. Limitação: a troca do **código** na recarga não é observável pelo `binding` (o `binding` guarda caminho e linha, não o digest da implementação, e as closures são privadas). Detalhes na seção abaixo. |
 | 11 | Com Ractors, a cópia de dados é compartilhável; o núcleo passa sem a extensão | Coberto para os dados do compilador | `ractor_test.rb` compartilha os resultados dos quatro exemplos e os dados da vinculação com identidade preservada, recalcula o digest no receptor e recusa mutações profundas. Um subprocesso remove `Ractor` antes de carregar o Vetra e executa build/check/validate/link/diff nos quatro exemplos. Closures ficam no processo dono; execução concorrente de operações não foi implementada. |
 
 ## Os 43 códigos que antes não eram emitidos
@@ -161,8 +167,8 @@ desde a 0.6. Essas declarações não implementam o runtime. Palavras-chave desc
 **Critério 10.** Uma recarga bem-sucedida troca a IR: o digest muda e a unidade antiga continua intacta. O
 `binding` de uma operação guarda `kind`, `operation`, `ref`, `source` (caminho e linha), `parameters` e
 `arguments`. Não guarda o digest da implementação, que fica na IR. Editar o texto do corpo de um `call` mudou o
-documento e deixou o `binding` idêntico. A troca do código não é verificável pela API pública, porque as closures
-são privadas e nenhum `call` é executado. Afirmar essa troca exigiria expor o digest da implementação no
+documento e deixou o `binding` idêntico. A troca do código não é verificável pelo `binding`, porque as closures
+são privadas (o `LinkedGraph#run_implementation` executa o bloco verificado, o que `link_test.rb` cobre). Afirmar essa troca exigiria expor o digest da implementação no
 `binding`, o que é uma decisão de projeto. A decisão foi **manter a limitação**: o digest já está na IR da unidade
 e as closures são privadas por desenho.
 

@@ -449,7 +449,7 @@ com o contexto do ator (o RLS filtra como filtra a operação) e **recusa**, em 
 entidade.
 
 **Capacidades e primitivas.** O `call` recebe, na ordem dos parâmetros, um repositório ligado à unidade ou o relógio da operação
-(o instante da unidade); `uuid`, `random` e capacidades externas recusam com `execution_capability` até terem executor. A entrada
+(o instante da unidade); `uuid` e `random` recusam com `execution_capability` até terem executor; as capacidades externas são proibidas nos comandos e nas consultas (ADR-004) e rodam só nos handlers, por `HandlerRunner::Effect`. A entrada
 chega como um `Data` com todos os campos do contrato (o opcional ausente é `nil`), e o `call` só tem `fail!` além das capacidades.
 `crud.create|read|update|delete` e `many_to_many.add|remove.<relação>` rodam pelos métodos do repositório. O descritor `builtin` do
 linker não traz mais `executor: "pending"`, e o bloco Ruby só roda por `LinkedGraph#run_implementation`, a porta do `Runner`.
@@ -737,7 +737,7 @@ o cancelamento ou usar I/O fora das capacidades escapa da garantia do runtime.
 
 [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md) registra as decisões e limites.
 `script/sonda_handlers.rb` prova os casos no banco descartável com os papéis de produção; a sua execução no 17/18
-tem 12 verificações no 17 e no 18, e na CI. Reprocessamento de `dead`, histórico e auditoria continuam na rodada 6.
+tem 12 verificações no 17 e no 18, e na CI. Reprocessamento de `dead`, histórico e auditoria continuam na rodada 7.
 
 ## Ponta a ponta e medição do executor
 

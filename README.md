@@ -15,10 +15,12 @@ consultas, permissões e eventos formam um modelo explícito da aplicação: o *
 Esse modelo permite conferir contratos, dependências e regras declarativas, identificar inconsistências
 e revisar mudanças de arquitetura junto com o código.
 
-> **Estado atual: protótipo da fase 0.** O repositório entrega um compilador experimental, ferramentas de
-> validação, diff e vinculação de implementações. A execução dos comandos de negócio, o servidor web e a
-> persistência ainda não existem. Veja a [situação do projeto](docs/situacao-do-projeto.md) para acompanhar
-> entregas, pendências e evidências.
+> **Estado atual: compilador, camada de dados e executor parcial, ainda sem servidor.** O repositório entrega o
+> compilador e as ferramentas de validação, diff e vinculação; o plano de banco com RLS e contexto assinado; a camada
+> de dados (Vetra Data), a outbox e o relay; e um **executor parcial** das operações, exercitado por sondas contra o
+> PostgreSQL 17 e 18. **Ainda não existem adaptadores HTTP, CLI, job e webhook em execução, nem histórico, auditoria e
+> cifra de dados pessoais**, e o runtime não é para produção. Veja a [situação do projeto](docs/situacao-do-projeto.md)
+> para acompanhar entregas, pendências e evidências.
 
 ## O que já funciona
 
@@ -27,7 +29,7 @@ O compilador transforma declarações Ruby em uma **representação intermediár
 
 ```mermaid
 flowchart LR
-    A["DSL Ruby"] --> B["IR 0.4 validada"]
+    A["DSL Ruby"] --> B["IR 0.6 validada"]
     B --> C["Diff arquitetural"]
     B --> D["Vinculação Ruby"]
 ```
@@ -42,6 +44,8 @@ flowchart LR
 | Revisão | Diff de contratos, permissões, capacidades, privacidade, transições e metadados |
 | Vinculação | Conferência do artefato, dos fontes e dos blocos Ruby, sem executar operações |
 | SQL de autorização | Geração inicial de revisões por tenant e triggers, para revisão, com verificação em PostgreSQL descartável |
+| Banco | `db:plan` e `db:migrate`: plano inicial e incremental com papéis, RLS, contexto assinado, outbox e registro de idempotência, para o PostgreSQL 17 e 18 |
+| Dados e execução | Vetra Data (unidade de trabalho e repositórios gerados da IR), `Runner` parcial das oito etapas do ADR-016, relay e handlers de sistema; sem adaptadores, histórico, auditoria nem cifra |
 
 O [guia da fase 0](docs/fase-0.md) detalha o DSL suportado e o alcance da análise estática dos blocos Ruby.
 
@@ -78,6 +82,8 @@ bundle exec bin/vetra graph:diff git:HEAD examples/blog/.vetra/graph.json --root
 | `graph:validate` | Validar uma IR; com `--sources`, também conferir o manifesto e os hashes dos fontes |
 | `graph:diff` | Comparar arquivos ou revisões Git e destacar mudanças que exigem revisão |
 | `graph:link` | Vincular o código ao artefato validado e verificar sua correspondência |
+| `db:plan`, `db:migrate` | Gerar o plano de banco do grafo (com retrato e `--check`) e aplicá-lo passo a passo num PostgreSQL descartável |
+| `db:authz:sql`, `outbox:maintain`, `idempotency:purge` | SQL de revisão de autorização; manutenção das partições da outbox; purga do registro de idempotência |
 
 ## Um comando em Ruby
 
@@ -105,7 +111,7 @@ end
 
 `uses` declara as capacidades recebidas pelo bloco. `returns` identifica o contrato de saída; `authorize`
 registra a ação e o registro a autorizar; `emits` declara o evento. A exposição HTTP aponta para essa mesma
-operação. O compilador registra e verifica essas relações; a execução depende do futuro motor de operações.
+operação. O compilador registra e verifica essas relações; o `Runner` parcial já executa o comando contra o PostgreSQL nas sondas, e ainda não há adaptador HTTP que o sirva.
 
 ## Exemplos disponíveis
 
@@ -116,8 +122,8 @@ operação. O compilador registra e verifica essas relações; a execução depe
 | [examples/mini_crm_revendas](examples/mini_crm_revendas) | Revendas, vendedores e papéis com escopo por vínculo |
 | [examples/chat](examples/chat) | Salas, consultas tipadas, declaração live com dependências de autorização, membros por ID e inclusão por e-mail interna |
 
-Os diretórios contêm recortes compiláveis da fase 0. Autenticação, telas, persistência e entrega em tempo
-real continuam pendentes. Troque `--root examples/blog` pelo diretório desejado para inspecionar outro exemplo.
+Os diretórios contêm recortes compiláveis, com plano de banco e executor parcial exercitados por sondas. Autenticação,
+telas, adaptadores de superfície e entrega em tempo real continuam pendentes. Troque `--root examples/blog` pelo diretório desejado para inspecionar outro exemplo.
 
 As árvores **“Estrutura em Vetra”** dos PDFs descrevem a organização prevista para as aplicações, com pastas
 resumidas e alguns componentes gerados omitidos. Elas incluem funcionalidades futuras; o conteúdo disponível
@@ -127,10 +133,10 @@ para compilar hoje está nos diretórios acima.
 
 A base definida nos ADRs reúne quatro componentes:
 
-1. **Grafo da Aplicação:** modelo compilado e versionado, implementado parcialmente nesta fase.
-2. **Motor de operações:** comandos e consultas com contratos, autorização e adaptadores para cada superfície.
-3. **Motor de autorização:** execução das políticas e dos escopos declarados no grafo.
-4. **Vetra Data:** persistência com Sequel e PostgreSQL, isolamento de linhas (RLS) e contexto assinado.
+1. **Grafo da Aplicação:** modelo compilado e versionado (IR 0.6), implementado.
+2. **Motor de operações:** comandos e consultas com contratos e autorização, com o `Runner` parcial implementado; faltam os adaptadores de cada superfície, o histórico e a auditoria.
+3. **Motor de autorização:** as políticas e os escopos do grafo avaliados em Ruby (antes da transação, nos acessos e no estado final) e traduzidos em RLS onde o SQL os cobre (os exemplos com tenant); blog e chat só têm a autorização em Ruby, e o limite de taxa ainda não tem contadores.
+4. **Vetra Data:** persistência com Sequel e PostgreSQL, isolamento de linhas (RLS) e contexto assinado, implementada, com a outbox, o relay e a idempotência.
 
 Sobre essa base, o projeto prevê consultas reativas, workflows duráveis, recursos de privacidade e auditoria,
 UI e operações MCP com identidade delegada. A adoção planejada começa em aplicações Rails existentes, um
@@ -168,7 +174,9 @@ limites da análise.
 | [Diff arquitetural](docs/graph-diff.md) | Contratos, permissões, referências Git e relatório JSON |
 | [Vinculação de implementações](docs/graph-link.md) | Integridade do pacote, registro Ruby e dados compartilháveis |
 | [SQL de revisão de autorização](docs/db-authz-sql.md) | Gerador inicial, pré-condições e limites da instalação |
-| [IR 0.1, 0.2, 0.3 e 0.4](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
+| [IR 0.1 a 0.6](docs/ir/README.md) | Schemas, exemplos documentais e compatibilidade |
+| [Plano da persistência](docs/plano-persistencia.md) e [quadro dos agentes](docs/tarefas-dos-agentes.md) | Rodadas, tarefas, auditorias e decisões |
+| [Vetra Data](docs/vetra-data.md), [plano de banco](docs/db-plan.md) e [migração](docs/db-migrate.md) | Unidade de trabalho, repositórios, executor, plano e `db:migrate` |
 | [Índice de ADRs](docs/adr/README.md) | Decisões de arquitetura, resoluções e status de cada proposta |
 
 O [ADR-001](docs/adr/001-grafo-da-aplicacao-e-ir.md) define o contrato do grafo, e o
@@ -186,10 +194,10 @@ Os PDFs preservam a proposta e suas revisões; os ADRs registram as decisões po
 | Caminho | Conteúdo |
 |---|---|
 | [bin/vetra](bin/vetra) | Entrada da CLI |
-| [lib/vetra/](lib/vetra) | DSL, compilador, validador, diff e vinculação |
+| [lib/vetra/](lib/vetra) | DSL, compilador, validador, diff e vinculação (`graph/`), plano e SQL (`sql/`), camada de dados (`data/`) e executor (`execution/`) |
 | [examples/](examples) | Modelos compiláveis e seus artefatos versionados |
-| [test/](test) | Testes do compilador, da CLI e dos exemplos |
-| [script/](script) | Sondas dos ADRs e simulação do gate da CI |
+| [test/](test) | Testes do compilador, da CLI, dos dados, do executor e dos exemplos |
+| [script/](script) | Sondas dos ADRs e das rodadas de persistência (32 arquivos; 30 rodam na CI no PostgreSQL 17 e 18, e duas são manuais) e simulação do gate da CI |
 | [docs/](docs) | Guias, ADRs, schema e documentos da proposta |
 | [logo/](logo) | Identidade visual |
 
