@@ -739,6 +739,20 @@ o cancelamento ou usar I/O fora das capacidades escapa da garantia do runtime.
 `script/sonda_handlers.rb` prova os casos no banco descartável com os papéis de produção; a sua execução no 17/18
 tem 12 verificações no 17 e no 18, e na CI. Reprocessamento de `dead`, histórico e auditoria continuam na rodada 6.
 
+## Ponta a ponta e medição do executor
+
+`script/sonda_ponta_a_ponta.rb` roda os quatro exemplos **como estão** pelo `Runner`, sem cópia temporária nem fixture: nos dois CRMs, a emissão do
+evento na etapa 7, o relay e o handler real (`notify_sales`, `notify_seller`) com a chave derivada; no blog e no chat, os comandos de cada papel. Ela confere
+as duas recusas que a rodada assume (`chat.add_member_by_email` e o comentário do visitante, por `rate_limit` sem contador) e imprime a tabela das duas
+contagens de transações por comando ([acima](#duas-contagens-de-transações)). Roda no 17 e no 18, e na CI (26 verificações).
+
+`script/medir_executor.rb` é a medição informativa da K20: latência por comando de referência (um cliente), instruções SQL, validações de contexto contadas
+pelo banco (`track_functions`, numa passada à parte, para não distorcer a latência), o percentual do custo por validação sobre a latência, o custo da
+escrita em `vetra.idempotency`, o da condição `vt_system`, a construção dos registros contra o gate de 10% e, com `VETRA_PGBOUNCER`, o pooler em modo de
+transação. `VETRA_MEDICAO_AMOSTRAS`, `VETRA_MEDICAO_SEGUNDOS` e `VETRA_MEDICAO_RODADAS` ajustam a duração. Ela **não cumpre o teste 6 do ADR-023**: só falha
+nas conferências funcionais, e os limiares saem como dentro, inconclusivo ou acima. Resultados e leitura no
+[relatório da K20](sondas/custo-executor.md).
+
 ## Aplicações globais
 
 Blog e chat usam `UnitOfWork.new(db, scope: :global)`, sem emissor. A transação recebe `op_id`, `cmd` e

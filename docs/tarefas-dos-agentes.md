@@ -82,7 +82,7 @@ tarefas seguem a ordem da tabela.
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | concluída | `0627646` | Auditada pelo Claude, sonda 17/18 e CI verde; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
-| K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | em andamento | — | Sobre `2e49262`; a árvore é do Claude até a entrega para a auditoria do Codex |
+| K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | integrada, CI pendente | — | Auditada pelo Codex (uma rodada, sete achados ajustados); sem mudança em `lib/`, nenhum ADR novo; o teste 6 segue pendente ([entrega](#entrega-da-k20-pelo-claude), [auditoria](#auditoria-k20)) |
 
 ### Parecer do Codex sobre o plano da rodada 5
 
@@ -1371,3 +1371,45 @@ não é a `<handler>:<event_id>` literal do plano, e sim um digest, para caber n
 horas; o cancelamento, o cancelamento forçado e o reenvio foram recusados pela API (a execução consta como já em andamento), e o `ci.yml` não tem disparo manual. Não há resultado de CI para o
 `0627646` isolado: a conferência foi a execução do commit de registro seguinte. A [execução 43152061333](https://github.com/vetra-framework/vetra/actions/runs/43152061333) do commit `11721d5`,
 que contém o mesmo código, passou nos cinco jobs, com a sonda dos handlers em 12/12 no 17 e no 18. O aceite do ADR-048 é do mantenedor; a próxima tarefa é a K20 (Claude), o ponta a ponta e a medição.
+
+## Entrega da K20 pelo Claude
+
+Base: `600dd68`, árvore limpa na `main` (só a linha do quadro). Implementado pelo Claude sem commit, branch nem push. **Nenhum arquivo de `lib/` mudou**: a K20 só acrescenta duas sondas
+e documentação, e uma entrada na CI. O ADR não é novo.
+
+- **O que mudou.** `script/sonda_ponta_a_ponta.rb` (novo, `EndToEndProbe < HandlersProbe`, 26 verificações) roda os quatro exemplos como estão, pelo `Runner`, com a outbox, o relay e
+  os handlers reais; imprime a tabela das duas contagens de transações por comando. `script/medir_executor.rb` (novo, `ExecutorCostProbe < ContextCostProbe`, 7 conferências funcionais)
+  mede a latência por comando, as validações de contexto contadas pelo banco, o custo por validação (1 e 16 clientes), a escrita em `vetra.idempotency`, a `vt_system`, a construção dos
+  registros e, com `VETRA_PGBOUNCER`, o pooler. `.github/workflows/ci.yml` (dois passos novos), [relatório](sondas/custo-executor.md), seção do guia `vetra-data.md`, ponteira no ADR-023,
+  situação e este quadro.
+- **Achados da sonda ponta a ponta (não bloqueiam; rodada 6 ou mantenedor).** (1) `crm.win_lead` recusa chave: a saída leva `email` (dado pessoal, ADR-043, §4) e o exemplo declara
+  `idempotency: :required`; nenhum diagnóstico do compilador pega a incompatibilidade. (2) O visitante do blog não lê nem o post publicado (`crud scope: :author`). (3) O papel do chat não
+  concede `delete` de sala.
+- **Resultados (PostgreSQL 17.11 e 18.6, detalhes no relatório).** O custo por validação de contexto é de 48 µs com um cliente e 116 µs com 16 (47 e 106 no 18). O percentual por comando
+  com RLS fica dentro de 25% com um cliente (mediana 10%, máximo 19%) e **inconclusivo com 16 clientes** (mediana 24%, máximo 45%); os quatro comandos do CRM com revendas passam de 25%
+  (33% a 45%; 27% a 42% no 18), pela quantidade (22 a 67 validações por comando), e a `vt_system` responde por 4 a 13 delas. A `vt_system` acrescenta de 0,03 a 0,64 ms por instrução. A chave de
+  idempotência custa cerca de 24% (de 4,0 a 5,0 ms; a repetição custa 2,3 ms). A construção dos registros segue em 38% a 44% da consulta, acima do gate de 10%, medida pelo repositório, sem o `Runner`, a guarda nem o fechamento. O PgBouncer em modo de
+  transação acrescenta de 1,4 a 3,8 ms por comando. O teste 6 do ADR-023 **continua pendente**, e nenhum limiar mudou.
+- **Verificação.** Suíte 808 testes (a mesma da C14, `lib/` intacto), gate e `db:plan` sem mudanças; `sonda_ponta_a_ponta.rb` 26/26 e `medir_executor.rb` 7/7 no 17 e no 18.
+- **O que ficou de fora.** A latência por comando com 16 clientes em laço fechado (o percentual com 16 clientes é uma estimativa conservadora), tabelas grandes, o relay e os handlers sob
+  carga, e o pooler na CI. A decisão sobre a `vt_system`, o orçamento do gate de 10%, o aceite dos ADRs 042 a 048 e o teste 6 são do mantenedor.
+- **Riscos que o Claude vê.** (1) A estimativa com 16 clientes mistura um custo medido sob contenção com uma latência sem contenção, e pode superestimar; o relatório diz isso. (2) As medianas
+  absolutas oscilam entre execuções neste ambiente (máquina compartilhada); só os percentuais valem. (3) `medir_executor.rb` liga `track_functions` no banco só numa passada à parte; um erro
+  nessa passada restaura o ajuste (`ensure`), e o banco é descartável de qualquer modo.
+## Auditoria K20
+
+Implementado pelo Claude sobre `600dd68`; auditado pelo Codex em modo somente leitura (uma rodada, devolvida). O sandbox do Codex não alcança o PostgreSQL nem o PgBouncer: ele conferiu os scripts por
+leitura, a sintaxe, `diff --check`, o gate e as saídas completas das duas medições. O Claude reexecutou a sonda ponta a ponta (26/26 no 17 e no 18) e a medição curta com o PgBouncer depois dos ajustes.
+
+| Achado do Codex | Bloqueia | Decisão |
+|---|---|---|
+| O relatório dizia que a repetição com a mesma chave devolve o resultado "sem abrir a operação", mas `Runner#in_unit` abre a transação e reivindica a chave antes de reconhecer o replay | sim | Ajustar: a repetição abre a unidade e pula o corpo, a reautorização, o registro e os eventos |
+| A medição dos registros (`records_gate` herdado) usa `UnitOfWork#read` direto, sem `Runner`, guarda nem fechamento; o texto dizia que a guarda e o fechamento estavam no caminho | sim | Ajustar: o texto e o quadro dizem que o gate mede o repositório e não a guarda por linha nem uma coleção pelo executor; medir esse caminho fica fora da K20 (anotado em "O que não foi medido") |
+| Limpeza incompleta do PgBouncer: o diretório com `userlist.txt` (que leva `VETRA_APP_PASSWORD`) não era removido e o processo não era recolhido | sim | Ajustar: `stop_pgbouncer` (TERM, espera, KILL depois de 5 s, `rm_rf` do diretório), chamado ao fim da parte do pooler e no `ensure`; arquivo em modo 0600; conferido sem sobras |
+| 41% e 38% de construção/consulta contra os 44% dos logs: estatísticas diferentes sem identificação | não | Ajustar: a tabela mostra a razão das medianas (44%) e a mediana das razões por execução (41% e 38%), com a explicação |
+| `is_system_actor` vai até 13 chamadas, e não 14 (as 14 de `win_lead` são `current_actor`); o número aparecia na situação e no quadro | não | Ajustar: "4 a 13" em todos os documentos, e "6 a 9 pontos percentuais" onde estava 5 a 9 |
+| Duas verificações excediam a evidência: o vendedor não atualizava nada, e `my_rooms` consultava uma sala só | não | Ajustar: o vendedor atualiza e o nome muda; a Ana cria uma sala reservada, a Bia só vê a sala em que é membro e a Ana vê as duas |
+| A espera de inicialização do PgBouncer não reconhecia sucesso (`TCPSocket#close` devolve `nil`) nem falha | não | Ajustar: laço que confirma a conexão, detecta o processo morto e falha no prazo |
+| Limitação do ambiente do Codex: suíte com 422 erros por bloqueio de temporários no sandbox | não | Sem ação: é do sandbox; a suíte do Claude passa (808 testes, 0 falhas) |
+
+Os números do relatório vêm da execução completa anterior a estes ajustes; os ajustes não tocam a medição (só a limpeza do PgBouncer, o texto e a sonda ponta a ponta).

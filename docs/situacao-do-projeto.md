@@ -33,7 +33,9 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   `db:migrate` com retomada estão implementados. A medição preliminar do custo do contexto (K13) fecha a rodada 4:
   o contexto assinado fica abaixo do limiar na maior parte das rodadas, e a política de escopo e a construção dos
   registros ficam acima, o que leva a ADRs novos. O executor parcial está implementado; o runner dos handlers tem implementação
-  na C14, com [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md), auditado pelo Claude, com a sonda em 12/12 no 17 e no 18. A IR permanece 0.6; o chat conserva
+  na C14, com [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md), auditado pelo Claude, com a sonda em 12/12 no 17 e no 18. A K20 roda os quatro
+  exemplos ponta a ponta pelo executor e mede o executor ([relatório](sondas/custo-executor.md)): o contexto assinado fica dentro de 25% da latência com um cliente e
+  inconclusivo com 16, com o CRM com revendas acima; a construção dos registros segue acima do gate de 10% (38% a 44%); a K20 foi auditada pelo Codex e está integrada, com a CI pendente. A IR permanece 0.6; o chat conserva
   seus artefatos.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
@@ -85,6 +87,15 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
 
 ## 1. Feito
 
+- [x] Ponta a ponta e medição do executor (K20, [relatório](sondas/custo-executor.md)): a sonda `sonda_ponta_a_ponta.rb` (26 verificações no 17 e no 18, e na CI) roda os quatro
+  exemplos como estão pelo `Runner`, com a outbox, o relay e os handlers reais `notify_sales` e `notify_seller`, e imprime as duas contagens de transações de cada comando (operação e borda,
+  teste 1 do ADR-016); inclui as duas recusas assumidas (`chat.add_member_by_email` e o comentário do visitante do blog) e três achados para a rodada 6: `crm.win_lead` não aceita chave
+  (a saída leva e-mail, e o exemplo declara `idempotency: :required`), o visitante do blog não lê nem o post publicado e o papel do chat não concede `delete` de sala. A medição
+  `medir_executor.rb` relata, por comando de referência, a latência, as instruções SQL, as validações de contexto contadas pelo banco e o percentual do custo por validação (48 µs com um cliente,
+  116 µs com 16, no 17): dentro de 25% com um cliente e inconclusivo com 16 clientes, com o CRM com revendas acima (56 validações em `update_lead`); a escrita em `vetra.idempotency`
+  custa cerca de 24% da latência de um comando que já escreve; a condição `vt_system` acrescenta de 0,03 a 0,64 ms por instrução ao ator comum e responde por 4 a 13 das validações de cada
+  comando do CRM com revendas; a construção dos registros continua em 38% a 44% da consulta, acima do gate de 10%; o PgBouncer em modo de transação acrescenta de 1,4 a 3,8 ms por comando
+  (só local, sem a CI). Não cumpre o teste 6 do ADR-023. Auditada pelo Codex (uma rodada, sete achados ajustados); integrada, com a CI pendente.
 - [x] Handlers de sistema (C14, [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md)): `Execution::HandlerRunner` reserva as entregas pelo `Relay`, monta a identidade de
   sistema do tenant do evento, roda o `call` do handler e o faz chamar os comandos de `calls` por `call_command`, pelo `Runner`, com a chave de idempotência derivada de handler,
   evento e ocorrência (origem `event`), a mesma chave no provedor externo e a retenção até a entrega sumir, inclusive `dead`; timeout total de 30 s com lease de 60 s,
@@ -626,6 +637,10 @@ A rodada é a da [lista de revisão](adr/revisao-de-aceite.md).
     desenho, e o critério 7 continua parcial por isso.
 - [ ] Mantenedor publicar a gem 0.1.0.pre.alpha.5: a rodada 2 do quadro terminou, e a publicação fixa os schemas
   0.4 a 0.6.
+- [ ] Mantenedor decidir, com os números da K20 ([relatório](sondas/custo-executor.md)): (a) a saída para o custo da `vt_system`, que responde por 4 a 13 das 22 a 67 validações de
+  contexto de cada comando do CRM com revendas e acrescenta de 0,03 a 0,64 ms por instrução, mas não leva sozinha os comandos abaixo de 25%; (b) se o resultado inconclusivo com 16 clientes
+  (CRM com revendas acima de 25%) reabre o desenho do ADR-005 por ADR novo, nos termos do ADR-023; (c) o orçamento do gate de 10% e o aceite do ADR-042 (construção em 38% a 44%);
+  (d) o aceite dos ADRs 042, 044, 045, 046, 047 e 048; e (e) o contrato do teste 6 do ADR-023, que continua pendente.
 
 ## 4. Fase 0: critérios do ADR-001
 
@@ -758,8 +773,10 @@ Detalhe e evidência em [fase-0-criterios.md](fase-0-criterios.md).
   limiar de 1 ms na leitura (de 0,8 a 2,8 ms), o que levou ao ADR-041 (K14): a forma lista, medida também em escrita, fica de
   +0,2 a +1,6 ms e acima de 1 ms em quase todo `UPDATE` e `DELETE` por chave, e o piso vem das referências ao contexto
   (baixá-lo é decisão futura sobre a função de contexto). O
-  teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. Faltam o pooler, ausente na CI, e a
-  medição de 25% da latência por comando, que espera o executor (rodada 5, K20); o teste 6 segue pendente. O gerador de políticas
+  teste de aceitação 6 (medição na CI que falha acima do limiar) continua pendente. A K20 mediu o percentual por comando com o executor
+  ([relatório](sondas/custo-executor.md)): dentro de 25% com um cliente e inconclusivo com 16 clientes, com o CRM com revendas acima, e o PgBouncer em modo
+  de transação, só local, acrescenta de 1,4 a 3,8 ms por comando. Faltam a medição direta da latência por comando com 16 clientes em laço fechado, o pooler na CI e o
+  teste 6, que segue pendente e depende do mantenedor. O gerador de políticas
   compõe o plano inicial com a forma tenant/ator não correlacionada e recusa vínculo sem índice físico
   tenant/ator. A autenticação (como a credencial escolhe a empresa) não tem ADR
 - [ ] **ADR-024:** a partição foi medida só no PostgreSQL 16.15, com carga sintética, um cliente, sem escrita
@@ -792,7 +809,7 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    idempotência (K16, implementada) e a autorização em Ruby (C13, ADR-044 proposto); a fase B, o executor (despacho,
    autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, foi
    **replanejada na P5** (parecer do Codex em duas rodadas, aprovada): C15 (limites da unidade), K17 (borda e despacho), C16
-   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15, a K17, a C16, a K18 e a K19 estão integradas; a C14 está integrada e a K20 é a próxima. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
+   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15, a K17, a C16, a K18, a K19 e a C14 estão integradas; a K20 está integrada, com a CI pendente. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
    pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
 2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:

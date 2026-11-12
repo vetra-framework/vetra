@@ -180,6 +180,14 @@ jobs:
         run: bundle exec ruby script/sonda_fechamento.rb
       - name: Handlers de sistema, com relay real, queda do worker, retenção da chave e timeout total (ADR-048)
         run: bundle exec ruby script/sonda_handlers.rb
+      - name: Ponta a ponta dos quatro exemplos pelo executor, com relay e handlers reais, e as contagens de transações (K20)
+        run: bundle exec ruby script/sonda_ponta_a_ponta.rb
+      - name: Medição do executor por comando, da idempotência e da vt_system, informativa (ADR-023, ADR-043, ADR-016)
+        env:
+          VETRA_MEDICAO_AMOSTRAS: '30'
+          VETRA_MEDICAO_SEGUNDOS: '0.5'
+          VETRA_MEDICAO_RODADAS: '1'
+        run: bundle exec ruby script/medir_executor.rb
       - name: Registro de idempotência da operação, concorrência, privilégios e purga (ADR-043)
         run: bundle exec ruby script/sonda_idempotencia.rb
       - name: Escopo por vínculo, permissões por ação e custo informativo (ADR-041)
