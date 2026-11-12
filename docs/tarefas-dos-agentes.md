@@ -82,7 +82,7 @@ tarefas seguem a ordem da tabela.
 | K18 | Executor II (fase B): autorização nos acessos dos repositórios, coletor de fatos na unidade, reautorização do estado final e ramo de sistema | Claude | concluída | `6304b3f` | Auditada pelo Codex em quatro rodadas (sete bloqueantes corrigidos); ADR-046 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k18)) |
 | K19 | Executor III (fase B): eventos do `emits`, idempotência, saídas 422/409/500 e a repetição com `retry_safe` e `unsafe_effect` | Claude | concluída | `ba60d88` | Auditada pelo Codex em cinco rodadas (doze bloqueantes corrigidos); ADR-047 proposto, aceite do mantenedor pendente ([auditoria](#auditoria-k19)) |
 | C14 | Handlers de sistema (fase B): runner sobre o `Relay`, timeout total do handler, chave derivada do evento, Effect Boundary e fixture com `calls` | Codex | concluída | `0627646` | Auditada pelo Claude, sonda 17/18 e CI verde; ADR-048 proposto, aceite do mantenedor pendente ([entrega](#entrega-da-c14-pelo-codex), [auditoria](#auditoria-c14)) |
-| K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | integrada, CI pendente | — | Auditada pelo Codex (uma rodada, sete achados ajustados); sem mudança em `lib/`, nenhum ADR novo; o teste 6 segue pendente ([entrega](#entrega-da-k20-pelo-claude), [auditoria](#auditoria-k20)) |
+| K20 | Ponta a ponta e a medição do ADR-023 com o executor; o teste 6 continua pendente | Claude | concluída | `6bb96e7` | Auditada pelo Codex (uma rodada, sete achados ajustados) e CI verde; sem mudança em `lib/`, nenhum ADR novo; o teste 6 segue pendente ([entrega](#entrega-da-k20-pelo-claude), [auditoria](#auditoria-k20)) |
 
 ### Parecer do Codex sobre o plano da rodada 5
 
@@ -1413,3 +1413,7 @@ leitura, a sintaxe, `diff --check`, o gate e as saídas completas das duas medi�
 | Limitação do ambiente do Codex: suíte com 422 erros por bloqueio de temporários no sandbox | não | Sem ação: é do sandbox; a suíte do Claude passa (808 testes, 0 falhas) |
 
 Os números do relatório vêm da execução completa anterior a estes ajustes; os ajustes não tocam a medição (só a limpeza do PgBouncer, o texto e a sonda ponta a ponta).
+**CI.** A [execução 43161298192](https://github.com/vetra-framework/vetra/actions/runs/43161298192) do commit `6bb96e7` passou nos cinco jobs; os dois passos novos rodaram no 17 e no 18, sem o
+PgBouncer (a parte do pooler é pulada e dita, como previsto), e a medição curta da CI (30 amostras, 0,5 s por série) terminou sem série vazia. Com a K20 a rodada 5 da persistência fecha. O
+que sobra é do mantenedor: a saída para o custo da `vt_system`, se o resultado inconclusivo com 16 clientes reabre o desenho do ADR-005, o orçamento do gate de 10% e o aceite do ADR-042, o aceite
+dos ADRs 042, 044, 045, 046, 047 e 048, e o contrato do teste 6 do ADR-023, que continua pendente.

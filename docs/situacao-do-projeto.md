@@ -35,7 +35,7 @@ substitui o [índice de ADRs](adr/README.md), a [lista de revisão](adr/revisao-
   registros ficam acima, o que leva a ADRs novos. O executor parcial está implementado; o runner dos handlers tem implementação
   na C14, com [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md), auditado pelo Claude, com a sonda em 12/12 no 17 e no 18. A K20 roda os quatro
   exemplos ponta a ponta pelo executor e mede o executor ([relatório](sondas/custo-executor.md)): o contexto assinado fica dentro de 25% da latência com um cliente e
-  inconclusivo com 16, com o CRM com revendas acima; a construção dos registros segue acima do gate de 10% (38% a 44%); a K20 foi auditada pelo Codex e está integrada, com a CI pendente. A IR permanece 0.6; o chat conserva
+  inconclusivo com 16, com o CRM com revendas acima; a construção dos registros segue acima do gate de 10% (38% a 44%); a K20 foi auditada pelo Codex e está integrada em `6bb96e7`, com a CI verde. A IR permanece 0.6; o chat conserva
   seus artefatos.
 - **Legenda:** `[x]` feito ou confirmado; `[ ]` pendente, incompleto ou não implementado. Cada pendência diz de
   quem é a decisão. "Quem revisa" é o mantenedor, que integra na `main`.
@@ -95,7 +95,7 @@ grep -l '^- Status: proposto' docs/adr/0*.md | wc -l
   116 µs com 16, no 17): dentro de 25% com um cliente e inconclusivo com 16 clientes, com o CRM com revendas acima (56 validações em `update_lead`); a escrita em `vetra.idempotency`
   custa cerca de 24% da latência de um comando que já escreve; a condição `vt_system` acrescenta de 0,03 a 0,64 ms por instrução ao ator comum e responde por 4 a 13 das validações de cada
   comando do CRM com revendas; a construção dos registros continua em 38% a 44% da consulta, acima do gate de 10%; o PgBouncer em modo de transação acrescenta de 1,4 a 3,8 ms por comando
-  (só local, sem a CI). Não cumpre o teste 6 do ADR-023. Auditada pelo Codex (uma rodada, sete achados ajustados); integrada, com a CI pendente.
+  (só local, sem a CI). Não cumpre o teste 6 do ADR-023. Auditada pelo Codex (uma rodada, sete achados ajustados); integrada em `6bb96e7`, com a CI verde ([execução 43161298192](https://github.com/vetra-framework/vetra/actions/runs/43161298192)).
 - [x] Handlers de sistema (C14, [ADR-048 proposto](adr/048-execucao-dos-handlers-de-sistema.md)): `Execution::HandlerRunner` reserva as entregas pelo `Relay`, monta a identidade de
   sistema do tenant do evento, roda o `call` do handler e o faz chamar os comandos de `calls` por `call_command`, pelo `Runner`, com a chave de idempotência derivada de handler,
   evento e ocorrência (origem `event`), a mesma chave no provedor externo e a retenção até a entrega sumir, inclusive `dead`; timeout total de 30 s com lease de 60 s,
@@ -809,7 +809,7 @@ O que já foi feito está na seção 1; aqui só ficam os passos que faltam.
    idempotência (K16, implementada) e a autorização em Ruby (C13, ADR-044 proposto); a fase B, o executor (despacho,
    autorização nos acessos dos repositórios, eventos, idempotência e repetição) e os handlers de sistema, foi
    **replanejada na P5** (parecer do Codex em duas rodadas, aprovada): C15 (limites da unidade), K17 (borda e despacho), C16
-   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15, a K17, a C16, a K18, a K19 e a C14 estão integradas; a K20 está integrada, com a CI pendente. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
+   (`many_to_many` no avaliador), K18, K19, C14 e K20, nessa ordem; a C15, a K17, a C16, a K18, a K19 e a C14 estão integradas; a K20 está integrada, e a rodada 5 fecha com ela. Planejada no [plano da persistência](plano-persistencia.md#rodada-5-decisões-da-k13-ator-de-sistema-idempotência-autorização-e-executor-parcial), com as tarefas K14 a K20 e C11 a C14
    no quadro, depois de um parecer do Codex que devolveu a primeira versão. **Entra primeiro:** a persistência já está
    pronta para recebê-la, e a única decisão que vai ao mantenedor é o teste 6 do ADR-023, que continua pendente.
 2. [ ] Fechar as lacunas declarativas da fase 0, com os exemplos da proposta. São dois grupos diferentes:
