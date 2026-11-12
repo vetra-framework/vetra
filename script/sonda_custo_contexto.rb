@@ -144,7 +144,10 @@ class ContextCostProbe < RelayProbe
           deadline = warm + @seconds
           loop do
             began = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-            break if began > deadline
+            # A janela acaba no prazo, mas só depois da primeira amostra: sob carga (uma CI com escrita de checkpoint) uma série curta pode
+            # não completar nenhuma transação, e a mediana de uma lista vazia não existe. O teto de 10 s vale entre transações: uma instrução
+            # bloqueada dentro de uma delas é limitada pelos limites do banco (transaction_timeout do vetra_app), e o pai não tem prazo próprio.
+            break if began > deadline && (!samples.empty? || began > deadline + 10)
             connection.exec('BEGIN')
             connection.exec_params('SELECT pg_catalog.set_config($1, $2, true)', context.call(state))
             count.times { statement.call(connection, state) }
@@ -152,6 +155,7 @@ class ContextCostProbe < RelayProbe
             connection.exec(@finish_statement || 'COMMIT')
             samples << ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - began) * 1000) if began > warm
           end
+          raise 'série sem amostra' if samples.empty?
           out_writer.write(Marshal.dump(samples))
         rescue StandardError => error
           (ready_writer.write('E') rescue nil) unless ready_writer.closed?
